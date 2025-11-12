@@ -9,7 +9,7 @@
 
 ---
 
-## 🎯 Why Farcaster First?
+## Why Farcaster First?
 
 We're launching DeCleanup on **Farcaster first** to validate product-market fit and build community before expanding. Here's why:
 
@@ -30,30 +30,30 @@ Native wallet integration via Farcaster SDK, mobile-first clients perfect for ph
 
 ---
 
-## ✨ Features Available for Testing
+## Features Available for Testing
 
-### 🌱 **Core Cleanup**
+### **Core Cleanup**
 - **Submit Cleanup**: Upload before/after photos with automatic geotagging
 - **Enhanced Impact Report**: Optional detailed metrics (+5 $DCU bonus)
 - **Recyclables Submission**: Submit proof of separated recyclables (10 cRECY tokens, partnership with Recy App)
 
-### 🏆 **Rewards & Gamification**
+### **Rewards & Gamification**
 - **Impact Products** (dynamic NFTs): 10 progressive levels (Newbie → Guardian) that evolve based on cleanup activity
 - **$DCU Points**: Earn points for verified cleanups, enhanced reports, and referrals - exchangeable to $DCU token after TGE
 - **Level Claiming**: Claim Impact Product level after verification
 
-### 👥 **Social & Community**
+### **Social & Community**
 - **Referral System**: Generate referral links, earn 3 $DCU per verified referral
 - **Leaderboard**: Weighted scoring system ranking top contributors
 - **User Profile**: Track $DCU balance, Impact Product level, streak, referrals, and leaderboard score
 
-### 🔥 **Engagement**
+### **Engagement**
 - **Streak System**: Maintain cleanup streaks that contribute to leaderboard score
 - **Farcaster Integration**: Native wallet connection and user context
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Node.js 18+
@@ -85,7 +85,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Framework**: Next.js 14 (App Router) with TypeScript
 - **Blockchain**: Wagmi v2 + Viem on Celo network
@@ -95,7 +95,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 📊 Smart Contracts
+## Smart Contracts
 
 The app interacts with DeCleanup Network smart contracts on Celo:
 - Impact Product NFT contract
@@ -104,13 +104,13 @@ The app interacts with DeCleanup Network smart contracts on Celo:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Fork the repository, create a feature branch, and open a Pull Request.
 
 ---
 
-## 🔗 Resources
+## Resources
 
 - [DeCleanup Network GitHub](https://github.com/DeCleanup-Network)
 - [Farcaster Mini Apps Docs](https://docs.farcaster.xyz/developers/mini-apps)
@@ -119,7 +119,7 @@ Contributions are welcome! Fork the repository, create a feature branch, and ope
 
 ---
 
-## 💬 Support
+## Support
 
 Join our Telegram: [t.me/DecentralizedCleanup](https://t.me/DecentralizedCleanup)
 
