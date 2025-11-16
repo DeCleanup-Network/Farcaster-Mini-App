@@ -1,0 +1,36 @@
+{
+  "name": "DeCleanup Impact Product • Level 2",
+  "description": "Tokenized proof of real-world cleanups, verified by DeCleanup Network.",
+  "external_url": "https://decleanup.network",
+  "image": "ipfs://bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y/IP2.png",
+  "attributes": [
+    {
+      "trait_type": "Category",
+      "value": "Cleanup NFT"
+    },
+    {
+      "trait_type": "Type",
+      "value": "Dynamic"
+    },
+    {
+      "trait_type": "Impact",
+      "value": "Environment"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Unique"
+    },
+    {
+      "trait_type": "Impact Value",
+      "value": "2"
+    },
+    {
+      "trait_type": "$DCU",
+      "value": "20"
+    },
+    {
+      "trait_type": "Level",
+      "value": "Newbie"
+    }
+  ]
+}

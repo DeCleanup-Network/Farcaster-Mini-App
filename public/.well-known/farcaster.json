@@ -1,0 +1,13 @@
+{
+  "miniapp": {
+    "version": "1.0.0",
+    "name": "DeCleanup",
+    "iconUrl": "https://decleanup.network/icon.png",
+    "homeUrl": "https://decleanup.network",
+    "splashImageUrl": "https://decleanup.network/splash.png",
+    "splashBackgroundColor": "#58B12F",
+    "heroImageUrl": "https://decleanup.network/hero.png",
+    "tagline": "Tokenize your environmental impact"
+  }
+}
+
