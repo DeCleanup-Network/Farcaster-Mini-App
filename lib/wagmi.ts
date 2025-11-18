@@ -1,43 +1,65 @@
-import { celo } from 'wagmi/chains'
+import { base, baseSepolia } from 'wagmi/chains'
 import { createConfig, http } from 'wagmi'
 import { injected, walletConnect } from 'wagmi/connectors'
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector'
 import { defineChain } from 'viem'
 
-// Celo chain configuration
-const celoMainnet = {
-  ...celo,
-  rpcUrls: {
-    default: {
-      http: [process.env.NEXT_PUBLIC_CELO_RPC_URL || 'https://forno.celo.org'],
-    },
-  },
-}
+const baseMainnetRpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'
+const baseSepoliaRpcUrl = process.env.NEXT_PUBLIC_TESTNET_RPC_URL || 'https://sepolia.base.org'
 
-// Celo Sepolia Testnet configuration
-const celoSepolia = defineChain({
-  id: 11142220,
-  name: 'Celo Sepolia Testnet',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'CELO',
-    symbol: 'CELO',
-  },
+const baseMainnet = {
+  ...base,
   rpcUrls: {
     default: {
-      http: [process.env.NEXT_PUBLIC_CELO_TESTNET_RPC_URL || 'https://forno.celo-sepolia.celo-testnet.org'],
+      http: [baseMainnetRpcUrl],
+    },
+    public: {
+      http: [baseMainnetRpcUrl],
     },
   },
   blockExplorers: {
     default: {
-      name: 'CeloScan Sepolia',
-      url: 'https://sepolia.celoscan.io',
+      name: 'Basescan',
+      url: 'https://basescan.org',
     },
   },
+}
+
+const baseSepoliaChain = defineChain({
+  id: baseSepolia.id,
+  name: 'Base Sepolia Testnet',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'ETH',
+    symbol: 'ETH',
+  },
+  rpcUrls: {
+    default: {
+      http: [baseSepoliaRpcUrl],
+    },
+    public: {
+      http: [baseSepoliaRpcUrl],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Basescan Sepolia',
+      url: 'https://sepolia.basescan.org',
+    },
+  },
+  contracts: baseSepolia.contracts,
   testnet: true,
 })
 
-const celoTestnet = celoSepolia
+const configuredChains = [baseSepoliaChain, baseMainnet] as const
+const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || baseSepoliaChain.id)
+const requiredChain =
+  configuredChains.find((chain) => chain.id === requiredChainId) ?? baseSepoliaChain
+const requiredChainLabel = requiredChain.testnet ? 'Base Sepolia Testnet' : 'Base Mainnet'
+const requiredBlockExplorerUrl = requiredChain.testnet
+  ? 'https://sepolia.basescan.org'
+  : 'https://basescan.org'
+const requiredRpcUrl = requiredChain.id === baseMainnet.id ? baseMainnetRpcUrl : baseSepoliaRpcUrl
 
 // Wagmi configuration with Farcaster wallet support
 // Note: Using injected() instead of metaMask() to avoid SSR issues
@@ -66,22 +88,35 @@ if (walletConnectProjectId && walletConnectProjectId.trim() !== '') {
 }
 
 export const config = createConfig({
-  chains: [celoTestnet, celoMainnet], // Put testnet first so it's the default
+  chains: configuredChains,
   connectors,
   transports: {
-    [celoMainnet.id]: http(),
-    [celoTestnet.id]: http(),
+    [baseMainnet.id]: http(baseMainnetRpcUrl),
+    [baseSepoliaChain.id]: http(baseSepoliaRpcUrl),
   },
 })
 
-// Default chain ID (Celo Sepolia)
-export const DEFAULT_CHAIN_ID = celoSepolia.id
+// Default/Base chain metadata exports
+export const DEFAULT_CHAIN_ID = requiredChainId
+export const REQUIRED_CHAIN_ID = requiredChainId
+export const REQUIRED_CHAIN_NAME = requiredChainLabel
+export const REQUIRED_BLOCK_EXPLORER_URL = requiredBlockExplorerUrl
+export const REQUIRED_RPC_URL = requiredRpcUrl
+export const REQUIRED_CHAIN_IS_TESTNET = Boolean(requiredChain.testnet)
 
 // Contract addresses (update with actual addresses)
 export const CONTRACT_ADDRESSES = {
-  IMPACT_PRODUCT: process.env.NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT || '',
-  VERIFICATION: process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT || '',
-  REWARD_DISTRIBUTOR: process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_CONTRACT || '',
-  RECYCLABLES: process.env.NEXT_PUBLIC_RECYCLABLES_CONTRACT || '',
+  IMPACT_PRODUCT:
+    process.env.NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS ||
+    process.env.NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT ||
+    '',
+  VERIFICATION:
+    process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS ||
+    process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT ||
+    '',
+  REWARD_DISTRIBUTOR:
+    process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_CONTRACT ||
+    process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_ADDRESS ||
+    '',
 } as const
 

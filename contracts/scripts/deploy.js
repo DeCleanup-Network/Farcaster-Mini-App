@@ -24,7 +24,8 @@ async function main() {
   // ============================================
   
   // Metadata CID from IPFS (your metadata folder)
-  const METADATA_BASE_URI = "ipfs://bafybeigmwgkcqelpkohd3eqm2azw5k3ly6psfnaos5dztlklyybrvrsece/";
+  // Can be overridden via environment variable: IMPACT_PRODUCT_BASE_URI
+  const METADATA_BASE_URI = process.env.IMPACT_PRODUCT_BASE_URI || "ipfs://bafybeifgncb7zgjydfuhr26anittgtib5hda2dlvhdabzpdb6xa2s26luu/";
   
   // Verifier allowlist - read from .env file
   // Format in .env: VERIFIER_ADDRESSES=0x7d85fcbb505d48e6176483733b62b51704e0bf95,0xANOTHER_ADDRESS
@@ -130,16 +131,6 @@ async function main() {
   console.log("  Submission fee:", SUBMISSION_FEE, "wei (enabled:", FEE_ENABLED + ")");
 
   // ============================================
-  // STEP 4: Deploy RecyclablesReward
-  // ============================================
-  console.log("\nStep 4: Deploying RecyclablesReward...");
-  const RecyclablesReward = await ethers.getContractFactory("RecyclablesReward");
-  const recyclablesReward = await RecyclablesReward.deploy(VERIFIER_ADDRESSES); // Pass array of verifiers
-  await recyclablesReward.waitForDeployment();
-  const recyclablesRewardAddress = await recyclablesReward.getAddress();
-  console.log("✓ RecyclablesReward deployed to:", recyclablesRewardAddress);
-
-  // ============================================
   // POST-DEPLOYMENT SETUP
   // ============================================
   console.log("\n=== Post-Deployment Setup ===");
@@ -149,6 +140,18 @@ async function main() {
   const setRewardDistributorNFTTx = await impactProductNFT.setRewardDistributor(rewardDistributorAddress);
   await setRewardDistributorNFTTx.wait();
   console.log("✓ RewardDistributor set in ImpactProductNFT");
+  
+  // 2. Set verification contract in ImpactProductNFT (required for claimLevelForUser authorization)
+  console.log("\n2. Setting verification contract in ImpactProductNFT...");
+  const setVerificationContractNFTTx = await impactProductNFT.setVerificationContract(verificationContractAddress);
+  await setVerificationContractNFTTx.wait();
+  console.log("✓ Verification contract set in ImpactProductNFT");
+  
+  // 3. Set verification contract in RewardDistributor so it can distribute rewards
+  console.log("\n3. Setting verification contract in RewardDistributor...");
+  const setVerificationContractTx = await rewardDistributor.setVerificationContract(verificationContractAddress);
+  await setVerificationContractTx.wait();
+  console.log("✓ Verification contract set in RewardDistributor");
 
   // ============================================
   // DEPLOYMENT SUMMARY
@@ -160,17 +163,13 @@ async function main() {
   console.log("ImpactProductNFT:", impactProductNFTAddress);
   console.log("RewardDistributor:", rewardDistributorAddress);
   console.log("VerificationContract:", verificationContractAddress);
-  console.log("RecyclablesReward:", recyclablesRewardAddress);
+  console.log("RecyclablesReward: (not deployed)");
   console.log("\n=== Next Steps ===");
-  console.log("1. Fund RecyclablesReward with 5000 cRECY tokens:");
-  console.log("   - Approve: cRECY.approve(" + recyclablesRewardAddress + ", 5000000000000000000000)");
-  console.log("   - Fund: recyclablesReward.fundReserve(5000000000000000000000)");
-  console.log("\n2. Update .env.local with contract addresses:");
+  console.log("1. Update .env.local with contract addresses:");
   console.log("   NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT=" + impactProductNFTAddress);
   console.log("   NEXT_PUBLIC_REWARD_DISTRIBUTOR_CONTRACT=" + rewardDistributorAddress);
   console.log("   NEXT_PUBLIC_VERIFICATION_CONTRACT=" + verificationContractAddress);
-  console.log("   NEXT_PUBLIC_RECYCLABLES_CONTRACT=" + recyclablesRewardAddress);
-  console.log("\n3. Verify contracts on Celo Explorer (if needed)");
+  console.log("\n2. Verify contracts on Base explorer (if needed)");
   console.log("\n=== Deployment Complete! ===");
 }
 

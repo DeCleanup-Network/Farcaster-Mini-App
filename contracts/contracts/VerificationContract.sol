@@ -26,6 +26,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         uint8 level; // Level to be claimed (1-10)
         address referrer; // Referrer address (if any)
         bool hasImpactForm; // Whether enhanced impact form was filled
+        string impactReportHash; // IPFS hash for enhanced impact report (optional)
     }
     
     // Cleanup submissions mapping
@@ -94,6 +95,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
      * @param longitude Longitude (scaled by 1e6)
      * @param referrerAddress Referrer address (optional, can be address(0))
      * @param hasImpactForm Whether enhanced impact form was filled
+     * @param impactReportHash IPFS hash of enhanced impact report (can be empty)
      * @return cleanupId The cleanup ID
      */
     function submitCleanup(
@@ -102,7 +104,8 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         uint256 latitude,
         uint256 longitude,
         address referrerAddress,
-        bool hasImpactForm
+        bool hasImpactForm,
+        string memory impactReportHash
     ) external payable nonReentrant returns (uint256) {
         require(bytes(beforePhotoHash).length > 0, "Before photo hash required");
         require(bytes(afterPhotoHash).length > 0, "After photo hash required");
@@ -129,7 +132,8 @@ contract VerificationContract is Ownable, ReentrancyGuard {
             rejected: false,
             level: 0,
             referrer: referrerAddress,
-            hasImpactForm: hasImpactForm
+            hasImpactForm: hasImpactForm,
+            impactReportHash: impactReportHash
         });
         
         // Set referrer if provided
@@ -240,6 +244,15 @@ contract VerificationContract is Ownable, ReentrancyGuard {
      */
     function getCleanup(uint256 cleanupId) external view returns (CleanupSubmission memory) {
         return cleanups[cleanupId];
+    }
+    
+    /**
+     * @notice Get impact report hash for a cleanup
+     * @param cleanupId Cleanup ID
+     * @return impact report IPFS hash (empty if not provided)
+     */
+    function getImpactReportHash(uint256 cleanupId) external view returns (string memory) {
+        return cleanups[cleanupId].impactReportHash;
     }
     
     /**

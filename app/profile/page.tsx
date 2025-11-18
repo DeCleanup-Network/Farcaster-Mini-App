@@ -18,9 +18,16 @@ import {
   getCleanupStatus,
   claimImpactProductFromVerification,
 } from '@/lib/contracts'
+import { REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
+
+const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
+  ? 'Basescan (Sepolia)'
+  : 'Basescan'
+const getExplorerTxUrl = (hash: `0x${string}`) => `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${hash}`
 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount()
+  const [hasMounted, setHasMounted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [profileData, setProfileData] = useState({
     dcuBalance: 0,
@@ -42,6 +49,11 @@ export default function ProfilePage() {
   } | null>(null)
   const [isClaiming, setIsClaiming] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Prevent hydration mismatch by ensuring we render only after mounting
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!isConnected || !address) {
@@ -168,7 +180,8 @@ export default function ProfilePage() {
                 if (metadata?.image) {
                   // Fix old image paths: /images/level1.png -> IP1.png
                   let fixedImagePath = metadata.image
-                  const imagesCID = 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'
+                  // Use environment variable if set, otherwise fallback to hardcoded CID
+                  const imagesCID = process.env.NEXT_PUBLIC_IMPACT_IMAGES_CID || 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'
                   
                   // Check if it's the old format: /images/levelX.png
                   if (fixedImagePath.includes('/images/level')) {
@@ -391,6 +404,10 @@ export default function ProfilePage() {
     const interval = setInterval(checkCleanupStatus, 10000)
     return () => clearInterval(interval)
   }, [address, isConnected])
+
+  if (!hasMounted) {
+    return <div className="min-h-screen bg-black" />
+  }
 
   if (!isConnected) {
     return (
@@ -674,7 +691,7 @@ export default function ProfilePage() {
                           `✅ Claim transaction submitted!\n\n` +
                           `Transaction Hash: ${hash}\n\n` +
                           `Your Impact Product NFT will be minted once the transaction confirms.\n\n` +
-                          `View on CeloScan: https://sepolia.celoscan.io/tx/${hash}`
+                          `View on ${BLOCK_EXPLORER_NAME}: ${getExplorerTxUrl(hash)}`
                         )
                         
                         // Wait for transaction confirmation

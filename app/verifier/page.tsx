@@ -18,10 +18,15 @@ const {
 } = contractsLib
 import { Address } from 'viem'
 import { waitForTransactionReceipt } from 'wagmi/actions'
-import { config } from '@/lib/wagmi'
+import { config, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
+import { getIPFSUrl } from '@/lib/ipfs'
 
 const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
+const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
+  ? 'Basescan (Sepolia)'
+  : 'Basescan'
+const getExplorerTxUrl = (hash: `0x${string}`) => `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${hash}`
 
 interface CleanupItem {
   id: bigint
@@ -37,7 +42,9 @@ interface CleanupItem {
   level: number
   referrer: Address
   hasImpactForm: boolean
+  impactReportHash: string
 }
+
 
 // Message to sign for verifier authentication
 const VERIFIER_AUTH_MESSAGE = 'I am requesting access to the DeCleanup Verifier Dashboard. This signature proves I control this wallet address.'
@@ -388,12 +395,12 @@ export default function VerifierPage() {
       setSelectedCleanup(null)
       
       // Show success with transaction hash
-      const explorerUrl = `https://sepolia.celoscan.io/tx/${hash}`
+      const explorerUrl = getExplorerTxUrl(hash)
       alert(
         `✅ Verification transaction submitted!\n\n` +
         `Transaction Hash: ${hash}\n\n` +
         `The cleanup will be verified once the transaction confirms (usually within 1-2 minutes).\n\n` +
-        `View on CeloScan: ${explorerUrl}`
+        `View on ${BLOCK_EXPLORER_NAME}: ${explorerUrl}`
       )
       
       // Poll for verification status by checking the cleanup directly
@@ -420,7 +427,9 @@ export default function VerifierPage() {
             console.log('Max polls reached, stopping background check')
             clearInterval(pollInterval)
             setPollingStatus(null)
-            alert(`Polling stopped after ${maxPolls} attempts. The transaction may still be pending. Check CeloScan for status.`)
+            alert(
+              `Polling stopped after ${maxPolls} attempts. The transaction may still be pending. Check ${BLOCK_EXPLORER_NAME} for status.`
+            )
           }
         } catch (checkError: any) {
           const errorMsg = checkError?.message || String(checkError)
@@ -464,12 +473,12 @@ export default function VerifierPage() {
       setSelectedCleanup(null)
       
       // Show success with transaction hash
-      const explorerUrl = `https://sepolia.celoscan.io/tx/${hash}`
+      const explorerUrl = getExplorerTxUrl(hash)
       alert(
         `✅ Rejection transaction submitted!\n\n` +
         `Transaction Hash: ${hash}\n\n` +
         `The cleanup will be marked as rejected once the transaction confirms.\n\n` +
-        `View on CeloScan: ${explorerUrl}`
+        `View on ${BLOCK_EXPLORER_NAME}: ${explorerUrl}`
       )
     } catch (error) {
       console.error('Error rejecting cleanup:', error)
@@ -504,6 +513,166 @@ export default function VerifierPage() {
     if (level >= 7 && level <= 9) return 'Hero'
     if (level >= 10) return 'Guardian'
     return 'Unassigned'
+  }
+
+
+  // Component to fetch and display impact report details from IPFS
+  function ImpactReportDetails({ impactReportHash }: { impactReportHash?: string | null }) {
+    const [impactData, setImpactData] = useState<any>(null)
+    const [impactDataUrl, setImpactDataUrl] = useState<string | null>(null)
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+
+    useEffect(() => {
+      async function fetchImpactData() {
+        if (!impactReportHash) {
+          setError('Impact report data was not provided with this cleanup.')
+          setLoading(false)
+          return
+        }
+        try {
+          setLoading(true)
+          const url = getIPFSUrl(impactReportHash)
+          setImpactDataUrl(url)
+          const response = await fetch(url)
+          if (!response.ok) {
+            throw new Error('Failed to fetch impact report data from IPFS')
+          }
+          const data = await response.json()
+          setImpactData(data)
+        } catch (err: any) {
+          console.error('Error fetching impact report data:', err)
+          setError(err.message || 'Failed to load impact report data')
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      fetchImpactData()
+    }, [impactReportHash])
+
+    if (loading) {
+      return (
+        <div className="mt-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-sm">
+          <p className="font-semibold text-green-300">Impact Report</p>
+          <p className="mt-2 text-gray-200">Loading impact report data…</p>
+        </div>
+      )
+    }
+
+    if (error || !impactData) {
+      return (
+        <div className="mt-3 rounded-xl border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm">
+          <p className="font-semibold text-yellow-200">Impact Report</p>
+          <p className="mt-2 text-gray-200">
+            {error || 'Impact report metadata is unavailable. Ask the submitter to re-open the cleanup and re-send the enhanced form if needed.'}
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="mt-3 rounded-xl border border-green-500/40 bg-green-500/5 p-4 text-sm text-gray-100">
+        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <p className="font-semibold uppercase tracking-wide text-green-300">Impact Report Details</p>
+          {impactDataUrl && (
+            <a
+              href={impactDataUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-green-200 underline hover:text-green-100"
+            >
+              View raw IPFS JSON
+            </a>
+          )}
+        </div>
+
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {impactData.locationType && (
+            <div>
+              <dt className="text-xs uppercase text-gray-400">Location Type</dt>
+              <dd className="text-base text-white">{impactData.locationType}</dd>
+            </div>
+          )}
+          {impactData.area && (
+            <div>
+              <dt className="text-xs uppercase text-gray-400">Area Cleaned</dt>
+              <dd className="text-base text-white">
+                {impactData.area} {impactData.areaUnit === 'sqm' ? 'm²' : 'ft²'}
+              </dd>
+            </div>
+          )}
+          {impactData.weight && (
+            <div>
+              <dt className="text-xs uppercase text-gray-400">Weight Removed</dt>
+              <dd className="text-base text-white">
+                {impactData.weight} {impactData.weightUnit}
+              </dd>
+            </div>
+          )}
+          {impactData.bags && (
+            <div>
+              <dt className="text-xs uppercase text-gray-400">Bags Filled</dt>
+              <dd className="text-base text-white">{impactData.bags}</dd>
+            </div>
+          )}
+          {(impactData.hours || impactData.minutes) && (
+            <div>
+              <dt className="text-xs uppercase text-gray-400">Time Spent</dt>
+              <dd className="text-base text-white">
+                {impactData.hours || 0}h {impactData.minutes || 0}m
+              </dd>
+            </div>
+          )}
+          {impactData.wasteTypes && impactData.wasteTypes.length > 0 && (
+            <div>
+              <dt className="text-xs uppercase text-gray-400">Waste Types</dt>
+              <dd className="text-base text-white">{impactData.wasteTypes.join(', ')}</dd>
+            </div>
+          )}
+          {impactData.contributors && impactData.contributors.length > 0 && (
+            <div>
+              <dt className="text-xs uppercase text-gray-400">Contributors</dt>
+              <dd className="text-base text-white">{impactData.contributors.length} address(es)</dd>
+            </div>
+          )}
+          {impactData.scopeOfWork && (
+            <div className="sm:col-span-2">
+              <dt className="text-xs uppercase text-gray-400">Scope of Work</dt>
+              <dd className="text-base text-white">{impactData.scopeOfWork}</dd>
+            </div>
+          )}
+          {impactData.rightsAssignment && (
+            <div>
+              <dt className="text-xs uppercase text-gray-400">Rights Assignment</dt>
+              <dd className="text-base text-white">{impactData.rightsAssignment}</dd>
+            </div>
+          )}
+          {impactData.environmentalChallenges && (
+            <div className="sm:col-span-2">
+              <dt className="text-xs uppercase text-gray-400">Environmental Challenges</dt>
+              <dd className="text-base text-white">{impactData.environmentalChallenges}</dd>
+            </div>
+          )}
+          {impactData.preventionIdeas && (
+            <div className="sm:col-span-2">
+              <dt className="text-xs uppercase text-gray-400">Prevention Suggestions</dt>
+              <dd className="text-base text-white">{impactData.preventionIdeas}</dd>
+            </div>
+          )}
+          {impactData.additionalNotes && (
+            <div className="sm:col-span-2">
+              <dt className="text-xs uppercase text-gray-400">Additional Notes</dt>
+              <dd className="text-base text-white whitespace-pre-wrap">{impactData.additionalNotes}</dd>
+            </div>
+          )}
+        </dl>
+
+        <p className="mt-4 text-xs text-gray-400">
+          * Impact report data is self-reported; verify details against the provided photos before approving.
+        </p>
+      </div>
+    )
   }
 
   const pendingCleanups = cleanups.filter((c) => !c.verified && !c.rejected)
@@ -651,7 +820,7 @@ export default function VerifierPage() {
               <ul className="list-inside list-disc space-y-1 text-sm text-gray-400">
                 <li>Ensure contracts are deployed with your address in VERIFIER_ADDRESSES</li>
                 <li>Check that NEXT_PUBLIC_VERIFICATION_CONTRACT matches the deployed contract</li>
-                <li>Verify you're connected to the correct network (Celo Sepolia)</li>
+                <li>Verify you're connected to the correct network ({REQUIRED_CHAIN_NAME})</li>
                 <li>Check browser console for detailed error messages</li>
               </ul>
             </div>
@@ -696,11 +865,11 @@ export default function VerifierPage() {
             )}
           </div>
           <div className="rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
-            <div className="text-sm text-gray-400">Pending Verification</div>
+            <div className="text-sm text-gray-400">Pending Cleanups</div>
             <div className="mt-1 text-2xl font-bold text-yellow-400">{pendingCleanups.length}</div>
           </div>
           <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-4">
-            <div className="text-sm text-gray-400">Verified</div>
+            <div className="text-sm text-gray-400">Verified Cleanups</div>
             <div className="mt-1 text-2xl font-bold text-green-400">{verifiedCleanups.length}</div>
           </div>
         </div>
@@ -759,18 +928,7 @@ export default function VerifierPage() {
                               <span className="text-xs text-gray-400">(click to {expandedForms.has(cleanup.id.toString()) ? 'collapse' : 'expand'})</span>
                             </button>
                             {expandedForms.has(cleanup.id.toString()) && (
-                              <div className="mt-2 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs">
-                                <p className="mb-2 font-semibold text-green-400">Enhanced Impact Report:</p>
-                                <p className="text-gray-300">
-                                  The user submitted an enhanced impact form with additional details.
-                                  <br />
-                                  <span className="text-gray-400 italic">
-                                    Note: Detailed form data (area, weight, environmental challenges, prevention ideas, etc.) is not currently stored on-chain.
-                                    <br />
-                                    Only the submission flag is recorded. To view full details, this data would need to be stored in IPFS metadata or a backend database.
-                                  </span>
-                                </p>
-                              </div>
+                              <ImpactReportDetails impactReportHash={cleanup.impactReportHash} />
                             )}
                           </div>
                         )}

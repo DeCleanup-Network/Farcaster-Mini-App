@@ -6,8 +6,7 @@ import type { Connector } from 'wagmi'
 import { Button } from '@/components/ui/button'
 import { Wallet, LogOut, ChevronDown } from 'lucide-react'
 import { isFarcasterContext } from '@/lib/farcaster'
-
-const CELO_SEPOLIA_CHAIN_ID = 11142220
+import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 
 export function WalletConnect() {
   const [mounted, setMounted] = useState(false)
@@ -87,13 +86,15 @@ export function WalletConnect() {
     }
   }, [mounted, isInFarcaster, isConnected, farcasterConnector, connectAsync])
 
-  // Auto-switch to Celo Sepolia after connection
+  // Auto-switch to required chain after connection
   useEffect(() => {
-    if (isConnected && chainId !== CELO_SEPOLIA_CHAIN_ID && !hasSwitchedNetwork) {
+    if (isConnected && chainId !== REQUIRED_CHAIN_ID && !hasSwitchedNetwork) {
       const attemptSwitch = async () => {
         try {
-          console.log(`Auto-switching from chain ${chainId} to Celo Sepolia (${CELO_SEPOLIA_CHAIN_ID})...`)
-          await switchChain({ chainId: CELO_SEPOLIA_CHAIN_ID })
+          console.log(
+            `Auto-switching from chain ${chainId} to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})...`
+          )
+          await switchChain({ chainId: REQUIRED_CHAIN_ID })
           setHasSwitchedNetwork(true)
         } catch (error: any) {
           console.log('Auto network switch failed or was rejected:', error)
@@ -103,7 +104,7 @@ export function WalletConnect() {
       // Wait a bit after connection before attempting switch
       const timeout = setTimeout(attemptSwitch, 1000)
       return () => clearTimeout(timeout)
-    } else if (chainId === CELO_SEPOLIA_CHAIN_ID) {
+    } else if (chainId === REQUIRED_CHAIN_ID) {
       setHasSwitchedNetwork(true)
     }
   }, [isConnected, chainId, hasSwitchedNetwork, switchChain])

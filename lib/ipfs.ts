@@ -94,6 +94,86 @@ export async function uploadMultipleToIPFS(files: File[]): Promise<IPFSUploadRes
 }
 
 /**
+ * Upload JSON data to IPFS using Pinata
+ * @param data JSON data to upload
+ * @param name Name for the metadata
+ * @returns IPFS hash (CID) and URL
+ */
+export async function uploadJSONToIPFS(data: any, name: string = 'data'): Promise<IPFSUploadResult> {
+  try {
+    const pinataApiKey = process.env.NEXT_PUBLIC_PINATA_API_KEY
+    const pinataSecretKey = process.env.NEXT_PUBLIC_PINATA_SECRET_KEY
+
+    if (!pinataApiKey || !pinataSecretKey) {
+      throw new Error('Pinata API keys not configured. Please set NEXT_PUBLIC_PINATA_API_KEY and NEXT_PUBLIC_PINATA_SECRET_KEY in .env.local')
+    }
+
+    // Create JSON blob
+    const jsonBlob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const jsonFile = new File([jsonBlob], `${name}.json`, { type: 'application/json' })
+
+    // Create FormData for Pinata
+    const formData = new FormData()
+    formData.append('file', jsonFile)
+
+    // Add metadata
+    const metadata = JSON.stringify({
+      name: `${name}.json`,
+      keyvalues: {
+        type: 'impact-report',
+        timestamp: new Date().toISOString(),
+      },
+    })
+    formData.append('pinataMetadata', metadata)
+
+    // Add options
+    const options = JSON.stringify({
+      cidVersion: 1,
+      wrapWithDirectory: false,
+    })
+    formData.append('pinataOptions', options)
+
+    // Upload to Pinata
+    const response = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+      method: 'POST',
+      headers: {
+        pinata_api_key: pinataApiKey,
+        pinata_secret_api_key: pinataSecretKey,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      console.error('Pinata upload error:', errorData)
+      throw new Error(`Failed to upload to IPFS: ${errorData.error?.reason || response.statusText}`)
+    }
+
+    const result = await response.json()
+    const ipfsHash = result.IpfsHash || result.hash || result.cid
+
+    if (!ipfsHash) {
+      throw new Error('No IPFS hash returned from Pinata')
+    }
+
+    // Construct IPFS URL
+    const gateway = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
+    const ipfsUrl = `${gateway}${ipfsHash}`
+
+    return {
+      hash: ipfsHash,
+      url: ipfsUrl,
+    }
+  } catch (error) {
+    console.error('IPFS JSON upload error:', error)
+    if (error instanceof Error) {
+      throw error
+    }
+    throw new Error('Failed to upload JSON to IPFS')
+  }
+}
+
+/**
  * Get IPFS URL from hash
  * @param hash IPFS hash
  * @returns Full IPFS URL

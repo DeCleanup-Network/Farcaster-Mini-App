@@ -9,11 +9,15 @@
 
 require('dotenv').config({ path: '.env.local' })
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT
-const RPC_URL = process.env.NEXT_PUBLIC_CELO_TESTNET_RPC_URL || 'https://forno.celo-sepolia.celo-testnet.org'
+const CONTRACT_ADDRESS =
+  process.env.NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS || process.env.NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT
+const RPC_URL =
+  process.env.NEXT_PUBLIC_TESTNET_RPC_URL ||
+  process.env.NEXT_PUBLIC_RPC_URL ||
+  'https://sepolia.base.org'
 
 if (!CONTRACT_ADDRESS) {
-  console.error('❌ NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT not set in .env.local')
+  console.error('❌ NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS not set in .env.local')
   process.exit(1)
 }
 

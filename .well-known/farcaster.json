@@ -1,13 +1,33 @@
 {
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "baseBuilder": {
+    "ownerAddress": "0x54e2bC746Cf63469A0ca1e3c6647BB3cfCE48978"
+  },
   "miniapp": {
-    "version": "1.0.0",
-    "name": "DeCleanup",
-    "iconUrl": "https://decleanup.net/icon.png",
-    "homeUrl": "https://miniapp.decleanup.net",
-    "splashImageUrl": "https://decleanup.net/splash.png",
-    "splashBackgroundColor": "#10B981",
-    "heroImageUrl": "https://decleanup.net/hero.png",
-    "tagline": "Tokenize your environmental impact"
+    "version": "1",
+    "name": "DeCleanup Network",
+    "homeUrl": "https://decleanup.network",
+    "iconUrl": "https://decleanup.network/icon.png",
+    "splashImageUrl": "https://decleanup.network/splash.png",
+    "splashBackgroundColor": "#000000",
+    "subtitle": "Tokenize Your Environmental Impact",
+    "description": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
+    "screenshotUrls": [
+      "https://decleanup.network/screenshot1.png",
+      "https://decleanup.network/screenshot2.png",
+      "https://decleanup.network/screenshot3.png"
+    ],
+    "primaryCategory": "social",
+    "tags": ["environment", "cleanup", "impact", "nft", "base"],
+    "heroImageUrl": "https://decleanup.network/og-image.png",
+    "tagline": "Clean Up, Snap, Earn",
+    "ogTitle": "DeCleanup Network - Tokenize Your Environmental Impact",
+    "ogDescription": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
+    "ogImageUrl": "https://decleanup.network/og-image.png",
+    "noindex": false
   }
 }
-
