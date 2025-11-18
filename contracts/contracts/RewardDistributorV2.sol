@@ -1,16 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
- * @title RewardDistributor
- * @notice Central contract for distributing DCU points
+ * @title RewardDistributorV2
+ * @notice Central contract for distributing DCU points (upgradeable)
  * @dev Handles level rewards, streak rewards, referral rewards, and impact form rewards
+ * 
+ * IMPORTANT: Currently uses points system. DCU token contract will be integrated soon.
+ * When DCU token is deployed, points will be migrated to actual tokens via migratePointsToToken().
+ * 
+ * This contract is upgradeable using UUPS pattern to allow:
+ * - Adding DCU token integration without redeployment
+ * - Fixing bugs and adding features
+ * - Migrating from points to token system seamlessly
  */
-contract RewardDistributor is Ownable, ReentrancyGuard {
-    // Reward amounts (in points, 18 decimals for consistency)
+contract RewardDistributorV2 is OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+    // Reward amounts (in points, 18 decimals for consistency with ERC20)
     uint256 public constant LEVEL_REWARD = 10 * 10**18; // 10 points per level
     uint256 public constant STREAK_REWARD = 2 * 10**18; // 2 points per week
     uint256 public constant REFERRAL_REWARD = 3 * 10**18; // 3 points for both referrer and referee
@@ -19,17 +29,23 @@ contract RewardDistributor is Ownable, ReentrancyGuard {
     // Impact Product NFT contract
     address public impactProductNFT;
     
+    // DCU Token contract address (will be set after token deployment)
+    // TODO: Replace with actual DCU token contract address after TGE
+    address public dcuToken;
+    bool public tokenMigrationEnabled;
+    
     // Verifier allowlist (multiple verifiers can distribute rewards)
     mapping(address => bool) public verifiers;
     
-    // Verification contract (authorized to distribute rewards)
-    address public verificationContract;
-    
     // Points tracking (user => points balance)
+    // NOTE: These points will be migrated to DCU tokens after token deployment
     mapping(address => uint256) public pointsBalance;
     
     // Total points distributed
     uint256 public totalPointsDistributed;
+    
+    // Migration tracking (user => has migrated points to tokens)
+    mapping(address => bool) public hasMigrated;
     
     // Streak tracking
     mapping(address => uint256) public lastCleanupTimestamp;
@@ -51,16 +67,28 @@ contract RewardDistributor is Ownable, ReentrancyGuard {
     event ReferrerSet(address indexed referee, address indexed referrer);
     event VerifierAdded(address indexed verifier);
     event VerifierRemoved(address indexed verifier);
+    event DCUTokenSet(address indexed tokenAddress);
+    event TokenMigrationEnabled(bool enabled);
+    event PointsMigrated(address indexed user, uint256 pointsAmount, uint256 tokenAmount);
+    
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
     
     /**
-     * @notice Constructor
+     * @notice Initialize the contract (replaces constructor for upgradeable contracts)
      * @param _impactProductNFT Impact Product NFT contract address
      * @param _initialVerifiers Array of initial verifier addresses
      */
-    constructor(
+    function initialize(
         address _impactProductNFT,
         address[] memory _initialVerifiers
-    ) Ownable(msg.sender) {
+    ) public initializer {
+        __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
+        
         require(_impactProductNFT != address(0), "Invalid Impact Product NFT address");
         
         // Add initial verifiers to allowlist
@@ -71,6 +99,8 @@ contract RewardDistributor is Ownable, ReentrancyGuard {
         }
         
         impactProductNFT = _impactProductNFT;
+        dcuToken = address(0); // Will be set after token deployment
+        tokenMigrationEnabled = false;
     }
     
     /**
@@ -92,7 +122,7 @@ contract RewardDistributor is Ownable, ReentrancyGuard {
      * @param user User address
      */
     function distributeStreakReward(address user) external {
-        require(_isAuthorizedCaller(), "Not authorized");
+        require(verifiers[msg.sender] || msg.sender == owner(), "Not authorized");
         require(user != address(0), "Invalid address");
         
         uint256 lastCleanup = lastCleanupTimestamp[user];
@@ -119,7 +149,7 @@ contract RewardDistributor is Ownable, ReentrancyGuard {
      * @param refereeAddress Referee address
      */
     function distributeReferralReward(address referrerAddress, address refereeAddress) external {
-        require(_isAuthorizedCaller(), "Not authorized");
+        require(verifiers[msg.sender] || msg.sender == owner(), "Not authorized");
         require(referrerAddress != address(0), "Invalid referrer address");
         require(refereeAddress != address(0), "Invalid referee address");
         require(referrer[refereeAddress] == referrerAddress, "Invalid referral relationship");
@@ -145,7 +175,7 @@ contract RewardDistributor is Ownable, ReentrancyGuard {
      * @param cleanupId Cleanup ID
      */
     function distributeImpactFormReward(address user, uint256 cleanupId) external {
-        require(_isAuthorizedCaller(), "Not authorized");
+        require(verifiers[msg.sender] || msg.sender == owner(), "Not authorized");
         require(user != address(0), "Invalid address");
         require(!hasClaimedImpactForm[user][cleanupId], "Impact form reward already claimed");
         
@@ -164,7 +194,7 @@ contract RewardDistributor is Ownable, ReentrancyGuard {
      * @param referrerAddress Referrer address
      */
     function setReferrer(address refereeAddress, address referrerAddress) external {
-        require(_isAuthorizedCaller(), "Not authorized");
+        require(verifiers[msg.sender] || msg.sender == owner(), "Not authorized");
         require(refereeAddress != address(0), "Invalid referee address");
         require(referrerAddress != address(0), "Invalid referrer address");
         require(refereeAddress != referrerAddress, "Cannot refer yourself");
@@ -206,7 +236,81 @@ contract RewardDistributor is Ownable, ReentrancyGuard {
         return block.timestamp - lastCleanup <= 7 days;
     }
     
-    // Admin functions
+    /**
+     * @notice Get user's points balance
+     * @param user User address
+     * @return Points balance
+     */
+    function getPointsBalance(address user) external view returns (uint256) {
+        return pointsBalance[user];
+    }
+    
+    // ============ DCU Token Migration Functions ============
+    
+    /**
+     * @notice Set DCU token contract address (only owner)
+     * @dev Call this after DCU token is deployed to enable migration
+     * @param _dcuToken DCU token contract address
+     */
+    function setDCUToken(address _dcuToken) external onlyOwner {
+        require(_dcuToken != address(0), "Invalid token address");
+        dcuToken = _dcuToken;
+        emit DCUTokenSet(_dcuToken);
+    }
+    
+    /**
+     * @notice Enable/disable token migration (only owner)
+     * @param _enabled Whether migration is enabled
+     */
+    function setTokenMigrationEnabled(bool _enabled) external onlyOwner {
+        require(dcuToken != address(0), "DCU token not set");
+        tokenMigrationEnabled = _enabled;
+        emit TokenMigrationEnabled(_enabled);
+    }
+    
+    /**
+     * @notice Migrate user's points to DCU tokens (1:1 conversion)
+     * @dev Users can migrate their points to actual DCU tokens after token deployment
+     * @return tokenAmount Amount of tokens received
+     */
+    function migratePointsToToken() external nonReentrant returns (uint256) {
+        require(tokenMigrationEnabled, "Migration not enabled");
+        require(dcuToken != address(0), "DCU token not set");
+        require(!hasMigrated[msg.sender], "Already migrated");
+        require(pointsBalance[msg.sender] > 0, "No points to migrate");
+        
+        uint256 pointsAmount = pointsBalance[msg.sender];
+        
+        // Mark as migrated and clear points
+        hasMigrated[msg.sender] = true;
+        pointsBalance[msg.sender] = 0;
+        
+        // Transfer tokens (1:1 conversion)
+        // NOTE: Contract must have sufficient DCU token balance
+        IERC20(dcuToken).transfer(msg.sender, pointsAmount);
+        
+        emit PointsMigrated(msg.sender, pointsAmount, pointsAmount);
+        
+        return pointsAmount;
+    }
+    
+    /**
+     * @notice Get user's DCU token balance (if migrated) or points balance
+     * @param user User address
+     * @return balance Balance in tokens (if migrated) or points (if not migrated)
+     * @return isTokenBalance True if balance is in tokens, false if in points
+     */
+    function getDCUBalance(address user) external view returns (uint256 balance, bool isTokenBalance) {
+        if (hasMigrated[user] && dcuToken != address(0)) {
+            balance = IERC20(dcuToken).balanceOf(user);
+            isTokenBalance = true;
+        } else {
+            balance = pointsBalance[user];
+            isTokenBalance = false;
+        }
+    }
+    
+    // ============ Admin Functions ============
     
     /**
      * @notice Add verifier to allowlist (only owner)
@@ -248,32 +352,14 @@ contract RewardDistributor is Ownable, ReentrancyGuard {
      * @param timestamp Timestamp
      */
     function updateLastCleanupTimestamp(address user, uint256 timestamp) external {
-        require(_isAuthorizedCaller(), "Not authorized");
+        require(verifiers[msg.sender] || msg.sender == owner(), "Not authorized");
         lastCleanupTimestamp[user] = timestamp;
     }
     
     /**
-     * @notice Get user's points balance
-     * @param user User address
-     * @return Points balance
+     * @notice Authorize upgrade (only owner)
+     * @dev Required by UUPS pattern
      */
-    function getPointsBalance(address user) external view returns (uint256) {
-        return pointsBalance[user];
-    }
-    
-    /**
-     * @notice Set verification contract address (only owner)
-     */
-    function setVerificationContract(address _verificationContract) external onlyOwner {
-        require(_verificationContract != address(0), "Invalid address");
-        verificationContract = _verificationContract;
-    }
-    
-    /**
-     * @notice Internal helper to check if caller is authorized
-     */
-    function _isAuthorizedCaller() internal view returns (bool) {
-        return verifiers[msg.sender] || msg.sender == owner() || msg.sender == verificationContract;
-    }
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }
 

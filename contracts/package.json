@@ -1,23 +1,23 @@
 {
   "name": "decleanup-contracts",
   "version": "1.0.0",
-  "description": "DeCleanup Network Smart Contracts for Celo",
+  "description": "DeCleanup Network Smart Contracts for Base",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
-    "deploy:alfajores": "hardhat run scripts/deploy.js --network alfajores",
-    "deploy:celo": "hardhat run scripts/deploy.js --network celo",
-    "setup:sepolia": "hardhat run scripts/setup.js --network sepolia",
-    "setup:alfajores": "hardhat run scripts/setup.js --network alfajores",
-    "setup:celo": "hardhat run scripts/setup.js --network celo",
-    "add-verifier:sepolia": "hardhat run scripts/addVerifier.js --network sepolia",
-    "redeploy:sepolia": "hardhat run scripts/redeploy.js --network sepolia",
-    "redeploy-two:sepolia": "hardhat run scripts/redeployTwo.js --network sepolia"
+    "deploy:baseSepolia": "hardhat run scripts/deploy.js --network baseSepolia",
+    "deploy:base": "hardhat run scripts/deploy.js --network base",
+    "setup:baseSepolia": "hardhat run scripts/setup.js --network baseSepolia",
+    "setup:base": "hardhat run scripts/setup.js --network base",
+    "add-verifier:baseSepolia": "hardhat run scripts/addVerifier.js --network baseSepolia",
+    "redeploy:baseSepolia": "hardhat run scripts/redeploy.js --network baseSepolia",
+    "redeploy-two:baseSepolia": "hardhat run scripts/redeployTwo.js --network baseSepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@openzeppelin/contracts": "^5.0.0",
+    "@openzeppelin/contracts-upgradeable": "^5.0.0",
+    "@openzeppelin/hardhat-upgrades": "^3.0.0",
     "hardhat": "^2.19.0"
   },
   "dependencies": {

@@ -4,9 +4,13 @@ import { useEffect, useState } from 'react'
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, CheckCircle } from 'lucide-react'
-import { DEFAULT_CHAIN_ID } from '@/lib/wagmi'
-
-const CELO_SEPOLIA_CHAIN_ID = 11142220
+import {
+  REQUIRED_CHAIN_ID,
+  REQUIRED_CHAIN_NAME,
+  REQUIRED_RPC_URL,
+  REQUIRED_BLOCK_EXPLORER_URL,
+} from '@/lib/wagmi'
+const NATIVE_SYMBOL = 'ETH'
 
 export function NetworkChecker() {
   const { isConnected } = useAccount()
@@ -15,7 +19,7 @@ export function NetworkChecker() {
   const [showWarning, setShowWarning] = useState(false)
 
   useEffect(() => {
-    if (isConnected && chainId !== CELO_SEPOLIA_CHAIN_ID) {
+    if (isConnected && chainId !== REQUIRED_CHAIN_ID) {
       setShowWarning(true)
     } else {
       setShowWarning(false)
@@ -24,20 +28,20 @@ export function NetworkChecker() {
 
   const handleSwitchNetwork = async () => {
     try {
-      await switchChain({ chainId: CELO_SEPOLIA_CHAIN_ID })
+      await switchChain({ chainId: REQUIRED_CHAIN_ID })
     } catch (error: any) {
       console.error('Failed to switch network:', error)
       // Show manual instructions if switch fails
       alert(
-        `Please switch to Celo Sepolia Testnet manually in MetaMask:\n\n` +
+        `Please switch to ${REQUIRED_CHAIN_NAME} manually in MetaMask:\n\n` +
         `1. Click the network dropdown in MetaMask\n` +
         `2. Click "Add Network" or "Add a network manually"\n` +
         `3. Enter these details:\n` +
-        `   - Network Name: Celo Sepolia Testnet\n` +
-        `   - RPC URL: https://forno.celo-sepolia.celo-testnet.org\n` +
-        `   - Chain ID: 11142220\n` +
-        `   - Currency Symbol: CELO\n` +
-        `   - Block Explorer: https://sepolia.celoscan.io\n` +
+        `   - Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+        `   - RPC URL: ${REQUIRED_RPC_URL}\n` +
+        `   - Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+        `   - Currency Symbol: ${NATIVE_SYMBOL}\n` +
+        `   - Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
         `4. Click "Save" and switch to the network`
       )
     }
@@ -47,7 +51,7 @@ export function NetworkChecker() {
     return null
   }
 
-  const isWrongNetwork = chainId !== CELO_SEPOLIA_CHAIN_ID
+  const isWrongNetwork = chainId !== REQUIRED_CHAIN_ID
 
   if (!isWrongNetwork) {
     return null
@@ -62,7 +66,7 @@ export function NetworkChecker() {
             <h3 className="mb-1 font-semibold text-yellow-400">Wrong Network</h3>
             <p className="mb-3 text-sm text-gray-300">
               You're connected to the wrong network. Please switch to{' '}
-              <span className="font-mono font-semibold">Celo Sepolia Testnet</span> to use this app.
+              <span className="font-mono font-semibold">{REQUIRED_CHAIN_NAME}</span> to use this app.
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -71,7 +75,7 @@ export function NetworkChecker() {
                 size="sm"
                 className="bg-brand-green text-black hover:bg-brand-green/90"
               >
-                {isPending ? 'Switching...' : 'Switch to Celo Sepolia'}
+                {isPending ? 'Switching...' : `Switch to ${REQUIRED_CHAIN_NAME}`}
               </Button>
               <Button
                 onClick={() => setShowWarning(false)}
@@ -83,7 +87,7 @@ export function NetworkChecker() {
               </Button>
             </div>
             <p className="mt-2 text-xs text-gray-400">
-              Current network: Chain ID {chainId} | Required: Chain ID {CELO_SEPOLIA_CHAIN_ID}
+              Current network: Chain ID {chainId} | Required: Chain ID {REQUIRED_CHAIN_ID}
             </p>
           </div>
         </div>

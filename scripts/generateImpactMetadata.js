@@ -11,7 +11,8 @@ const fs = require('fs')
 const path = require('path')
 
 // Root CID for assets (update if you re-upload)
-const BASE_CID = 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'
+// Can also be set via environment variable: NEXT_PUBLIC_IMPACT_IMAGES_CID
+const BASE_CID = process.env.NEXT_PUBLIC_IMPACT_IMAGES_CID || 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'
 
 const OUTPUT_DIR = path.join(process.cwd(), 'metadata', 'impact-products')
 

@@ -1,6 +1,21 @@
 import { Address, encodeFunctionData, parseAbi } from 'viem'
-import { readContract, writeContract, waitForTransactionReceipt, simulateContract, getChainId, switchChain, getAccount } from 'wagmi/actions'
-import { config } from './wagmi'
+import {
+  readContract,
+  writeContract,
+  waitForTransactionReceipt,
+  simulateContract,
+  getChainId,
+  switchChain,
+  getAccount,
+} from 'wagmi/actions'
+import {
+  config,
+  REQUIRED_CHAIN_ID,
+  REQUIRED_CHAIN_NAME,
+  REQUIRED_BLOCK_EXPLORER_URL,
+  REQUIRED_RPC_URL,
+  REQUIRED_CHAIN_IS_TESTNET,
+} from './wagmi'
 import * as pointsLib from './points'
 
 // Helper to safely extract error messages
@@ -22,12 +37,30 @@ function getErrorMessage(error: any): string {
   return String(error)
 }
 
-// Celo Sepolia Chain ID
-const CELO_SEPOLIA_CHAIN_ID = 11142220
+const REQUIRED_CHAIN_SYMBOL = 'ETH'
+const BLOCK_EXPLORER_BASE_URL =
+  process.env.NEXT_PUBLIC_BLOCK_EXPLORER_URL || REQUIRED_BLOCK_EXPLORER_URL
+const BLOCK_EXPLORER_NAME =
+  process.env.NEXT_PUBLIC_BLOCK_EXPLORER_NAME ||
+  (REQUIRED_CHAIN_IS_TESTNET ? 'Basescan (Sepolia)' : 'Basescan')
 
-// Get the Celo Sepolia chain from config
-function getCeloSepoliaChain() {
-  return config.chains.find(chain => chain.id === CELO_SEPOLIA_CHAIN_ID)
+function getRequiredChain() {
+  return config.chains.find((chain) => chain.id === REQUIRED_CHAIN_ID)
+}
+
+function getNetworkSetupMessage() {
+  return (
+    `You can add ${REQUIRED_CHAIN_NAME} to your wallet with these settings:\n` +
+    `- Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+    `- RPC URL: ${REQUIRED_RPC_URL}\n` +
+    `- Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+    `- Currency Symbol: ${REQUIRED_CHAIN_SYMBOL}\n` +
+    `- Block Explorer: ${BLOCK_EXPLORER_BASE_URL}`
+  )
+}
+
+function getTxExplorerUrl(transactionHash: string) {
+  return `${BLOCK_EXPLORER_BASE_URL}/tx/${transactionHash}`
 }
 
 // Safely get chain ID with fallback for connectors that don't support getChainId
@@ -90,11 +123,20 @@ async function getCurrentChainId(): Promise<number | null> {
 }
 
 // Contract addresses (will be set via environment variables)
+// Support multiple naming conventions for flexibility
 export const CONTRACT_ADDRESSES = {
-  IMPACT_PRODUCT: process.env.NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT as Address,
-  VERIFICATION: process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT as Address,
-  REWARD_DISTRIBUTOR: process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_CONTRACT as Address,
-  RECYCLABLES: process.env.NEXT_PUBLIC_RECYCLABLES_CONTRACT as Address,
+  IMPACT_PRODUCT:
+    (process.env.NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS ||
+      process.env.NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT ||
+      '') as Address,
+  VERIFICATION:
+    (process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS ||
+      process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT ||
+      '') as Address,
+  REWARD_DISTRIBUTOR:
+    (process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_CONTRACT ||
+      process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_ADDRESS ||
+      '') as Address,
 }
 
 
@@ -117,12 +159,12 @@ export const IMPACT_PRODUCT_ABI = parseAbi([
 
 // Verification Contract ABI
 export const VERIFICATION_ABI = parseAbi([
-  'function submitCleanup(string memory beforePhotoHash, string memory afterPhotoHash, uint256 latitude, uint256 longitude, address referrerAddress, bool hasImpactForm) external payable returns (uint256)',
+  'function submitCleanup(string memory beforePhotoHash, string memory afterPhotoHash, uint256 latitude, uint256 longitude, address referrerAddress, bool hasImpactForm, string memory impactReportHash) external payable returns (uint256)',
   'function verifyCleanup(uint256 cleanupId, uint8 level) external',
   'function rejectCleanup(uint256 cleanupId) external',
   'function claimImpactProduct(uint256 cleanupId) external',
   'function getCleanupStatus(uint256 cleanupId) external view returns (address user, bool verified, bool claimed, uint8 level)',
-'function getCleanup(uint256 cleanupId) external view returns ((address user, string beforePhotoHash, string afterPhotoHash, uint256 timestamp, uint256 latitude, uint256 longitude, bool verified, bool claimed, bool rejected, uint8 level, address referrer, bool hasImpactForm))',
+'function getCleanup(uint256 cleanupId) external view returns ((address user, string beforePhotoHash, string afterPhotoHash, uint256 timestamp, uint256 latitude, uint256 longitude, bool verified, bool claimed, bool rejected, uint8 level, address referrer, bool hasImpactForm, string impactReportHash))',
   'function cleanupCounter() external view returns (uint256)',
   'function verifier() external view returns (address)', // Deprecated, returns address(0)
   'function isVerifier(address) external view returns (bool)',
@@ -131,24 +173,22 @@ export const VERIFICATION_ABI = parseAbi([
 ])
 
 // Reward Distributor ABI
-// DCU Points are stored directly in RewardDistributor contract
+// NOTE: Contract is upgradeable. V2 includes DCU token migration support.
+// DCU Points are stored directly in RewardDistributor contract.
+// After token deployment, points can be migrated to actual DCU tokens.
 export const REWARD_DISTRIBUTOR_ABI = parseAbi([
   'function getStreakCount(address user) external view returns (uint256)',
   'function hasActiveStreak(address user) external view returns (bool)',
   'function getPointsBalance(address user) external view returns (uint256)',
   'function pointsBalance(address user) external view returns (uint256)',
+  // V2 upgradeable functions (may not exist in V1)
+  'function getDCUBalance(address user) external view returns (uint256 balance, bool isTokenBalance)',
+  'function migratePointsToToken() external returns (uint256)',
+  'function dcuToken() external view returns (address)',
+  'function tokenMigrationEnabled() external view returns (bool)',
+  'function hasMigrated(address user) external view returns (bool)',
 ])
 
-// Recyclables Reward ABI
-export const RECYCLABLES_ABI = parseAbi([
-  'function submitRecyclables(string memory photoHash, string memory receiptHash) external returns (uint256)',
-  'function verifySubmission(uint256 submissionId) external',
-  'function distributeReward(uint256 submissionId) external',
-  'function checkReserveAvailable() external view returns (bool)',
-  'function getRemainingReserve() external view returns (uint256)',
-  'function getUserRecyclablesCount(address user) external view returns (uint256)',
-'function getSubmission(uint256 submissionId) external view returns ((address user, string photoHash, string receiptHash, uint256 timestamp, bool verified, bool rewarded))',
-])
 
 // Impact Product Functions
 
@@ -244,17 +284,23 @@ export async function claimImpactProduct(cleanupId: bigint, level: number): Prom
     abi: IMPACT_PRODUCT_ABI,
     functionName: 'claimLevel',
     args: [cleanupId, level],
+    chainId: REQUIRED_CHAIN_ID, // Explicitly set chain ID to Base Sepolia
   })
 
   return hash
 }
 
 // DCU Points Functions
-// DCU Points are stored directly in RewardDistributor contract
+// NOTE: Currently uses points system. DCU token contract will be integrated soon.
+// When DCU token is deployed, points will be migrated to actual tokens.
+// The contract is upgradeable to support seamless migration without redeployment.
 
 /**
  * Get user's DCU points balance from on-chain storage
  * Points are stored directly in RewardDistributor contract
+ * 
+ * TODO: After DCU token deployment, this will check if user has migrated
+ * and return token balance instead of points balance
  */
 export async function getPointsBalance(userAddress: Address): Promise<number> {
   if (!CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR) {
@@ -263,6 +309,25 @@ export async function getPointsBalance(userAddress: Address): Promise<number> {
   }
 
   try {
+    // Try to get DCU balance (handles both points and tokens if migrated)
+    // First check if contract has getDCUBalance function (V2 upgradeable)
+    try {
+      const result = await readContract(config, {
+        address: CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR,
+        abi: REWARD_DISTRIBUTOR_ABI,
+        functionName: 'getDCUBalance',
+        args: [userAddress],
+      })
+      
+      // V2 returns (balance, isTokenBalance)
+      if (Array.isArray(result) && result.length === 2) {
+        const balance = result[0] as bigint
+        return Number(balance) / 1e18
+      }
+    } catch {
+      // Fallback to getPointsBalance if getDCUBalance doesn't exist (V1)
+    }
+    
     // Read balance directly from RewardDistributor contract
     const balance = await readContract(config, {
       address: CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR,
@@ -348,6 +413,7 @@ export async function submitCleanup(
   longitude: number,
   referrerAddress: Address | null,
   hasImpactForm: boolean,
+  impactReportHash: string,
   value?: bigint // Optional fee value
 ): Promise<bigint> {
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
@@ -356,23 +422,32 @@ export async function submitCleanup(
     )
   }
 
-  // Check if we're on the correct network (Celo Sepolia)
+  // Check if we're on the correct network
   try {
     const currentChainId = await getCurrentChainId()
     // If we couldn't determine chain ID (null), skip the check and let wallet handle it
     if (currentChainId === null) {
       console.warn('Could not verify chain ID, proceeding with transaction. Wallet will reject if on wrong network.')
-    } else if (currentChainId !== CELO_SEPOLIA_CHAIN_ID) {
-      // Try to switch to Celo Sepolia
-      const sepoliaChain = getCeloSepoliaChain()
-      if (!sepoliaChain) {
+    } else if (currentChainId !== REQUIRED_CHAIN_ID) {
+      // Try to switch to the required chain
+      const targetChain = getRequiredChain()
+      if (!targetChain) {
         throw new Error(
-          `Celo Sepolia chain not configured. Please switch to Celo Sepolia Testnet (Chain ID: ${CELO_SEPOLIA_CHAIN_ID}) manually in your wallet.`
+          `${REQUIRED_CHAIN_NAME} chain not configured. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) manually in your wallet.`
         )
       }
       
       try {
-        await switchChain(config, { chainId: CELO_SEPOLIA_CHAIN_ID })
+        // Check if chain is configured in wagmi before attempting switch
+        const chainExists = config.chains.find(chain => chain.id === REQUIRED_CHAIN_ID)
+        if (!chainExists) {
+          throw new Error(
+            `${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) is not configured in the app.\n\n` +
+            `Please contact support or check your environment configuration.`
+          )
+        }
+
+        await switchChain(config, { chainId: REQUIRED_CHAIN_ID })
         // Wait a bit for the switch to complete and verify
         await new Promise(resolve => setTimeout(resolve, 1500))
         
@@ -380,30 +455,65 @@ export async function submitCleanup(
         const newChainId = await getCurrentChainId()
         if (newChainId === null) {
           console.warn('Could not verify chain switch, but switch was attempted. Proceeding...')
-        } else if (newChainId !== CELO_SEPOLIA_CHAIN_ID) {
+        } else if (newChainId !== REQUIRED_CHAIN_ID) {
           throw new Error(
-            `Failed to switch to Celo Sepolia. Please switch manually in your wallet. ` +
-            `Current network: ${newChainId}, Required: ${CELO_SEPOLIA_CHAIN_ID}`
+            `Failed to switch to ${REQUIRED_CHAIN_NAME}. Please switch manually in your wallet. ` +
+            `Current network: ${newChainId}, Required: ${REQUIRED_CHAIN_ID}`
           )
         }
       } catch (switchError: any) {
         // If switch fails, provide clear instructions
-        const errorMessage = switchError?.message || 'Unknown error'
-        if (errorMessage.includes('User rejected') || errorMessage.includes('rejected')) {
+        const errorMessage = getErrorMessage(switchError)
+        const isChainNotConfigured = 
+          errorMessage.includes('Chain not configured') ||
+          errorMessage.includes('chain not configured') ||
+          errorMessage.includes('not configured') ||
+          errorMessage.includes('Unrecognized chain') ||
+          errorMessage.includes('Unrecognized chain ID') ||
+          switchError?.name === 'ChainNotConfiguredError' ||
+          switchError?.code === 4902 // MetaMask error code for chain not configured
+        
+        if (errorMessage.includes('User rejected') || errorMessage.includes('rejected') || errorMessage.includes('denied')) {
           throw new Error(
-            `Network switch was rejected. Please switch to Celo Sepolia Testnet (Chain ID: ${CELO_SEPOLIA_CHAIN_ID}) manually in your wallet and try again.`
+            `Network switch was rejected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) manually in your wallet and try again.`
           )
         }
+        
+        if (isChainNotConfigured) {
+          throw new Error(
+            `${REQUIRED_CHAIN_NAME} is not configured in your wallet.\n\n` +
+            `Please add ${REQUIRED_CHAIN_NAME} to your wallet:\n\n` +
+            `1. Open your wallet (MetaMask, Coinbase Wallet, etc.)\n` +
+            `2. Go to Settings → Networks → Add Network\n` +
+            `3. Click "Add a network manually"\n` +
+            `4. Enter these details:\n` +
+            `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+            `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
+            `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+            `   • Currency Symbol: ETH\n` +
+            `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
+            `5. Click "Save" and switch to ${REQUIRED_CHAIN_NAME}\n` +
+            `${REQUIRED_CHAIN_IS_TESTNET ? `6. Get testnet ETH from: https://www.coinbase.com/faucets/base-ethereum-goerli-faucet\n` : ''}` +
+            `${REQUIRED_CHAIN_IS_TESTNET ? `7. Then try submitting again.` : `6. Then try submitting again.`}`
+          )
+        }
+        
         throw new Error(
-          `Please switch to Celo Sepolia Testnet (Chain ID: ${CELO_SEPOLIA_CHAIN_ID}) in your wallet. ` +
-          `Current network: ${currentChainId}. ` +
+          `Failed to switch to ${REQUIRED_CHAIN_NAME}.\n\n` +
+          `Please switch manually in your wallet:\n\n` +
+          `Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+          `RPC URL: ${REQUIRED_RPC_URL}\n` +
+          `Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+          `Currency Symbol: ETH\n` +
+          `Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n\n` +
+          `Current network: ${currentChainId}\n` +
           `Error: ${errorMessage}`
         )
       }
     }
   } catch (chainError: any) {
     // If it's already our custom error, re-throw it
-    if (chainError?.message?.includes('switch') || chainError?.message?.includes('Celo Sepolia')) {
+    if (chainError?.message?.includes('switch') || chainError?.message?.includes(REQUIRED_CHAIN_NAME)) {
       throw chainError
     }
     // Otherwise, log warning but continue (might work if wallet handles it)
@@ -418,16 +528,11 @@ export async function submitCleanup(
   const finalChainId = await getCurrentChainId()
   if (finalChainId === null) {
     console.warn('Could not verify final chain ID, proceeding with transaction. Wallet will reject if on wrong network.')
-  } else if (finalChainId !== CELO_SEPOLIA_CHAIN_ID) {
+  } else if (finalChainId !== REQUIRED_CHAIN_ID) {
     throw new Error(
-      `Wrong network detected. Please switch to Celo Sepolia Testnet (Chain ID: ${CELO_SEPOLIA_CHAIN_ID}) in your wallet. ` +
+      `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet. ` +
       `Current network: ${finalChainId}. ` +
-      `You can add Celo Sepolia to your wallet with these settings:\n` +
-      `- Network Name: Celo Sepolia Testnet\n` +
-      `- RPC URL: https://forno.celo-sepolia.celo-testnet.org\n` +
-      `- Chain ID: 11142220\n` +
-      `- Currency Symbol: CELO\n` +
-      `- Block Explorer: https://sepolia.celoscan.io`
+      getNetworkSetupMessage()
     )
   }
 
@@ -447,6 +552,7 @@ export async function submitCleanup(
         lngScaled,
         referrerAddress || '0x0000000000000000000000000000000000000000',
         hasImpactForm,
+        impactReportHash,
       ],
       value: value || BigInt(0),
     })
@@ -460,6 +566,7 @@ export async function submitCleanup(
   }
 
   // Submit the actual transaction
+  // Explicitly set chainId to ensure transaction is sent to Base Sepolia
   const hash = await writeContract(config, {
     address: CONTRACT_ADDRESSES.VERIFICATION,
     abi: VERIFICATION_ABI,
@@ -470,9 +577,11 @@ export async function submitCleanup(
       latScaled,
       lngScaled,
       referrerAddress || '0x0000000000000000000000000000000000000000',
-      hasImpactForm,
+        hasImpactForm,
+        impactReportHash,
     ],
     value: value || BigInt(0), // Include fee if provided
+    chainId: REQUIRED_CHAIN_ID, // Explicitly set chain ID to Base Sepolia
   })
 
   // Wait for transaction receipt
@@ -537,7 +646,7 @@ export async function submitCleanup(
     // If all else fails, throw error but include transaction hash
     throw new Error(
       `Cleanup transaction submitted (hash: ${hash}) but could not retrieve ID. ` +
-      `Please check the transaction on CeloScan: https://sepolia.celoscan.io/tx/${hash}. ` +
+      `Please check the transaction on ${BLOCK_EXPLORER_NAME}: ${getTxExplorerUrl(hash)}. ` +
       `The cleanup may have been submitted successfully - check the transaction receipt. ` +
       `Error: ${errorMessage}`
     )
@@ -557,6 +666,7 @@ export async function claimImpactProductFromVerification(cleanupId: bigint): Pro
     abi: VERIFICATION_ABI,
     functionName: 'claimImpactProduct',
     args: [cleanupId],
+    chainId: REQUIRED_CHAIN_ID, // Explicitly set chain ID to Base Sepolia
   })
 
   return hash
@@ -645,6 +755,7 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
   level: number
   referrer: `0x${string}`
   hasImpactForm: boolean
+  impactReportHash: string
 }> {
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
@@ -671,6 +782,7 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
       level: Number(result[9]),
       referrer: result[10] as `0x${string}`,
       hasImpactForm: result[11] as boolean,
+      impactReportHash: result[12] as string,
     }
   }
 
@@ -687,6 +799,7 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
     level: number
     referrer: `0x${string}`
     hasImpactForm: boolean
+    impactReportHash: string
   }
 }
 
@@ -870,9 +983,9 @@ export async function verifyCleanup(cleanupId: bigint, level: number): Promise<`
 
   // Check network before submitting
   const currentChainId = await getCurrentChainId()
-  if (currentChainId !== null && currentChainId !== CELO_SEPOLIA_CHAIN_ID) {
+  if (currentChainId !== null && currentChainId !== REQUIRED_CHAIN_ID) {
     throw new Error(
-      `Wrong network. Please switch to Celo Sepolia Testnet (Chain ID: ${CELO_SEPOLIA_CHAIN_ID}). ` +
+      `Wrong network. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}). ` +
       `Current: ${currentChainId}`
     )
   }
@@ -894,13 +1007,14 @@ export async function verifyCleanup(cleanupId: bigint, level: number): Promise<`
   }
 
   try {
-    const hash = await writeContract(config, {
-      address: CONTRACT_ADDRESSES.VERIFICATION,
-      abi: VERIFICATION_ABI,
-      functionName: 'verifyCleanup',
-      args: [cleanupId, level],
-      // Don't specify blockNumber to avoid "block is out of range" errors
-    })
+        const hash = await writeContract(config, {
+          address: CONTRACT_ADDRESSES.VERIFICATION,
+          abi: VERIFICATION_ABI,
+          functionName: 'verifyCleanup',
+          args: [cleanupId, level],
+          chainId: REQUIRED_CHAIN_ID, // Explicitly set chain ID to Base Sepolia
+          // Don't specify blockNumber to avoid "block is out of range" errors
+        })
 
     return hash
   } catch (error: any) {
@@ -911,7 +1025,7 @@ export async function verifyCleanup(cleanupId: bigint, level: number): Promise<`
     if (errorMessage.includes('Not authorized') || errorMessage.includes('not authorized')) {
       throw new Error(
         `Not authorized to verify. Make sure your address is in the verifier allowlist. ` +
-        `Check the transaction on CeloScan to see the exact error.`
+        `Check the transaction on ${BLOCK_EXPLORER_NAME} to see the exact error.`
       )
     }
     if (errorMessage.includes('does not exist')) {
@@ -936,9 +1050,9 @@ export async function rejectCleanup(cleanupId: bigint): Promise<`0x${string}`> {
 
   // Check network before submitting
   const currentChainId = await getCurrentChainId()
-  if (currentChainId !== null && currentChainId !== CELO_SEPOLIA_CHAIN_ID) {
+  if (currentChainId !== null && currentChainId !== REQUIRED_CHAIN_ID) {
     throw new Error(
-      `Wrong network. Please switch to Celo Sepolia Testnet (Chain ID: ${CELO_SEPOLIA_CHAIN_ID}). ` +
+      `Wrong network. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}). ` +
       `Current: ${currentChainId}`
     )
   }
@@ -960,12 +1074,13 @@ export async function rejectCleanup(cleanupId: bigint): Promise<`0x${string}`> {
   }
 
   try {
-    const hash = await writeContract(config, {
-      address: CONTRACT_ADDRESSES.VERIFICATION,
-      abi: VERIFICATION_ABI,
-      functionName: 'rejectCleanup',
-      args: [cleanupId],
-    })
+        const hash = await writeContract(config, {
+          address: CONTRACT_ADDRESSES.VERIFICATION,
+          abi: VERIFICATION_ABI,
+          functionName: 'rejectCleanup',
+          args: [cleanupId],
+          chainId: REQUIRED_CHAIN_ID, // Explicitly set chain ID to Base Sepolia
+        })
 
     return hash
   } catch (error: any) {
@@ -976,7 +1091,7 @@ export async function rejectCleanup(cleanupId: bigint): Promise<`0x${string}`> {
     if (errorMessage.includes('Not authorized') || errorMessage.includes('not authorized')) {
       throw new Error(
         `Not authorized to reject. Make sure your address is in the verifier allowlist. ` +
-        `Check the transaction on CeloScan to see the exact error.`
+        `Check the transaction on ${BLOCK_EXPLORER_NAME} to see the exact error.`
       )
     }
     if (errorMessage.includes('does not exist')) {
@@ -1030,136 +1145,4 @@ export async function hasActiveStreak(userAddress: Address): Promise<boolean> {
   })
 }
 
-// Recyclables Functions
-
-// Placeholder reserve amount for testing (5000 cRECY)
-// cRECY tokens are only available on Celo Mainnet, so on testnet we show this placeholder
-const PLACEHOLDER_RESERVE_AMOUNT = 5000 // cRECY
-
-/**
- * Check if recyclables reserve is available
- * Returns placeholder value (true) on testnet since cRECY is mainnet-only
- */
-export async function checkRecyclablesReserve(): Promise<boolean> {
-  if (!CONTRACT_ADDRESSES.RECYCLABLES) {
-    // On testnet or when contract not deployed, return placeholder
-    return true
-  }
-
-  try {
-    // Check if we're on testnet (Celo Sepolia chain ID: 11142220)
-    const chainId = await getCurrentChainId()
-    const isTestnet = chainId === 11142220
-
-    if (isTestnet) {
-      // On testnet, return placeholder since cRECY is mainnet-only
-      return true
-    }
-
-    // On mainnet, check actual contract
-    return await readContract(config, {
-      address: CONTRACT_ADDRESSES.RECYCLABLES,
-      abi: RECYCLABLES_ABI,
-      functionName: 'checkReserveAvailable',
-    })
-  } catch (error: any) {
-    // If contract call fails (e.g., old contract without function, not funded yet), return placeholder
-    // Suppress error logging for expected cases (old contracts, testnet)
-    const isExpectedError = 
-      error?.message?.includes('returned no data') ||
-      error?.message?.includes('does not have the function') ||
-      error?.name === 'ContractFunctionExecutionError'
-    
-    if (!isExpectedError) {
-      console.warn('Could not check recyclables reserve, using placeholder:', error)
-    }
-    return true
-  }
-}
-
-/**
- * Get remaining recyclables reserve
- * Returns placeholder value (5000 cRECY) on testnet since cRECY is mainnet-only
- */
-export async function getRemainingRecyclablesReserve(): Promise<number> {
-  if (!CONTRACT_ADDRESSES.RECYCLABLES) {
-    // On testnet or when contract not deployed, return placeholder
-    return PLACEHOLDER_RESERVE_AMOUNT
-  }
-
-  try {
-    // Check if we're on testnet (Celo Sepolia chain ID: 11142220)
-    const chainId = await getCurrentChainId()
-    const isTestnet = chainId === 11142220
-
-    if (isTestnet) {
-      // On testnet, return placeholder since cRECY is mainnet-only
-      return PLACEHOLDER_RESERVE_AMOUNT
-    }
-
-    // On mainnet, check actual contract
-    const remaining = await readContract(config, {
-      address: CONTRACT_ADDRESSES.RECYCLABLES,
-      abi: RECYCLABLES_ABI,
-      functionName: 'getRemainingReserve',
-    })
-
-    return Number(remaining) / 1e18 // cRECY has 18 decimals
-  } catch (error: any) {
-    // If contract call fails (e.g., old contract without function, not funded yet), return placeholder
-    // Suppress error logging for expected cases (old contracts, testnet)
-    const isExpectedError = 
-      error?.message?.includes('returned no data') ||
-      error?.message?.includes('does not have the function') ||
-      error?.name === 'ContractFunctionExecutionError'
-    
-    if (!isExpectedError) {
-      console.warn('Could not get recyclables reserve, using placeholder:', error)
-    }
-    return PLACEHOLDER_RESERVE_AMOUNT
-  }
-}
-
-/**
- * Submit recyclables
- */
-export async function submitRecyclables(
-  photoHash: string,
-  receiptHash: string
-): Promise<bigint> {
-  if (!CONTRACT_ADDRESSES.RECYCLABLES) {
-    throw new Error('Recyclables contract address not set')
-  }
-
-  const hash = await writeContract(config, {
-    address: CONTRACT_ADDRESSES.RECYCLABLES,
-    abi: RECYCLABLES_ABI,
-    functionName: 'submitRecyclables',
-    args: [photoHash, receiptHash || ''],
-  })
-
-  // Wait for transaction and get submission ID from events
-  const receipt = await waitForTransactionReceipt(config, { hash })
-  
-  // Extract submission ID from events
-  return BigInt(0) // TODO: Parse event to get actual submission ID
-}
-
-/**
- * Get user's recyclables count
- */
-export async function getUserRecyclablesCount(userAddress: Address): Promise<number> {
-  if (!CONTRACT_ADDRESSES.RECYCLABLES) {
-    throw new Error('Recyclables contract address not set')
-  }
-
-  const count = await readContract(config, {
-    address: CONTRACT_ADDRESSES.RECYCLABLES,
-    abi: RECYCLABLES_ABI,
-    functionName: 'getUserRecyclablesCount',
-    args: [userAddress],
-  })
-
-  return Number(count)
-}
 

@@ -11,8 +11,12 @@ import { Trash2, Award, Users, AlertCircle, Wallet, Heart, Loader2 } from 'lucid
 import { getUserCleanupStatus } from '@/lib/verification'
 import { claimImpactProductFromVerification } from '@/lib/contracts'
 import { isFarcasterContext } from '@/lib/farcaster'
+import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
 
-const CELO_SEPOLIA_CHAIN_ID = 11142220
+const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
+  ? 'Basescan (Sepolia)'
+  : 'Basescan'
+const getExplorerTxUrl = (hash: `0x${string}`) => `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${hash}`
 
 export default function Home() {
   const [mounted, setMounted] = useState(false)
@@ -63,13 +67,15 @@ export default function Home() {
     setIsInFarcaster(isFarcasterContext())
   }, [])
 
-  // Auto-switch to Celo Sepolia after connection
+  // Auto-switch to required chain after connection
   useEffect(() => {
-    if (isConnected && chainId !== CELO_SEPOLIA_CHAIN_ID && !hasSwitchedNetwork) {
+    if (isConnected && chainId !== REQUIRED_CHAIN_ID && !hasSwitchedNetwork) {
       const attemptSwitch = async () => {
         try {
-          console.log(`Auto-switching from chain ${chainId} to Celo Sepolia (${CELO_SEPOLIA_CHAIN_ID})...`)
-          await switchChain({ chainId: CELO_SEPOLIA_CHAIN_ID })
+          console.log(
+            `Auto-switching from chain ${chainId} to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})...`
+          )
+          await switchChain({ chainId: REQUIRED_CHAIN_ID })
           setHasSwitchedNetwork(true)
         } catch (error: any) {
           console.log('Auto network switch failed or was rejected:', error)
@@ -79,7 +85,7 @@ export default function Home() {
       // Wait a bit after connection before attempting switch
       const timeout = setTimeout(attemptSwitch, 1000)
       return () => clearTimeout(timeout)
-    } else if (chainId === CELO_SEPOLIA_CHAIN_ID) {
+    } else if (chainId === REQUIRED_CHAIN_ID) {
       setHasSwitchedNetwork(true)
     }
   }, [isConnected, chainId, hasSwitchedNetwork, switchChain])
@@ -287,7 +293,7 @@ export default function Home() {
                                 `✅ Claim successful!\n\n` +
                                 `Transaction Hash: ${hash}\n\n` +
                                 `Your Impact Product NFT has been minted!\n\n` +
-                                `View on CeloScan: https://sepolia.celoscan.io/tx/${hash}`
+                                `View on ${BLOCK_EXPLORER_NAME}: ${getExplorerTxUrl(hash)}`
                               )
                               // Redirect to profile to see the new NFT
                               window.location.href = '/profile'
@@ -300,8 +306,8 @@ export default function Home() {
                             alert(
                               `⚠️ Transaction submitted but status check failed.\n\n` +
                               `Transaction Hash: ${hash}\n\n` +
-                              `Please check your profile or CeloScan to confirm.\n\n` +
-                              `View on CeloScan: https://sepolia.celoscan.io/tx/${hash}`
+                              `Please check your profile or ${BLOCK_EXPLORER_NAME} to confirm.\n\n` +
+                              `View on ${BLOCK_EXPLORER_NAME}: ${getExplorerTxUrl(hash)}`
                             )
                             window.location.href = '/profile'
                           }
@@ -457,7 +463,7 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <span>Powered by</span>
               <div className="flex h-6 items-center justify-center rounded bg-gray-800 px-2 font-bold text-white">
-                CELO
+                BASE
               </div>
             </div>
           </div>

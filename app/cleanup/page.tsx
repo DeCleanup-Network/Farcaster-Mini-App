@@ -7,12 +7,36 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
 import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle } from 'lucide-react'
-import { uploadToIPFS } from '@/lib/ipfs'
-import { submitCleanup, checkRecyclablesReserve, getSubmissionFee, getCleanupStatus, CONTRACT_ADDRESSES } from '@/lib/contracts'
+import { uploadToIPFS, uploadJSONToIPFS, getIPFSUrl } from '@/lib/ipfs'
+import { submitCleanup, getSubmissionFee, getCleanupStatus, CONTRACT_ADDRESSES } from '@/lib/contracts'
+import {
+  REQUIRED_CHAIN_ID,
+  REQUIRED_CHAIN_NAME,
+  REQUIRED_RPC_URL,
+  REQUIRED_BLOCK_EXPLORER_URL,
+  REQUIRED_CHAIN_IS_TESTNET,
+} from '@/lib/wagmi'
 
-type Step = 'before' | 'after' | 'recyclables' | 'enhanced' | 'review'
+type Step = 'before' | 'after' | 'enhanced' | 'review'
 
-const CELO_SEPOLIA_CHAIN_ID = 11142220
+const NATIVE_SYMBOL = 'ETH'
+const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
+  ? 'Basescan (Sepolia)'
+  : 'Basescan'
+const describeChain = (id?: number) => {
+  switch (id) {
+    case 1:
+      return 'Ethereum Mainnet'
+    case 11155111:
+      return 'Ethereum Sepolia'
+    case 8453:
+      return 'Base Mainnet'
+    case 84532:
+      return 'Base Sepolia'
+    default:
+      return 'Unknown Network'
+  }
+}
 
 export default function CleanupPage() {
   const { address, isConnected } = useAccount()
@@ -23,13 +47,11 @@ export default function CleanupPage() {
   const [step, setStep] = useState<Step>('before')
   const [beforePhoto, setBeforePhoto] = useState<File | null>(null)
   const [afterPhoto, setAfterPhoto] = useState<File | null>(null)
-  const [recyclablesPhoto, setRecyclablesPhoto] = useState<File | null>(null)
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isGettingLocation, setIsGettingLocation] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [cleanupId, setCleanupId] = useState<bigint | null>(null)
   const [hasImpactForm, setHasImpactForm] = useState(false)
-  const [reserveAvailable, setReserveAvailable] = useState(true)
   const [pendingCleanup, setPendingCleanup] = useState<{
     id: bigint
     verified: boolean
@@ -42,18 +64,80 @@ export default function CleanupPage() {
     setMounted(true)
   }, [])
   
-  // Enhanced form data
+  // Impact Report form data
   const [enhancedData, setEnhancedData] = useState({
-    area: '',
-    weight: '',
-    bags: 2,
-    hours: '1',
-    minutes: '30',
     locationType: '',
+    area: '',
+    areaUnit: 'sqm' as 'sqm' | 'sqft',
+    weight: '',
+    weightUnit: 'kg' as 'kg' | 'lbs',
+    bags: '',
+    hours: '',
+    minutes: '',
     wasteTypes: [] as string[],
+    contributors: [] as string[], // Array of contributor addresses
+    scopeOfWork: '', // Auto-generated
+    rightsAssignment: '' as '' | 'attribution' | 'non-commercial' | 'no-derivatives' | 'share-alike' | 'all-rights-reserved',
     environmentalChallenges: '',
     preventionIdeas: '',
+    additionalNotes: '',
   })
+
+  // Preset options
+  const locationTypeOptions = [
+    'Beach',
+    'Park',
+    'Waterway',
+    'Forest',
+    'Urban',
+    'Rural',
+    'Industrial',
+    'Other',
+  ]
+
+  const wasteTypeOptions = [
+    'Plastic',
+    'Glass',
+    'Metal',
+    'Paper',
+    'Organic',
+    'Hazardous',
+    'Electronics',
+    'Textiles',
+    'Other',
+  ]
+
+  const environmentalChallengePresets = [
+    'Heavy pollution',
+    'Lack of waste bins',
+    'Illegal dumping',
+    'Storm damage',
+    'Wildlife impact',
+    'Water contamination',
+    'Soil contamination',
+    'Air quality issues',
+  ]
+
+  const preventionPresets = [
+    'Install more waste bins',
+    'Increase public awareness',
+    'Regular cleanup schedules',
+    'Stricter enforcement',
+    'Community involvement',
+    'Better waste management',
+    'Educational programs',
+    'Recycling facilities',
+  ]
+
+  // Auto-generate scope of work
+  useEffect(() => {
+    if (enhancedData.locationType && enhancedData.wasteTypes.length > 0) {
+      const scope = `Cleanup at ${enhancedData.locationType} location, removing ${enhancedData.wasteTypes.join(', ')} waste types`
+      setEnhancedData(prev => ({ ...prev, scopeOfWork: scope }))
+    } else {
+      setEnhancedData(prev => ({ ...prev, scopeOfWork: '' }))
+    }
+  }, [enhancedData.locationType, enhancedData.wasteTypes])
 
   useEffect(() => {
     // Get location on mount
@@ -61,8 +145,6 @@ export default function CleanupPage() {
       getLocation()
     }
     
-    // Check recyclables reserve
-    checkRecyclablesReserve().then(setReserveAvailable).catch(() => setReserveAvailable(false))
   }, [isConnected, address])
 
   // Check for pending cleanup submissions
@@ -147,7 +229,7 @@ export default function CleanupPage() {
     return () => clearInterval(interval)
   }, [isConnected, address])
 
-  const handlePhotoCapture = (type: 'before' | 'after' | 'recyclables') => {
+  const handlePhotoCapture = (type: 'before' | 'after') => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/jpeg,image/jpg,image/heic'
@@ -163,8 +245,6 @@ export default function CleanupPage() {
           setBeforePhoto(file)
         } else if (type === 'after') {
           setAfterPhoto(file)
-        } else {
-          setRecyclablesPhoto(file)
         }
       }
     }
@@ -255,28 +335,20 @@ export default function CleanupPage() {
       alert('Please upload an after photo')
       return
     }
-    // Go to recyclables step if reserve is available
-    if (reserveAvailable) {
-      setStep('recyclables')
-    } else {
-      setStep('enhanced')
-    }
-  }
-
-  const handleSkipRecyclables = () => {
+    // Go to enhanced form
     setStep('enhanced')
   }
 
   const handleSkipEnhanced = async () => {
-    await submitCleanupFlow(false, false)
+    await submitCleanupFlow(false)
   }
 
   const handleSubmitEnhanced = async () => {
     setHasImpactForm(true)
-    await submitCleanupFlow(true, !!recyclablesPhoto)
+    await submitCleanupFlow(true)
   }
 
-  const submitCleanupFlow = async (hasForm: boolean, hasRecyclables: boolean) => {
+  const submitCleanupFlow = async (hasForm: boolean) => {
     if (!isConnected || !address) {
       alert('Please connect your wallet first')
       return
@@ -317,6 +389,42 @@ export default function CleanupPage() {
       console.log('Photos uploaded:', { beforeHash: beforeHash.hash, afterHash: afterHash.hash })
       console.log('Location:', { lat: location.lat, lng: location.lng })
 
+      // Upload enhanced impact report data to IPFS if form was submitted
+      let impactFormDataHash: string | null = null
+      if (hasForm && enhancedData.locationType) {
+        try {
+          console.log('Uploading enhanced impact report data to IPFS...')
+          const impactData = {
+            locationType: enhancedData.locationType,
+            area: enhancedData.area,
+            areaUnit: enhancedData.areaUnit,
+            weight: enhancedData.weight,
+            weightUnit: enhancedData.weightUnit,
+            bags: enhancedData.bags,
+            hours: enhancedData.hours,
+            minutes: enhancedData.minutes,
+            wasteTypes: enhancedData.wasteTypes,
+            contributors: enhancedData.contributors,
+            scopeOfWork: enhancedData.scopeOfWork,
+            rightsAssignment: enhancedData.rightsAssignment,
+            environmentalChallenges: enhancedData.environmentalChallenges,
+            preventionIdeas: enhancedData.preventionIdeas,
+            additionalNotes: enhancedData.additionalNotes,
+            timestamp: new Date().toISOString(),
+            userAddress: address,
+          }
+          const impactDataResult = await uploadJSONToIPFS(impactData, `impact-report-${Date.now()}`)
+          impactFormDataHash = impactDataResult.hash
+          console.log('Impact report data uploaded to IPFS:', impactFormDataHash)
+          
+          // Store the hash in localStorage with cleanup ID (will be set after submission)
+        // We'll associate this hash with the cleanup on-chain below
+        } catch (error) {
+          console.error('Error uploading impact report data to IPFS:', error)
+          // Don't fail the submission if IPFS upload fails, just log it
+        }
+      }
+
       // Check if submission fee is required
       const feeInfo = await getSubmissionFee()
       const feeValue = feeInfo.enabled && feeInfo.fee > 0 ? feeInfo.fee : undefined
@@ -326,12 +434,12 @@ export default function CleanupPage() {
       }
 
       // Check network before submitting - try to auto-switch first
-      if (chainId !== CELO_SEPOLIA_CHAIN_ID) {
-        console.log(`Wrong network detected: ${chainId}, attempting to switch to ${CELO_SEPOLIA_CHAIN_ID}...`)
+      if (chainId !== REQUIRED_CHAIN_ID) {
+        console.log(`Wrong network detected: ${chainId}, attempting to switch to ${REQUIRED_CHAIN_ID}...`)
         
         try {
           // Try to auto-switch
-          await switchChain({ chainId: CELO_SEPOLIA_CHAIN_ID })
+          await switchChain({ chainId: REQUIRED_CHAIN_ID })
           // Wait a bit for the switch
           await new Promise(resolve => setTimeout(resolve, 2000))
           
@@ -341,25 +449,52 @@ export default function CleanupPage() {
           console.log('Network switch attempted, continuing...')
         } catch (switchError: any) {
           // If auto-switch fails, show instructions
-          const errorMessage = switchError?.message || 'Unknown error'
+          const errorMessage = switchError?.message || switchError?.shortMessage || String(switchError) || 'Unknown error'
+          const isChainNotConfigured = 
+            errorMessage.includes('Chain not configured') ||
+            errorMessage.includes('chain not configured') ||
+            errorMessage.includes('not configured') ||
+            errorMessage.includes('Unrecognized chain') ||
+            switchError?.name === 'ChainNotConfiguredError' ||
+            switchError?.code === 4902
           const wasRejected = errorMessage.includes('rejected') || errorMessage.includes('denied') || errorMessage.includes('User rejected')
           
-          alert(
-            `❌ Wrong Network!\n\n` +
-            `You're on Chain ID ${chainId} (${chainId === 1 ? 'Ethereum Mainnet' : chainId === 11155111 ? 'Sepolia' : 'Unknown Network'}), ` +
-            `but need Celo Sepolia Testnet (Chain ID ${CELO_SEPOLIA_CHAIN_ID}).\n\n` +
-            `${wasRejected ? 'Network switch was rejected. ' : ''}Please switch manually:\n\n` +
-            `1. Click the network dropdown in MetaMask (top of the extension)\n` +
-            `2. Select "Celo Sepolia Testnet" if it's already added\n` +
-            `3. OR click "Add Network" → "Add a network manually" and enter:\n` +
-            `   • Network Name: Celo Sepolia Testnet\n` +
-            `   • RPC URL: https://forno.celo-sepolia.celo-testnet.org\n` +
-            `   • Chain ID: 11142220\n` +
-            `   • Currency Symbol: CELO\n` +
-            `   • Block Explorer: https://sepolia.celoscan.io\n\n` +
-            `4. Click "Save" and switch to it\n` +
-            `5. Then try submitting again.`
-          )
+          if (isChainNotConfigured) {
+            alert(
+              `❌ ${REQUIRED_CHAIN_NAME} is not configured in your wallet!\n\n` +
+              `Please add ${REQUIRED_CHAIN_NAME} to your wallet:\n\n` +
+              `1. Open your wallet (MetaMask, Coinbase Wallet, etc.)\n` +
+              `2. Go to Settings → Networks → Add Network\n` +
+              `3. Click "Add a network manually"\n` +
+              `4. Enter these details:\n` +
+              `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+              `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
+              `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+              `   • Currency Symbol: ETH\n` +
+              `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
+              `5. Click "Save" and switch to ${REQUIRED_CHAIN_NAME}\n` +
+              `${REQUIRED_CHAIN_IS_TESTNET ? `6. Get testnet ETH from: https://www.coinbase.com/faucets/base-ethereum-goerli-faucet\n` : ''}` +
+              `${REQUIRED_CHAIN_IS_TESTNET ? `7. Then try submitting again.` : `6. Then try submitting again.`}`
+            )
+          } else {
+            alert(
+              `❌ Wrong Network!\n\n` +
+              `You're on Chain ID ${chainId} (${describeChain(chainId)}), ` +
+              `but need ${REQUIRED_CHAIN_NAME} (Chain ID ${REQUIRED_CHAIN_ID}).\n\n` +
+              `${wasRejected ? 'Network switch was rejected. ' : ''}Please switch manually:\n\n` +
+              `1. Click the network dropdown in MetaMask (top of the extension)\n` +
+              `2. Select "${REQUIRED_CHAIN_NAME}" if it's already added\n` +
+              `3. OR click "Add Network" → "Add a network manually" and enter:\n` +
+              `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+              `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
+              `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+              `   • Currency Symbol: ETH\n` +
+              `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n\n` +
+              `4. Click "Save" and switch to it\n` +
+              `5. Then try submitting again.\n\n` +
+              `Error: ${errorMessage}`
+            )
+          }
           setIsSubmitting(false)
           return
         }
@@ -386,6 +521,7 @@ export default function CleanupPage() {
           location.lng,
           null, // No referrer for now
           hasForm,
+          impactFormDataHash || '',
           feeValue // Include fee if required
         )
 
@@ -410,31 +546,147 @@ export default function CleanupPage() {
           router.push('/')
         }, 3000)
       } catch (submitError: any) {
-        console.error('Failed to submit cleanup:', submitError)
-        const errorMessage = submitError?.message || submitError?.shortMessage || 'Unknown error'
+        console.error('Error submitting cleanup:', submitError)
+        const errorMessage = submitError?.message || submitError?.shortMessage || String(submitError) || 'Unknown error'
+        const errorName = submitError?.name || ''
+        const errorDetails = submitError?.details || ''
         
-        // Handle user rejection gracefully
-        if (errorMessage.includes('User rejected') || 
-            errorMessage.includes('denied') ||
-            errorMessage.includes('rejected the request')) {
-          // Don't show alert for user rejection - they know what they did
-          console.log('User rejected the transaction')
+        // Check if it's truly a "chain not configured" error (not just a switch error)
+        const isChainNotConfigured = 
+          errorDetails?.includes('Chain not configured') ||
+          errorMessage.includes('Chain not configured') ||
+          errorMessage.includes('chain not configured') ||
+          errorMessage.includes('Unrecognized chain') ||
+          submitError?.code === 4902 // MetaMask error code for chain not configured
+        
+        // Check if it's a switch chain error (could be configured but switch failed)
+        const isSwitchError = 
+          errorName === 'SwitchChainError' ||
+          errorMessage.includes('switch chain') ||
+          errorMessage.includes('SwitchChainError')
+        
+        if (isChainNotConfigured) {
+          // Show detailed instructions for adding the network
+          alert(
+            `❌ ${REQUIRED_CHAIN_NAME} is not configured in your wallet!\n\n` +
+            `Please add ${REQUIRED_CHAIN_NAME} to your wallet:\n\n` +
+            `1. Open your wallet (MetaMask, Coinbase Wallet, etc.)\n` +
+            `2. Go to Settings → Networks → Add Network\n` +
+            `3. Click "Add a network manually"\n` +
+            `4. Enter these details:\n` +
+            `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+            `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
+            `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+            `   • Currency Symbol: ETH\n` +
+            `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
+            `5. Click "Save" and switch to ${REQUIRED_CHAIN_NAME}\n` +
+            `${REQUIRED_CHAIN_IS_TESTNET ? `6. Get testnet ETH from: https://www.coinbase.com/faucets/base-ethereum-goerli-faucet\n` : ''}` +
+            `${REQUIRED_CHAIN_IS_TESTNET ? `7. Then try submitting again.` : `6. Then try submitting again.`}`
+          )
+        } else if (isSwitchError) {
+          // Chain might be configured but switch failed - ask user to manually switch
+          alert(
+            `❌ Failed to switch to ${REQUIRED_CHAIN_NAME}!\n\n` +
+            `Please manually switch to ${REQUIRED_CHAIN_NAME} in your wallet:\n\n` +
+            `1. Open your wallet extension/app\n` +
+            `2. Click the network dropdown (top of wallet)\n` +
+            `3. Select "${REQUIRED_CHAIN_NAME}" from the list\n` +
+            `4. If ${REQUIRED_CHAIN_NAME} is not in the list, you may need to add it:\n` +
+            `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+            `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
+            `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+            `   • Currency Symbol: ETH\n` +
+            `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
+            `5. Once on ${REQUIRED_CHAIN_NAME}, try submitting again.\n\n` +
+            `Current error: ${errorMessage}`
+          )
         } else {
-          alert(`Failed to submit cleanup: ${errorMessage}\n\nPlease check:\n- Your wallet is connected\n- You're on Celo Sepolia Testnet\n- You have enough CELO for gas\n- The contract address is correct`)
+          alert(
+            `Failed to submit cleanup:\n\n${errorMessage}\n\n` +
+            `Please check:\n` +
+            `- Your wallet is connected\n` +
+            `- You're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID})\n` +
+            `- You have enough ETH for gas\n` +
+            `- The contract address is correct`
+          )
         }
+        
         setIsSubmitting(false)
+        return
       }
     } catch (error) {
-      console.error('Error submitting cleanup:', error)
+      console.error('Error in cleanup submission flow:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      alert(`Failed to submit cleanup: ${errorMessage}`)
+      const errorName = error instanceof Error ? error.name : ''
+      const errorDetails = (error as any)?.details || ''
+      const errorCode = (error as any)?.code
+      
+      // Check if it's truly a "chain not configured" error (not just a switch error)
+      const isChainNotConfigured = 
+        errorDetails?.includes('Chain not configured') ||
+        errorMessage.includes('Chain not configured') ||
+        errorMessage.includes('chain not configured') ||
+        errorMessage.includes('Unrecognized chain') ||
+        errorCode === 4902 // MetaMask error code for chain not configured
+      
+      // Check if it's a switch chain error (could be configured but switch failed)
+      const isSwitchError = 
+        errorName === 'SwitchChainError' ||
+        errorMessage.includes('switch chain') ||
+        errorMessage.includes('SwitchChainError')
+      
+      if (isChainNotConfigured) {
+        // Show detailed instructions for adding the network
+        alert(
+          `❌ ${REQUIRED_CHAIN_NAME} is not configured in your wallet!\n\n` +
+          `Please add ${REQUIRED_CHAIN_NAME} to your wallet:\n\n` +
+          `1. Open your wallet (MetaMask, Coinbase Wallet, etc.)\n` +
+          `2. Go to Settings → Networks → Add Network\n` +
+          `3. Click "Add a network manually"\n` +
+          `4. Enter these details:\n` +
+          `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+          `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
+          `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+          `   • Currency Symbol: ETH\n` +
+          `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
+          `5. Click "Save" and switch to ${REQUIRED_CHAIN_NAME}\n` +
+          `${REQUIRED_CHAIN_IS_TESTNET ? `6. Get testnet ETH from: https://www.coinbase.com/faucets/base-ethereum-goerli-faucet\n` : ''}` +
+          `${REQUIRED_CHAIN_IS_TESTNET ? `7. Then try submitting again.` : `6. Then try submitting again.`}`
+        )
+      } else if (isSwitchError) {
+        // Chain might be configured but switch failed - ask user to manually switch
+        alert(
+          `❌ Failed to switch to ${REQUIRED_CHAIN_NAME}!\n\n` +
+          `Please manually switch to ${REQUIRED_CHAIN_NAME} in your wallet:\n\n` +
+          `1. Open your wallet extension/app\n` +
+          `2. Click the network dropdown (top of wallet)\n` +
+          `3. Select "${REQUIRED_CHAIN_NAME}" from the list\n` +
+          `4. If ${REQUIRED_CHAIN_NAME} is not in the list, you may need to add it:\n` +
+          `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+          `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
+          `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+          `   • Currency Symbol: ETH\n` +
+          `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
+          `5. Once on ${REQUIRED_CHAIN_NAME}, try submitting again.\n\n` +
+          `Current error: ${errorMessage}`
+        )
+      } else {
+        alert(
+          `Failed to submit cleanup:\n\n${errorMessage}\n\n` +
+          `Please check:\n` +
+          `- Your wallet is connected\n` +
+          `- You're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID})\n` +
+          `- You have enough ETH for gas\n` +
+          `- The contract address is correct`
+        )
+      }
     } finally {
       setIsSubmitting(false)
     }
   }
 
   // Check if submission is disabled due to pending cleanup or wrong network
-  const isWrongNetwork = chainId !== CELO_SEPOLIA_CHAIN_ID
+  const isWrongNetwork = chainId !== REQUIRED_CHAIN_ID
   const isSubmissionDisabled = (pendingCleanup && !pendingCleanup.verified) || isWrongNetwork || isSwitchingChain
 
   // Prevent hydration mismatch by not rendering until mounted
@@ -480,22 +732,22 @@ export default function CleanupPage() {
             <div className="flex-1">
               <h3 className="mb-1 font-semibold text-red-400">Wrong Network</h3>
               <p className="mb-3 text-sm text-gray-300">
-                You're on Chain ID {chainId} ({chainId === 1 ? 'Ethereum Mainnet' : chainId === 11155111 ? 'Sepolia' : 'Unknown'}). 
-                Please switch to <span className="font-mono font-semibold">Celo Sepolia Testnet</span> (Chain ID {CELO_SEPOLIA_CHAIN_ID}) to submit cleanups.
+                You're on Chain ID {chainId} ({describeChain(chainId)}). 
+                Please switch to <span className="font-mono font-semibold">{REQUIRED_CHAIN_NAME}</span> (Chain ID {REQUIRED_CHAIN_ID}) to submit cleanups.
               </p>
               <Button
                 onClick={async () => {
                   try {
-                    await switchChain({ chainId: CELO_SEPOLIA_CHAIN_ID })
+                    await switchChain({ chainId: REQUIRED_CHAIN_ID })
                   } catch (error: any) {
-                    alert('Please switch to Celo Sepolia Testnet manually in MetaMask.')
+                    alert(`Please switch to ${REQUIRED_CHAIN_NAME} manually in MetaMask.`)
                   }
                 }}
                 disabled={isSwitchingChain}
                 size="sm"
                 className="bg-brand-green text-black hover:bg-brand-green/90"
               >
-                {isSwitchingChain ? 'Switching...' : 'Switch to Celo Sepolia'}
+                {isSwitchingChain ? 'Switching...' : `Switch to ${REQUIRED_CHAIN_NAME}`}
               </Button>
             </div>
           </div>
@@ -723,99 +975,8 @@ export default function CleanupPage() {
     )
   }
 
-  // Step 3: Recyclables (Optional)
-  if (step === 'recyclables') {
-    return (
-      <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
-        <div className="mx-auto max-w-md">
-          <div className="mb-6">
-            <BackButton />
-          </div>
-          
-          <div className="mb-6 text-center">
-            <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
-              Submit Recyclables
-            </h1>
-            <p className="mb-4 text-sm text-gray-400">
-              Optional: Submit proof of separated recyclables to earn 10 cRECY tokens per submission.
-            </p>
-            
-            {/* Recy App Partner Info */}
-            <div className="mb-4 rounded-lg border border-gray-800 bg-gray-900 p-4">
-              <p className="mb-2 text-xs font-medium text-gray-300">
-                In Partnership with Recy App
-              </p>
-              <p className="mb-3 text-xs text-gray-400">
-                Recy App helps end waste pollution at its source. Transform how we think about trash and recycling.
-              </p>
-              <a
-                href="https://app.recy.life/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-brand-green hover:text-[#4a9a26]"
-              >
-                Learn more about Recy App
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          </div>
 
-          <div className="mb-6">
-            {recyclablesPhoto ? (
-              <div className="relative mb-4">
-                <img
-                  src={URL.createObjectURL(recyclablesPhoto)}
-                  alt="Recyclables"
-                  className="h-64 w-full rounded-lg object-cover"
-                />
-                <button
-                  onClick={() => setRecyclablesPhoto(null)}
-                  className="absolute right-2 top-2 rounded-full bg-red-500 p-2 text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => handlePhotoCapture('recyclables')}
-                className="flex h-64 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-700 bg-gray-900"
-              >
-                <Camera className="mb-2 h-12 w-12 text-gray-500" />
-                <p className="text-sm text-gray-400">Tap to upload recyclables photo</p>
-              </button>
-            )}
-          </div>
-
-          <div className="flex gap-4">
-            <Button
-              variant="outline"
-              onClick={handleSkipRecyclables}
-              disabled={isSubmitting}
-              className="flex-1 border-2 border-gray-700 bg-black text-white hover:bg-gray-900"
-            >
-              Skip
-            </Button>
-            <Button
-              onClick={() => setStep('enhanced')}
-              disabled={isSubmitting}
-              className="flex-1 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
-            >
-              {recyclablesPhoto ? (
-                <>
-                  Continue
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              ) : (
-                'Skip and Continue'
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Step 4: Enhanced Impact Report (Optional)
+  // Step 4: Impact Report (Optional)
   if (step === 'enhanced') {
     return (
       <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
@@ -826,7 +987,7 @@ export default function CleanupPage() {
           
           <div className="mb-6 text-center">
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
-              Enhanced Impact Report
+              Impact Report
             </h1>
             <p className="mb-2 text-sm font-medium text-brand-yellow">
               +5 Points Bonus
@@ -837,38 +998,245 @@ export default function CleanupPage() {
           </div>
 
           {/* Full form (always visible) */}
-          <div className="mb-6 space-y-4">
+          <div className="mb-6 space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            {/* Location Type */}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-300">
-                Area Cleaned (m²)
+                Location Type *
               </label>
-              <input
-                type="number"
-                value={enhancedData.area}
-                onChange={(e) => setEnhancedData({ ...enhancedData, area: e.target.value })}
-                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                placeholder="50"
-              />
+              <select
+                value={enhancedData.locationType}
+                onChange={(e) => setEnhancedData({ ...enhancedData, locationType: e.target.value })}
+                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
+                required
+              >
+                <option value="">Select location type</option>
+                {locationTypeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
             </div>
 
+            {/* Area Cleaned */}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-300">
-                Weight Removed (kg)
+                Area Cleaned
               </label>
-              <input
-                type="number"
-                value={enhancedData.weight}
-                onChange={(e) => setEnhancedData({ ...enhancedData, weight: e.target.value })}
-                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                placeholder="5"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={enhancedData.area}
+                  onChange={(e) => setEnhancedData({ ...enhancedData, area: e.target.value })}
+                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                  placeholder="50"
+                  min="0"
+                  step="0.1"
+                />
+                <select
+                  value={enhancedData.areaUnit}
+                  onChange={(e) => setEnhancedData({ ...enhancedData, areaUnit: e.target.value as 'sqm' | 'sqft' })}
+                  className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
+                >
+                  <option value="sqm">m²</option>
+                  <option value="sqft">ft²</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Weight Removed */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">
+                Weight Removed
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={enhancedData.weight}
+                  onChange={(e) => setEnhancedData({ ...enhancedData, weight: e.target.value })}
+                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                  placeholder="5"
+                  min="0"
+                  step="0.1"
+                />
+                <select
+                  value={enhancedData.weightUnit}
+                  onChange={(e) => setEnhancedData({ ...enhancedData, weightUnit: e.target.value as 'kg' | 'lbs' })}
+                  className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
+                >
+                  <option value="kg">kg</option>
+                  <option value="lbs">lbs</option>
+                </select>
+              </div>
               <p className="mt-1 text-xs text-gray-500">1 standard trash bag ≈ 2kg</p>
             </div>
 
+            {/* Bags Filled */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">
+                Bags Filled
+              </label>
+              <input
+                type="number"
+                value={enhancedData.bags}
+                onChange={(e) => setEnhancedData({ ...enhancedData, bags: e.target.value })}
+                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                placeholder="2"
+                min="0"
+              />
+            </div>
+
+            {/* Time Spent */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">
+                Time Spent
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={enhancedData.hours}
+                  onChange={(e) => setEnhancedData({ ...enhancedData, hours: e.target.value })}
+                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                  placeholder="1"
+                  min="0"
+                />
+                <span className="flex items-center text-gray-400">hrs</span>
+                <input
+                  type="number"
+                  value={enhancedData.minutes}
+                  onChange={(e) => setEnhancedData({ ...enhancedData, minutes: e.target.value })}
+                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                  placeholder="30"
+                  min="0"
+                  max="59"
+                />
+                <span className="flex items-center text-gray-400">min</span>
+              </div>
+            </div>
+
+            {/* Waste Types */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">
+                Waste Types (Select all that apply)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {wasteTypeOptions.map((type) => (
+                  <label key={type} className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 p-2 hover:bg-gray-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enhancedData.wasteTypes.includes(type)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setEnhancedData({ ...enhancedData, wasteTypes: [...enhancedData.wasteTypes, type] })
+                        } else {
+                          setEnhancedData({ ...enhancedData, wasteTypes: enhancedData.wasteTypes.filter(t => t !== type) })
+                        }
+                      }}
+                      className="rounded border-gray-600"
+                    />
+                    <span className="text-sm text-white">{type}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Contributors */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">
+                Contributors
+              </label>
+              <div className="space-y-2">
+                <div className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-400">
+                  {address || 'Your wallet address'} (You)
+                </div>
+                {enhancedData.contributors.map((contributor, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={contributor}
+                      onChange={(e) => {
+                        const newContributors = [...enhancedData.contributors]
+                        newContributors[idx] = e.target.value
+                        setEnhancedData({ ...enhancedData, contributors: newContributors })
+                      }}
+                      placeholder="Contributor address (0x...)"
+                      className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500 text-sm"
+                    />
+                    <button
+                      onClick={() => setEnhancedData({ ...enhancedData, contributors: enhancedData.contributors.filter((_, i) => i !== idx) })}
+                      className="rounded-lg border border-red-500 bg-red-500/10 px-3 py-2 text-red-400 hover:bg-red-500/20"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setEnhancedData({ ...enhancedData, contributors: [...enhancedData.contributors, ''] })}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800"
+                >
+                  <span className="text-lg">+</span>
+                  Add Contributor
+                </button>
+                {enhancedData.contributors.length > 0 && (
+                  <p className="text-xs text-gray-500">Contributors will receive +5 $DCU when they submit cleanup photos</p>
+                )}
+              </div>
+            </div>
+
+            {/* Scope of Work (Auto-generated) */}
+            {enhancedData.scopeOfWork && (
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-300">
+                  Scope of Work (Auto-generated)
+                </label>
+                <div className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-300">
+                  {enhancedData.scopeOfWork}
+                </div>
+              </div>
+            )}
+
+            {/* Rights Assignment */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">
+                Rights Assignment
+              </label>
+              <select
+                value={enhancedData.rightsAssignment}
+                onChange={(e) => setEnhancedData({ ...enhancedData, rightsAssignment: e.target.value as any })}
+                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
+              >
+                <option value="">Select license</option>
+                <option value="attribution">Attribution (CC BY)</option>
+                <option value="non-commercial">Non-Commercial (CC BY-NC)</option>
+                <option value="no-derivatives">No Derivatives (CC BY-ND)</option>
+                <option value="share-alike">Share Alike (CC BY-SA)</option>
+                <option value="all-rights-reserved">All Rights Reserved</option>
+              </select>
+            </div>
+
+            {/* Environmental Challenges */}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-300">
                 Environmental Challenges
               </label>
+              <div className="mb-2 flex flex-wrap gap-2">
+                {environmentalChallengePresets.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      const current = enhancedData.environmentalChallenges
+                      const newValue = current ? `${current}, ${preset}` : preset
+                      setEnhancedData({ ...enhancedData, environmentalChallenges: newValue })
+                    }}
+                    className="rounded-lg border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-300 hover:bg-gray-700"
+                  >
+                    + {preset}
+                  </button>
+                ))}
+              </div>
               <textarea
                 value={enhancedData.environmentalChallenges}
                 onChange={(e) => setEnhancedData({ ...enhancedData, environmentalChallenges: e.target.value })}
@@ -878,16 +1246,47 @@ export default function CleanupPage() {
               />
             </div>
 
+            {/* Prevention Suggestions */}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-300">
-                Prevention Ideas
+                Prevention Suggestions
               </label>
+              <div className="mb-2 flex flex-wrap gap-2">
+                {preventionPresets.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      const current = enhancedData.preventionIdeas
+                      const newValue = current ? `${current}, ${preset}` : preset
+                      setEnhancedData({ ...enhancedData, preventionIdeas: newValue })
+                    }}
+                    className="rounded-lg border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-300 hover:bg-gray-700"
+                  >
+                    + {preset}
+                  </button>
+                ))}
+              </div>
               <textarea
                 value={enhancedData.preventionIdeas}
                 onChange={(e) => setEnhancedData({ ...enhancedData, preventionIdeas: e.target.value })}
                 className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="How can we prevent this?"
                 rows={3}
+              />
+            </div>
+
+            {/* Additional Notes */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">
+                Additional Notes (Optional)
+              </label>
+              <textarea
+                value={enhancedData.additionalNotes}
+                onChange={(e) => setEnhancedData({ ...enhancedData, additionalNotes: e.target.value })}
+                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                placeholder="Any additional information..."
+                rows={2}
               />
             </div>
           </div>
@@ -899,7 +1298,7 @@ export default function CleanupPage() {
               disabled={isSubmitting}
               className="flex-1 border-2 border-gray-700 bg-black text-white hover:bg-gray-900"
             >
-              Skip Enhanced Report
+              Skip Impact Report
             </Button>
             <Button
               onClick={handleSubmitEnhanced}

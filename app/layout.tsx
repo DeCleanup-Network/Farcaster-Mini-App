@@ -32,6 +32,10 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  other: {
+    "fc:miniapp": "https://decleanup.network",
+    "fc:frame": "vNext",
+  },
 };
 
 export const viewport = {
