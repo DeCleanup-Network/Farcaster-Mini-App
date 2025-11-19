@@ -74,8 +74,16 @@ Vercel should auto-detect Next.js. Verify these settings:
 
 ### 3.1 Add Environment Variables in Vercel Dashboard
 
+**⚠️ CRITICAL**: The following environment variables are **REQUIRED** for the app to function:
+
 1. In the project settings, go to **Settings** → **Environment Variables**
 2. Add each variable for **Production**, **Preview**, and **Development** environments:
+
+**Required Variables (app will fail without these):**
+- `NEXT_PUBLIC_PINATA_API_KEY` - **REQUIRED** for photo uploads
+- `NEXT_PUBLIC_PINATA_SECRET_KEY` - **REQUIRED** for photo uploads
+- `NEXT_PUBLIC_CHAIN_ID` - **REQUIRED** for blockchain interactions
+- Contract addresses - **REQUIRED** for all contract calls
 
 #### Base Network Configuration
 ```
@@ -83,6 +91,15 @@ NEXT_PUBLIC_CHAIN_ID=84532
 NEXT_PUBLIC_RPC_URL=https://mainnet.base.org
 NEXT_PUBLIC_TESTNET_RPC_URL=https://sepolia.base.org
 NEXT_PUBLIC_BLOCK_EXPLORER_URL=https://sepolia.basescan.org
+
+   NEXT_PUBLIC_CHAIN_ID=84532
+   NEXT_PUBLIC_TESTNET_RPC_URL=https://sepolia.base.org
+   NEXT_PUBLIC_BLOCK_EXPLORER_URL=https://sepolia.basescan.org
+   NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS=0x0E5713877D0B3610B58ACB5c13bdA41b61F6a0c9
+   NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS=0x08e9Ad176773ea7558e9C8453191d4361f8225f5
+   NEXT_PUBLIC_REWARD_DISTRIBUTOR_CONTRACT=0xd77f64024b0Ce2359DCe43ea149c77bF3cf08a40
+   NEXT_PUBLIC_IPFS_GATEWAY=https://gateway.pinata.cloud/ipfs/
+   NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt_token
 ```
 
 #### Contract Addresses (Base Sepolia)
@@ -92,12 +109,25 @@ NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS=0x08e9Ad176773ea7558e9C8453191d4361f82
 NEXT_PUBLIC_REWARD_DISTRIBUTOR_CONTRACT=0xd77f64024b0Ce2359DCe43ea149c77bF3cf08a40
 ```
 
-#### IPFS Configuration
+#### IPFS Configuration (REQUIRED for photo uploads)
 ```
 NEXT_PUBLIC_IPFS_GATEWAY=https://gateway.pinata.cloud/ipfs/
-NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt_token
+NEXT_PUBLIC_PINATA_API_KEY=your_pinata_api_key
+NEXT_PUBLIC_PINATA_SECRET_KEY=your_pinata_secret_key
 NEXT_PUBLIC_PINATA_GATEWAY=gateway.pinata.cloud
 ```
+
+**⚠️ IMPORTANT**: Without Pinata API keys, users cannot upload photos. The cleanup submission will fail with:
+```
+Failed to upload before photo: Pinata API keys not configured
+```
+
+To get your Pinata API keys:
+1. Sign up at [pinata.cloud](https://pinata.cloud)
+2. Go to API Keys section
+3. Create a new API key with `pinFileToIPFS` and `pinJSONToIPFS` permissions
+4. Copy the API Key and Secret Key
+5. Add them to Vercel environment variables
 
 #### WalletConnect (Optional)
 ```
@@ -349,6 +379,7 @@ Vercel automatically:
 - [Environment Variables](https://vercel.com/docs/projects/environment-variables)
 - [Custom Domains](https://vercel.com/docs/projects/domains)
 - [Base Mini App Template](https://docs.base.org/miniapp)
+- [Pinata Setup Guide](./pinata-setup.md) - **Required for photo uploads**
 
 ## Quick Reference
 
