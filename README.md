@@ -172,7 +172,7 @@ Contributions are welcome! Fork the repository, create a feature branch, and ope
 - [DeCleanup Network GitHub](https://github.com/DeCleanup-Network)
 - [Farcaster Mini Apps Docs](https://docs.farcaster.xyz/developers/mini-apps)
 - [Base Documentation](https://docs.base.org)
-- [Base Mini App Guide](https://docs.base.org/miniapp
+- [Base Mini App Guide](https://docs.base.org/miniapp)
 
 ---
 
