@@ -500,12 +500,10 @@ export default function Home() {
             explorerUrl={successModalData.transactionHash ? getExplorerTxUrl(successModalData.transactionHash as `0x${string}`) : undefined}
             explorerName={BLOCK_EXPLORER_NAME}
             showShare={successModalData.title.includes('Minted')}
+            userAddress={address || undefined}
+            level={cleanupStatus?.level}
             onShare={() => {
-              if (successModalData.transactionHash) {
-                const shareText = `🎉 I just minted my DeCleanup Impact Product NFT!\n\n${successModalData.message}\n\nView on ${BLOCK_EXPLORER_NAME}: ${getExplorerTxUrl(successModalData.transactionHash as `0x${string}`)}\n\n#DeCleanup #ImpactProduct #Base`
-                const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
-                window.open(twitterUrl, '_blank', 'noopener,noreferrer')
-              }
+              // Custom share handler is handled by SuccessModal now
             }}
           />
         )}

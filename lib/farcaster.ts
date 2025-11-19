@@ -76,3 +76,33 @@ export const closeMiniApp = async () => {
   }
 }
 
+// Share a cast (post) on Farcaster
+export const shareCast = async (text: string, url?: string): Promise<boolean> => {
+  try {
+    // Farcaster SDK doesn't have a direct cast action, but we can use openUrl
+    // to open the Farcaster compose interface with pre-filled text
+    const farcasterUrl = url 
+      ? `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(url)}`
+      : `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
+    
+    await openUrl(farcasterUrl)
+    return true
+  } catch (error) {
+    console.error('Failed to share cast:', error)
+    // Fallback: try to copy to clipboard
+    try {
+      await navigator.clipboard.writeText(text)
+      return true
+    } catch (clipboardError) {
+      console.error('Failed to copy to clipboard:', clipboardError)
+      return false
+    }
+  }
+}
+
+// Generate referral link with wallet address
+export const generateReferralLink = (walletAddress: string, baseUrl?: string): string => {
+  const url = baseUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://decleanup.network')
+  return `${url}/cleanup?ref=${walletAddress}`
+}
+

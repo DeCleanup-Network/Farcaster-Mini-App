@@ -5,7 +5,7 @@ import { useAccount } from 'wagmi'
 import type { Address } from 'viem'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
-import { Award, TrendingUp, Trash2, Loader2, Flame, Clock, CheckCircle, RefreshCw, ExternalLink, Wallet } from 'lucide-react'
+import { Award, TrendingUp, Trash2, Loader2, Flame, Clock, CheckCircle, RefreshCw, ExternalLink, Wallet, Share2 } from 'lucide-react'
 import Link from 'next/link'
 import {
   getDCUBalance,
@@ -21,6 +21,8 @@ import {
   CONTRACT_ADDRESSES,
 } from '@/lib/contracts'
 import { REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
+import { shareCast, generateReferralLink, isFarcasterContext } from '@/lib/farcaster'
+import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   ? 'Basescan (Sepolia)'
@@ -86,6 +88,9 @@ export default function ProfilePage() {
   const [isClaiming, setIsClaiming] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [addingToWallet, setAddingToWallet] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const { context: farcasterContext } = useFarcaster()
+  const isInFarcaster = isFarcasterContext()
 
   // Prevent hydration mismatch by ensuring we render only after mounting
   useEffect(() => {

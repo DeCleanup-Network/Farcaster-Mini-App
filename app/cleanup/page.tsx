@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
 import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle } from 'lucide-react'
 import { uploadToIPFS, uploadJSONToIPFS, getIPFSUrl } from '@/lib/ipfs'
 import { submitCleanup, getSubmissionFee, getCleanupStatus, CONTRACT_ADDRESSES } from '@/lib/contracts'
+import type { Address } from 'viem'
 import { tryAddRequiredChain } from '@/lib/network'
 import {
   REQUIRED_CHAIN_ID,
@@ -44,7 +45,9 @@ export default function CleanupPage() {
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [mounted, setMounted] = useState(false)
+  const [referrerAddress, setReferrerAddress] = useState<Address | null>(null)
   const [step, setStep] = useState<Step>('before')
   const [beforePhoto, setBeforePhoto] = useState<File | null>(null)
   const [afterPhoto, setAfterPhoto] = useState<File | null>(null)
@@ -66,6 +69,17 @@ export default function CleanupPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Read referrer from URL params
+  useEffect(() => {
+    if (mounted && searchParams) {
+      const ref = searchParams.get('ref')
+      if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
+        setReferrerAddress(ref as Address)
+        console.log('Referrer address from URL:', ref)
+      }
+    }
+  }, [mounted, searchParams])
   
   // Impact Report form data
   const [enhancedData, setEnhancedData] = useState({
@@ -543,7 +557,7 @@ export default function CleanupPage() {
           afterHash.hash,
           location.lat,
           location.lng,
-          null, // No referrer for now
+          referrerAddress, // Use referrer from URL if available
           hasForm,
           impactFormDataHash || '',
           feeValue // Include fee if required

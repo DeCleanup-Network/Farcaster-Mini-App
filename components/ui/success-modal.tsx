@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
-import { X, CheckCircle, ExternalLink } from 'lucide-react'
+import { X, CheckCircle, ExternalLink, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { shareCast, generateReferralLink, isFarcasterContext } from '@/lib/farcaster'
 
 interface SuccessModalProps {
   isOpen: boolean
@@ -14,6 +15,8 @@ interface SuccessModalProps {
   explorerName?: string
   onShare?: () => void
   showShare?: boolean
+  userAddress?: string
+  level?: number
 }
 
 export function SuccessModal({
@@ -26,7 +29,10 @@ export function SuccessModal({
   explorerName = 'Explorer',
   onShare,
   showShare = false,
+  userAddress,
+  level,
 }: SuccessModalProps) {
+  const isInFarcaster = isFarcasterContext()
   // Close on Escape key
   useEffect(() => {
     if (!isOpen) return
@@ -118,12 +124,41 @@ export function SuccessModal({
           )}
           
           {showShare && (
-            <Button
-              onClick={handleShare}
-              className="w-full gap-2 bg-brand-yellow text-black hover:bg-[#e6e600]"
-            >
-              Share on X
-            </Button>
+            <div className="flex flex-col gap-2">
+              {isInFarcaster && userAddress && (
+                <Button
+                  onClick={async () => {
+                    if (onShare) {
+                      onShare()
+                    } else {
+                      const referralLink = generateReferralLink(userAddress)
+                      const shareText = `🎉 I just minted my DeCleanup Impact Product NFT${level ? ` (Level ${level})` : ''}!\n\nClean up, snap, earn! Join me: ${referralLink}\n\n${explorerUrl ? `View on ${explorerName}: ${explorerUrl}\n\n` : ''}#DeCleanup #ImpactProduct #Base`
+                      await shareCast(shareText, referralLink)
+                    }
+                  }}
+                  className="w-full gap-2 bg-purple-600 text-white hover:bg-purple-700"
+                >
+                  <Share2 className="h-4 w-4" />
+                  Share on Farcaster
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  if (onShare) {
+                    onShare()
+                  } else if (transactionHash && explorerUrl) {
+                    const referralLink = userAddress ? generateReferralLink(userAddress) : ''
+                    const shareText = `🎉 I just minted my DeCleanup Impact Product NFT${level ? ` (Level ${level})` : ''}!\n\nClean up, snap, earn!${referralLink ? ` Join me: ${referralLink}\n\n` : '\n\n'}View on ${explorerName}: ${explorerUrl}\n\n#DeCleanup #ImpactProduct #Base`
+                    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
+                    window.open(twitterUrl, '_blank', 'noopener,noreferrer')
+                  }
+                }}
+                className="w-full gap-2 bg-brand-yellow text-black hover:bg-[#e6e600]"
+              >
+                <Share2 className="h-4 w-4" />
+                Share on X
+              </Button>
+            </div>
           )}
           
           <Button

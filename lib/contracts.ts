@@ -990,14 +990,8 @@ export async function verifyCleanup(cleanupId: bigint, level: number): Promise<`
     throw new Error('Level must be between 1 and 10')
   }
 
-  // Check network before submitting
-  const currentChainId = await getCurrentChainId()
-  if (currentChainId !== null && currentChainId !== REQUIRED_CHAIN_ID) {
-    throw new Error(
-      `Wrong network. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}). ` +
-      `Current: ${currentChainId}`
-    )
-  }
+  // Ensure wallet is on the required chain (same logic as submitCleanup)
+  await ensureWalletOnRequiredChain('verification')
 
   // Validate cleanup exists before submitting
   try {
@@ -1057,14 +1051,8 @@ export async function rejectCleanup(cleanupId: bigint): Promise<`0x${string}`> {
     throw new Error('Verification contract address not set')
   }
 
-  // Check network before submitting
-  const currentChainId = await getCurrentChainId()
-  if (currentChainId !== null && currentChainId !== REQUIRED_CHAIN_ID) {
-    throw new Error(
-      `Wrong network. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}). ` +
-      `Current: ${currentChainId}`
-    )
-  }
+  // Ensure wallet is on the required chain (same logic as submitCleanup)
+  await ensureWalletOnRequiredChain('rejection')
 
   // Validate cleanup exists before submitting
   try {
