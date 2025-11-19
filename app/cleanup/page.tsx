@@ -9,6 +9,7 @@ import { BackButton } from '@/components/navigation/BackButton'
 import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle } from 'lucide-react'
 import { uploadToIPFS, uploadJSONToIPFS, getIPFSUrl } from '@/lib/ipfs'
 import { submitCleanup, getSubmissionFee, getCleanupStatus, CONTRACT_ADDRESSES } from '@/lib/contracts'
+import { tryAddRequiredChain } from '@/lib/network'
 import {
   REQUIRED_CHAIN_ID,
   REQUIRED_CHAIN_NAME,
@@ -463,24 +464,42 @@ export default function CleanupPage() {
             switchError?.name === 'ChainNotConfiguredError' ||
             switchError?.code === 4902
           const wasRejected = errorMessage.includes('rejected') || errorMessage.includes('denied') || errorMessage.includes('User rejected')
+          let autoFixed = false
           
           if (isChainNotConfigured) {
-            alert(
-              `❌ ${REQUIRED_CHAIN_NAME} is not configured in your wallet!\n\n` +
-              `Please add ${REQUIRED_CHAIN_NAME} to your wallet:\n\n` +
-              `1. Open your wallet (MetaMask, Coinbase Wallet, etc.)\n` +
-              `2. Go to Settings → Networks → Add Network\n` +
-              `3. Click "Add a network manually"\n` +
-              `4. Enter these details:\n` +
-              `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
-              `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
-              `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
-              `   • Currency Symbol: ETH\n` +
-              `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
-              `5. Click "Save" and switch to ${REQUIRED_CHAIN_NAME}\n` +
-              `${REQUIRED_CHAIN_IS_TESTNET ? `6. Get testnet ETH from: https://www.coinbase.com/faucets/base-ethereum-goerli-faucet\n` : ''}` +
-              `${REQUIRED_CHAIN_IS_TESTNET ? `7. Then try submitting again.` : `6. Then try submitting again.`}`
-            )
+            const added = await tryAddRequiredChain()
+            if (added) {
+              console.log('✅ Added Base network via wallet_addEthereumChain. Retrying switch...')
+              await new Promise(resolve => setTimeout(resolve, 1200))
+              try {
+                await switchChain({ chainId: REQUIRED_CHAIN_ID })
+                autoFixed = true
+                console.log('Successfully switched after auto-adding network.')
+              } catch (retryError) {
+                console.warn('Retry switch failed after adding network:', retryError)
+              }
+            }
+            
+            if (!autoFixed) {
+              alert(
+                `❌ ${REQUIRED_CHAIN_NAME} is not configured in your wallet!\n\n` +
+                `Please add ${REQUIRED_CHAIN_NAME} to your wallet:\n\n` +
+                `1. Open your wallet (MetaMask, Coinbase Wallet, etc.)\n` +
+                `2. Go to Settings → Networks → Add Network\n` +
+                `3. Click "Add a network manually"\n` +
+                `4. Enter these details:\n` +
+                `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+                `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
+                `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+                `   • Currency Symbol: ETH\n` +
+                `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
+                `5. Click "Save" and switch to ${REQUIRED_CHAIN_NAME}\n` +
+                `${REQUIRED_CHAIN_IS_TESTNET ? `6. Get testnet ETH from: https://www.coinbase.com/faucets/base-ethereum-goerli-faucet\n` : ''}` +
+                `${REQUIRED_CHAIN_IS_TESTNET ? `7. Then try submitting again.` : `6. Then try submitting again.`}`
+              )
+              setIsSubmitting(false)
+              return
+            }
           } else {
             alert(
               `❌ Wrong Network!\n\n` +
@@ -499,9 +518,9 @@ export default function CleanupPage() {
               `5. Then try submitting again.\n\n` +
               `Error: ${errorMessage}`
             )
+            setIsSubmitting(false)
+            return
           }
-          setIsSubmitting(false)
-          return
         }
       }
       

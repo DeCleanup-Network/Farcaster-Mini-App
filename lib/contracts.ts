@@ -16,6 +16,7 @@ import {
   REQUIRED_RPC_URL,
   REQUIRED_CHAIN_IS_TESTNET,
 } from './wagmi'
+import { tryAddRequiredChain } from './network'
 import * as pointsLib from './points'
 
 // Helper to safely extract error messages
@@ -57,6 +58,115 @@ function getNetworkSetupMessage() {
     `- Currency Symbol: ${REQUIRED_CHAIN_SYMBOL}\n` +
     `- Block Explorer: ${BLOCK_EXPLORER_BASE_URL}`
   )
+}
+
+function getManualNetworkAddInstructions() {
+  return (
+    `Please add ${REQUIRED_CHAIN_NAME} to your wallet:\n` +
+    `1. Open your wallet (MetaMask, Coinbase Wallet, etc.)\n` +
+    `2. Go to Settings → Networks → Add Network\n` +
+    `3. Enter these details:\n` +
+    `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+    `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
+    `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+    `   • Currency Symbol: ETH\n` +
+    `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
+    (REQUIRED_CHAIN_IS_TESTNET
+      ? `4. Request Base Sepolia ETH from https://www.coinbase.com/faucets/base-ethereum-goerli-faucet\n` +
+        `5. Switch to ${REQUIRED_CHAIN_NAME} and try again.`
+      : `4. Switch to ${REQUIRED_CHAIN_NAME} and try again.`)
+  )
+}
+
+async function ensureWalletOnRequiredChain(context = 'transaction'): Promise<void> {
+  const currentChainId = await getCurrentChainId()
+
+  if (currentChainId === null) {
+    console.warn(`[${context}] Could not determine current chain. Proceeding; wallet will enforce the correct network.`)
+    return
+  }
+
+  if (currentChainId === REQUIRED_CHAIN_ID) {
+    return
+  }
+
+  if (currentChainId === 11142220) {
+    throw new Error(
+      `VeChain wallet detected (Chain ID: 11142220). Please disable the VeChain extension or use MetaMask, Coinbase Wallet, or the Farcaster wallet.\n\n` +
+        `Then switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).`
+    )
+  }
+
+  const targetChain = getRequiredChain()
+  if (!targetChain) {
+    throw new Error(
+      `${REQUIRED_CHAIN_NAME} chain is not configured in this app. Please switch to ${REQUIRED_CHAIN_NAME} manually.\n\n${getNetworkSetupMessage()}`
+    )
+  }
+
+  let switchSuccessful = false
+
+  try {
+    console.log(`[${context}] Attempting to switch from chain ${currentChainId} to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})`)
+    await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+    const verifiedId = await getCurrentChainId()
+    if (verifiedId === null || verifiedId === REQUIRED_CHAIN_ID) {
+      switchSuccessful = true
+    }
+  } catch (switchError: any) {
+    const errorMessage = getErrorMessage(switchError)
+    const isChainNotConfigured =
+      errorMessage.includes('Chain not configured') ||
+      errorMessage.includes('chain not configured') ||
+      errorMessage.includes('not configured') ||
+      errorMessage.includes('Unrecognized chain') ||
+      errorMessage.includes('Unrecognized chain ID') ||
+      switchError?.name === 'ChainNotConfiguredError' ||
+      switchError?.code === 4902
+    const wasRejected =
+      errorMessage.includes('User rejected') ||
+      errorMessage.includes('rejected') ||
+      errorMessage.includes('denied')
+
+    if (isChainNotConfigured) {
+      console.warn(`[${context}] Wallet is missing ${REQUIRED_CHAIN_NAME}. Trying wallet_addEthereumChain...`)
+      const chainAdded = await tryAddRequiredChain()
+      if (chainAdded) {
+        await new Promise((resolve) => setTimeout(resolve, 1200))
+        try {
+          await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+          const verifiedId = await getCurrentChainId()
+          if (verifiedId === null || verifiedId === REQUIRED_CHAIN_ID) {
+            switchSuccessful = true
+          }
+        } catch (retryError) {
+          console.warn(`[${context}] Switch after adding network failed:`, retryError)
+        }
+      }
+
+      if (!switchSuccessful) {
+        throw new Error(
+          `${REQUIRED_CHAIN_NAME} is not configured in your wallet.\n\n${getManualNetworkAddInstructions()}\n\nError: ${errorMessage}`
+        )
+      }
+    } else if (wasRejected) {
+      throw new Error(
+        `Network switch was rejected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) manually in your wallet and try again.`
+      )
+    } else {
+      throw new Error(
+        `Failed to switch to ${REQUIRED_CHAIN_NAME}.\n\nPlease switch manually in your wallet:\n\n${getNetworkSetupMessage()}\n\nCurrent network: ${currentChainId}\nError: ${errorMessage}`
+      )
+    }
+  }
+
+  if (!switchSuccessful) {
+    throw new Error(
+      `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n${getNetworkSetupMessage()}`
+    )
+  }
 }
 
 function getTxExplorerUrl(transactionHash: string) {
@@ -415,112 +525,7 @@ export async function submitCleanup(
     )
   }
 
-  // Check if we're on the correct network
-  try {
-    const currentChainId = await getCurrentChainId()
-    // If we couldn't determine chain ID (null), skip the check and let wallet handle it
-    if (currentChainId === null) {
-      console.warn('Could not verify chain ID, proceeding with transaction. Wallet will reject if on wrong network.')
-    } else if (currentChainId === 11142220) {
-      // Explicitly reject VeChain (chain ID 11142220)
-      throw new Error(
-        `VeChain wallet detected (Chain ID: 11142220). Please disable the VeChain extension or use a different wallet.\n\n` +
-        `To fix this:\n` +
-        `1. Disable the VeChain browser extension\n` +
-        `2. Or use MetaMask, Coinbase Wallet, or the Farcaster wallet\n` +
-        `3. Then switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID})`
-      )
-    } else if (currentChainId !== REQUIRED_CHAIN_ID) {
-      // Try to switch to the required chain
-      const targetChain = getRequiredChain()
-      if (!targetChain) {
-        throw new Error(
-          `${REQUIRED_CHAIN_NAME} chain not configured. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) manually in your wallet.`
-        )
-      }
-      
-      try {
-        // Check if chain is configured in wagmi before attempting switch
-        const chainExists = config.chains.find(chain => chain.id === REQUIRED_CHAIN_ID)
-        if (!chainExists) {
-          throw new Error(
-            `${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) is not configured in the app.\n\n` +
-            `Please contact support or check your environment configuration.`
-          )
-        }
-
-        await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
-        // Wait a bit for the switch to complete and verify
-        await new Promise(resolve => setTimeout(resolve, 1500))
-        
-        // Verify the switch was successful
-        const newChainId = await getCurrentChainId()
-        if (newChainId === null) {
-          console.warn('Could not verify chain switch, but switch was attempted. Proceeding...')
-        } else if (newChainId !== REQUIRED_CHAIN_ID) {
-          throw new Error(
-            `Failed to switch to ${REQUIRED_CHAIN_NAME}. Please switch manually in your wallet. ` +
-            `Current network: ${newChainId}, Required: ${REQUIRED_CHAIN_ID}`
-          )
-        }
-      } catch (switchError: any) {
-        // If switch fails, provide clear instructions
-        const errorMessage = getErrorMessage(switchError)
-        const isChainNotConfigured = 
-          errorMessage.includes('Chain not configured') ||
-          errorMessage.includes('chain not configured') ||
-          errorMessage.includes('not configured') ||
-          errorMessage.includes('Unrecognized chain') ||
-          errorMessage.includes('Unrecognized chain ID') ||
-          switchError?.name === 'ChainNotConfiguredError' ||
-          switchError?.code === 4902 // MetaMask error code for chain not configured
-        
-        if (errorMessage.includes('User rejected') || errorMessage.includes('rejected') || errorMessage.includes('denied')) {
-          throw new Error(
-            `Network switch was rejected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) manually in your wallet and try again.`
-          )
-        }
-        
-        if (isChainNotConfigured) {
-          throw new Error(
-            `${REQUIRED_CHAIN_NAME} is not configured in your wallet.\n\n` +
-            `Please add ${REQUIRED_CHAIN_NAME} to your wallet:\n\n` +
-            `1. Open your wallet (MetaMask, Coinbase Wallet, etc.)\n` +
-            `2. Go to Settings → Networks → Add Network\n` +
-            `3. Click "Add a network manually"\n` +
-            `4. Enter these details:\n` +
-            `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
-            `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
-            `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
-            `   • Currency Symbol: ETH\n` +
-            `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
-            `5. Click "Save" and switch to ${REQUIRED_CHAIN_NAME}\n` +
-            `${REQUIRED_CHAIN_IS_TESTNET ? `6. Get testnet ETH from: https://www.coinbase.com/faucets/base-ethereum-goerli-faucet\n` : ''}` +
-            `${REQUIRED_CHAIN_IS_TESTNET ? `7. Then try submitting again.` : `6. Then try submitting again.`}`
-          )
-        }
-        
-        throw new Error(
-          `Failed to switch to ${REQUIRED_CHAIN_NAME}.\n\n` +
-          `Please switch manually in your wallet:\n\n` +
-          `Network Name: ${REQUIRED_CHAIN_NAME}\n` +
-          `RPC URL: ${REQUIRED_RPC_URL}\n` +
-          `Chain ID: ${REQUIRED_CHAIN_ID}\n` +
-          `Currency Symbol: ETH\n` +
-          `Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n\n` +
-          `Current network: ${currentChainId}\n` +
-          `Error: ${errorMessage}`
-        )
-      }
-    }
-  } catch (chainError: any) {
-    // If it's already our custom error, re-throw it
-    if (chainError?.message?.includes('switch') || chainError?.message?.includes(REQUIRED_CHAIN_NAME)) {
-      throw chainError
-    }
-    // Otherwise, log warning but continue (might work if wallet handles it)
-    console.warn('Could not verify/switch chain ID:', chainError)
-  }
+  await ensureWalletOnRequiredChain('cleanup submission')
 
   // Scale coordinates by 1e6
   const latScaled = BigInt(Math.floor(latitude * 1e6))
@@ -662,6 +667,8 @@ export async function claimImpactProductFromVerification(cleanupId: bigint): Pro
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
   }
+
+  await ensureWalletOnRequiredChain('claim impact product')
 
   const hash = await writeContract(config, {
     address: CONTRACT_ADDRESSES.VERIFICATION,

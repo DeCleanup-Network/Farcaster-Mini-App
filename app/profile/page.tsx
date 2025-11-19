@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAccount } from 'wagmi'
+import type { Address } from 'viem'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
-import { Award, TrendingUp, Trash2, Loader2, Flame, Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
+import { Award, TrendingUp, Trash2, Loader2, Flame, Clock, CheckCircle, RefreshCw, ExternalLink, Wallet } from 'lucide-react'
 import Link from 'next/link'
 import {
   getDCUBalance,
@@ -17,6 +18,7 @@ import {
   hasActiveStreak,
   getCleanupStatus,
   claimImpactProductFromVerification,
+  CONTRACT_ADDRESSES,
 } from '@/lib/contracts'
 import { REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
 
@@ -24,6 +26,37 @@ const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   ? 'Basescan (Sepolia)'
   : 'Basescan'
 const getExplorerTxUrl = (hash: `0x${string}`) => `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${hash}`
+
+interface ImpactAttribute {
+  trait_type?: string
+  value?: string | number
+}
+
+interface ImpactMetadata {
+  name?: string
+  description?: string
+  external_url?: string
+  image?: string
+  animation_url?: string
+  attributes?: ImpactAttribute[]
+}
+
+function extractImpactStats(metadata: ImpactMetadata | null) {
+  let impactValue: string | null = null
+  let dcuReward: string | null = null
+
+  metadata?.attributes?.forEach((attr) => {
+    const trait = attr?.trait_type?.toLowerCase()
+    if (!trait) return
+    if (trait === 'impact value') {
+      impactValue = attr.value != null ? String(attr.value) : null
+    } else if (trait === '$dcu' || trait === 'dcu' || trait.includes('dcu')) {
+      dcuReward = attr.value != null ? String(attr.value) : null
+    }
+  })
+
+  return { impactValue, dcuReward }
+}
 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount()
@@ -38,7 +71,10 @@ export default function ProfilePage() {
     tokenURI: '',
     imageUrl: '',
     animationUrl: '',
-    metadata: null as { name?: string; description?: string; attributes?: any[] } | null,
+    metadata: null as ImpactMetadata | null,
+    tokenId: null as bigint | null,
+    impactValue: null as string | null,
+    dcuReward: null as string | null,
   })
   const [cleanupStatus, setCleanupStatus] = useState<{
     cleanupId: bigint | null
@@ -49,33 +85,22 @@ export default function ProfilePage() {
   } | null>(null)
   const [isClaiming, setIsClaiming] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [addingToWallet, setAddingToWallet] = useState(false)
 
   // Prevent hydration mismatch by ensuring we render only after mounting
   useEffect(() => {
     setHasMounted(true)
   }, [])
 
-  useEffect(() => {
-    if (!isConnected || !address) {
-      setLoading(false)
-      return
-    }
-
-    async function fetchProfileData() {
-      if (!address) return // Type guard
-      
-      // Store address in const for TypeScript narrowing
-      const userAddress = address
-      
+  const loadProfileData = useCallback(
+    async (userAddress: Address, options?: { showSpinner?: boolean }) => {
+      const showSpinner = options?.showSpinner ?? true
       try {
-        setLoading(true)
-        const [
-          dcuBalance,
-          stakedDCU,
-          level,
-          streak,
-          activeStreak,
-        ] = await Promise.all([
+        if (showSpinner) {
+          setLoading(true)
+        }
+
+        const [dcuBalance, stakedDCU, level, streak, activeStreak] = await Promise.all([
           getDCUBalance(userAddress),
           getStakedDCU(userAddress),
           getUserLevel(userAddress),
@@ -86,189 +111,131 @@ export default function ProfilePage() {
         let tokenURI = ''
         let imageUrl = ''
         let animationUrl = ''
-        let metadata = null
-        
+        let metadata: ImpactMetadata | null = null
+        let tokenId: bigint | null = null
+        let impactValue: string | null = null
+        let dcuReward: string | null = null
+
         if (level > 0) {
           try {
-            // Get the actual token ID for this user
-            const tokenId = await getUserTokenId(userAddress)
-            
+            tokenId = await getUserTokenId(userAddress)
+
             if (tokenId > BigInt(0)) {
-              // Use the actual tokenURI from the contract (more accurate)
               try {
                 tokenURI = await getTokenURI(tokenId)
               } catch (error) {
-                // Fallback to level-based URI
                 console.warn('Failed to get tokenURI from tokenId, using level-based URI:', error)
                 tokenURI = await getTokenURIForLevel(level)
               }
             } else {
-              // Fallback if no token ID yet
               tokenURI = await getTokenURIForLevel(level)
             }
-            
-            // Helper function to convert IPFS URL to gateway URL
-            // Handles both ipfs://CID/path and ipfs://CID/ formats
-            const convertIPFSToGateway = (ipfsUrl: string, gateways?: string[]): string => {
+
+            const convertIPFSToGateway = (ipfsUrl: string, gateways?: string[]) => {
               if (!ipfsUrl.startsWith('ipfs://')) {
                 return ipfsUrl
               }
-              // Remove 'ipfs://' prefix and clean up path
-              let path = ipfsUrl.replace('ipfs://', '').replace(/\/+/g, '/') // Remove double slashes
-              if (path.startsWith('/')) path = path.substring(1) // Remove leading slash
-              
+              let path = ipfsUrl.replace('ipfs://', '').replace(/\/+/g, '/')
+              if (path.startsWith('/')) path = path.substring(1)
+
               const defaultGateways = [
-                'https://gateway.pinata.cloud/ipfs/',
+                process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/',
                 'https://ipfs.io/ipfs/',
                 'https://cloudflare-ipfs.com/ipfs/',
                 'https://dweb.link/ipfs/',
               ]
-              
-              const gatewayList = gateways || [process.env.NEXT_PUBLIC_IPFS_GATEWAY || defaultGateways[0], ...defaultGateways]
+              const gatewayList = gateways || defaultGateways
               return `${gatewayList[0]}${path}`
             }
-            
-            // Helper function to fetch with multiple gateway fallbacks
+
             const fetchWithFallback = async (ipfsUrl: string): Promise<Response> => {
               if (!ipfsUrl.startsWith('ipfs://')) {
                 return fetch(ipfsUrl)
               }
-              
+
               const gateways = [
                 process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/',
                 'https://ipfs.io/ipfs/',
                 'https://cloudflare-ipfs.com/ipfs/',
                 'https://dweb.link/ipfs/',
               ]
-              
+
               let path = ipfsUrl.replace('ipfs://', '').replace(/\/+/g, '/')
               if (path.startsWith('/')) path = path.substring(1)
-              
-              // Try each gateway
+
               for (const gateway of gateways) {
                 try {
                   const url = `${gateway}${path}`
-                  console.log(`🔄 Trying gateway: ${url}`)
-                  const response = await fetch(url, { 
+                  const response = await fetch(url, {
                     method: 'GET',
-                    headers: { 'Accept': 'application/json' },
-                    redirect: 'follow'
+                    headers: { Accept: 'application/json' },
+                    redirect: 'follow',
                   })
-                  
                   if (response.ok) {
-                    console.log(`✅ Success with gateway: ${gateway}`)
                     return response
                   }
                 } catch (error) {
-                  console.warn(`⚠️ Gateway ${gateway} failed:`, error)
-                  continue
+                  console.warn(`Gateway ${gateway} failed:`, error)
                 }
               }
-              
+
               throw new Error(`All IPFS gateways failed for: ${ipfsUrl}`)
             }
-            
-            // Fetch metadata from IPFS
+
             if (tokenURI) {
               try {
-                console.log('📥 Fetching metadata from:', tokenURI)
                 const metadataResponse = await fetchWithFallback(tokenURI)
-                
                 if (!metadataResponse.ok) {
                   throw new Error(`Failed to fetch metadata: ${metadataResponse.status} ${metadataResponse.statusText}`)
                 }
-                
-                metadata = await metadataResponse.json()
-                console.log('✅ Fetched metadata:', { metadata, tokenURI })
-                
-                // Extract image URL and convert IPFS to gateway URL
+
+                metadata = (await metadataResponse.json()) as ImpactMetadata
+                const stats = extractImpactStats(metadata)
+                impactValue = stats.impactValue
+                dcuReward = stats.dcuReward
+
                 if (metadata?.image) {
-                  // Fix old image paths: /images/level1.png -> IP1.png
                   let fixedImagePath = metadata.image
-                  // Use environment variable if set, otherwise fallback to hardcoded CID
-                  const imagesCID = process.env.NEXT_PUBLIC_IMPACT_IMAGES_CID || 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'
-                  
-                  // Check if it's the old format: /images/levelX.png
+                  const imagesCID =
+                    process.env.NEXT_PUBLIC_IMPACT_IMAGES_CID || 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'
                   if (fixedImagePath.includes('/images/level')) {
-                    // Extract level number and convert to IPX.png format
                     const levelMatch = fixedImagePath.match(/level(\d+)\.png/)
                     if (levelMatch) {
                       const levelNum = levelMatch[1]
-                      if (levelNum === '10') {
-                        fixedImagePath = `ipfs://${imagesCID}/IP10Placeholder.png`
-                      } else {
-                        fixedImagePath = `ipfs://${imagesCID}/IP${levelNum}.png`
-                      }
-                      console.log('🔧 Fixed old image path:', { 
-                        old: metadata.image, 
-                        new: fixedImagePath 
-                      })
+                      fixedImagePath =
+                        levelNum === '10'
+                          ? `ipfs://${imagesCID}/IP10Placeholder.png`
+                          : `ipfs://${imagesCID}/IP${levelNum}.png`
                     }
                   }
-                  
                   imageUrl = convertIPFSToGateway(fixedImagePath)
-                  console.log('✅ Image URL converted:', { 
-                    original: metadata.image, 
-                    fixed: fixedImagePath,
-                    converted: imageUrl,
-                    level: level 
-                  })
-                  
-                  // Pre-validate the image URL by trying to fetch it
-                  try {
-                    const testResponse = await fetch(imageUrl, { method: 'HEAD' })
-                    if (testResponse.ok) {
-                      console.log('✅ Image URL is accessible:', imageUrl)
-                    } else {
-                      console.warn('⚠️ Image URL returned status:', testResponse.status, imageUrl)
-                    }
-                  } catch (testError) {
-                    console.warn('⚠️ Could not pre-validate image URL:', testError)
-                  }
-                } else {
-                  console.warn('⚠️ No image in metadata:', metadata)
                 }
-                
-                // Extract animation URL (for level 10 video)
+
                 if (metadata?.animation_url) {
-                  // Fix old video paths if needed
                   let fixedAnimationPath = metadata.animation_url
-                  const imagesCID = 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'
-                  
-                  // Check if it's the old format: /video/level10.mp4
                   if (fixedAnimationPath.includes('/video/level10')) {
-                    fixedAnimationPath = `ipfs://${imagesCID}/IP10VIdeo.mp4`
-                    console.log('🔧 Fixed old animation path:', { 
-                      old: metadata.animation_url, 
-                      new: fixedAnimationPath 
-                    })
+                    fixedAnimationPath = `ipfs://${process.env.NEXT_PUBLIC_IMPACT_IMAGES_CID || 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'}/IP10VIdeo.mp4`
                   }
-                  
                   animationUrl = convertIPFSToGateway(fixedAnimationPath)
-                  console.log('✅ Animation URL:', { 
-                    original: metadata.animation_url, 
-                    fixed: fixedAnimationPath,
-                    converted: animationUrl 
-                  })
                 }
               } catch (metadataError) {
                 console.error('❌ Error fetching metadata:', metadataError)
-                // Try fallback: use level-based metadata from env if available
                 const fallbackCID = process.env.NEXT_PUBLIC_IMPACT_METADATA_CID
                 if (fallbackCID && level > 0) {
-                  console.log(`🔄 Trying fallback with CID: ${fallbackCID}`)
                   try {
                     const fallbackUrl = `https://gateway.pinata.cloud/ipfs/${fallbackCID}/level${level}.json`
                     const fallbackResponse = await fetch(fallbackUrl)
                     if (fallbackResponse.ok) {
-                      metadata = await fallbackResponse.json()
+                      metadata = (await fallbackResponse.json()) as ImpactMetadata
+                      const stats = extractImpactStats(metadata)
+                      impactValue = stats.impactValue
+                      dcuReward = stats.dcuReward
                       if (metadata?.image) {
                         imageUrl = convertIPFSToGateway(metadata.image)
                       }
                       if (metadata?.animation_url) {
                         animationUrl = convertIPFSToGateway(metadata.animation_url)
                       }
-                      console.log('✅ Fallback metadata loaded')
                     }
                   } catch (fallbackError) {
                     console.error('❌ Fallback also failed:', fallbackError)
@@ -291,10 +258,12 @@ export default function ProfilePage() {
           imageUrl,
           animationUrl,
           metadata,
+          tokenId,
+          impactValue,
+          dcuReward,
         })
       } catch (error) {
         console.error('Error fetching profile data:', error)
-        // Set default values on error to prevent UI from breaking
         setProfileData({
           dcuBalance: 0,
           stakedDCU: 0,
@@ -305,26 +274,38 @@ export default function ProfilePage() {
           imageUrl: '',
           animationUrl: '',
           metadata: null,
+          tokenId: null,
+          impactValue: null,
+          dcuReward: null,
         })
       } finally {
-        setLoading(false)
+        if (showSpinner) {
+          setLoading(false)
+        }
+      }
+    },
+    []
+  )
+
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setLoading(false)
+      return
+    }
+
+    loadProfileData(address, { showSpinner: true })
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isConnected && address) {
+        loadProfileData(address, { showSpinner: false })
       }
     }
 
-    fetchProfileData()
-    
-    // Also refresh when page becomes visible (e.g., after returning from claim)
-    const handleVisibilityChange = () => {
-      if (!document.hidden && isConnected && address) {
-        fetchProfileData()
-      }
-    }
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [address, isConnected])
+  }, [address, isConnected, loadProfileData])
 
   // Check for pending cleanup status
   useEffect(() => {
@@ -451,6 +432,47 @@ export default function ProfilePage() {
     return 'Unknown'
   }
 
+  const impactExplorerUrl =
+    profileData.tokenId && CONTRACT_ADDRESSES.IMPACT_PRODUCT
+      ? `${REQUIRED_BLOCK_EXPLORER_URL}/token/${CONTRACT_ADDRESSES.IMPACT_PRODUCT}?a=${profileData.tokenId.toString()}`
+      : null
+
+  const handleAddImpactProductToWallet = async () => {
+    if (!profileData.tokenId || !CONTRACT_ADDRESSES.IMPACT_PRODUCT) {
+      alert('Impact Product NFT not available yet. Complete a cleanup and claim your level first.')
+      return
+    }
+
+    if (typeof window === 'undefined') return
+    const provider = (window as any)?.ethereum
+    if (!provider?.request) {
+      alert('No compatible wallet detected. Please open this page in MetaMask, Coinbase Wallet, or another EVM wallet.')
+      return
+    }
+
+    try {
+      setAddingToWallet(true)
+      await provider.request({
+        method: 'wallet_watchAsset',
+        params: {
+          type: 'ERC721',
+          options: {
+            address: CONTRACT_ADDRESSES.IMPACT_PRODUCT,
+            symbol: 'DCIP',
+            tokenId: profileData.tokenId.toString(),
+            image: profileData.imageUrl || undefined,
+          },
+        },
+      })
+      alert('Impact Product added to your wallet.')
+    } catch (error: any) {
+      console.error('Failed to add Impact Product to wallet:', error)
+      alert(`Unable to add Impact Product to wallet: ${error?.message || error}`)
+    } finally {
+      setAddingToWallet(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
       <div className="mx-auto max-w-2xl">
@@ -475,81 +497,7 @@ export default function ProfilePage() {
               if (isRefreshing || !address) return
               setIsRefreshing(true)
               try {
-                const [
-                  dcuBalance,
-                  stakedDCU,
-                  level,
-                  streak,
-                  activeStreak,
-                ] = await Promise.all([
-                  getDCUBalance(address),
-                  getStakedDCU(address),
-                  getUserLevel(address),
-                  getStreakCount(address),
-                  hasActiveStreak(address),
-                ])
-
-                let tokenURI = ''
-                let imageUrl = ''
-                let animationUrl = ''
-                let metadata = null
-                
-                if (level > 0) {
-                  try {
-                    tokenURI = await getTokenURIForLevel(level)
-                    
-                    // Fetch metadata from IPFS
-                    if (tokenURI) {
-                      try {
-                        let metadataUrl = tokenURI
-                        if (tokenURI.startsWith('ipfs://')) {
-                          const hash = tokenURI.replace('ipfs://', '')
-                          const gateway = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
-                          metadataUrl = `${gateway}${hash}`
-                        }
-                        
-                        const metadataResponse = await fetch(metadataUrl)
-                        metadata = await metadataResponse.json()
-                        
-                        if (metadata?.image) {
-                          if (metadata.image.startsWith('ipfs://')) {
-                            const imageHash = metadata.image.replace('ipfs://', '')
-                            const gateway = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
-                            imageUrl = `${gateway}${imageHash}`
-                          } else {
-                            imageUrl = metadata.image
-                          }
-                        }
-                        
-                        if (metadata?.animation_url) {
-                          if (metadata.animation_url.startsWith('ipfs://')) {
-                            const videoHash = metadata.animation_url.replace('ipfs://', '')
-                            const gateway = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
-                            animationUrl = `${gateway}${videoHash}`
-                          } else {
-                            animationUrl = metadata.animation_url
-                          }
-                        }
-                      } catch (metadataError) {
-                        console.error('Error fetching metadata:', metadataError)
-                      }
-                    }
-                  } catch (error) {
-                    console.error('Error fetching token URI:', error)
-                  }
-                }
-
-                setProfileData({
-                  dcuBalance,
-                  stakedDCU,
-                  level,
-                  streak,
-                  hasActiveStreak: activeStreak,
-                  tokenURI,
-                  imageUrl,
-                  animationUrl,
-                  metadata,
-                })
+                await loadProfileData(address, { showSpinner: false })
               } catch (error) {
                 console.error('Error refreshing profile:', error)
               } finally {
@@ -891,11 +839,66 @@ export default function ProfilePage() {
                     {profileData.metadata.name}
                   </p>
                 )}
+                {profileData.metadata?.description && (
+                  <p className="mt-2 text-sm text-gray-500">
+                    {profileData.metadata.description}
+                  </p>
+                )}
                 {profileData.level === 10 && (
                   <p className="mt-2 text-sm text-brand-yellow">
                     🎉 Guardian Level - Video NFT
                   </p>
                 )}
+                <div className="mt-4 grid gap-3 text-left text-sm text-gray-300 sm:grid-cols-2">
+                  {profileData.impactValue && (
+                    <div className="rounded-lg border border-gray-800 bg-gray-800/60 p-3">
+                      <p className="text-xs text-gray-400">Impact Value</p>
+                      <p className="text-lg font-semibold text-white">{profileData.impactValue}</p>
+                    </div>
+                  )}
+                  {profileData.dcuReward && (
+                    <div className="rounded-lg border border-gray-800 bg-gray-800/60 p-3">
+                      <p className="text-xs text-gray-400">DCU Reward</p>
+                      <p className="text-lg font-semibold text-white">{profileData.dcuReward} DCU</p>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 space-y-3">
+                  <p className="text-xs font-medium text-gray-400">
+                    View your NFT on-chain and add it to your wallet:
+                  </p>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    {impactExplorerUrl && (
+                      <Link href={impactExplorerUrl} target="_blank" rel="noopener noreferrer" className="sm:flex-1">
+                        <Button
+                          variant="outline"
+                          className="w-full gap-2 border-brand-green bg-brand-green/10 text-brand-green hover:bg-brand-green/20"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          View on {BLOCK_EXPLORER_NAME}
+                        </Button>
+                      </Link>
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={handleAddImpactProductToWallet}
+                      disabled={!profileData.tokenId || addingToWallet}
+                      className="w-full gap-2 border-gray-700 bg-black text-white hover:bg-gray-800 sm:flex-1 disabled:cursor-not-allowed"
+                    >
+                      {addingToWallet ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Adding...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Wallet className="h-4 w-4" />
+                          Add to Wallet
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </section>

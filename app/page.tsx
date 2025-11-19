@@ -151,7 +151,7 @@ export default function Home() {
     <div className="min-h-screen bg-black">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg-black/95 backdrop-blur-sm">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
+        <div className="container mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:flex-nowrap sm:px-6 sm:py-0">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-green">
               <Trash2 className="h-5 w-5 text-black" />
@@ -160,12 +160,12 @@ export default function Home() {
               <h1 className="text-base font-bold uppercase tracking-tight text-white sm:text-lg">
                 DECLEANUP NETWORK
               </h1>
-              <p className="text-[10px] font-medium text-gray-400 sm:text-xs">
+              <p className="hidden text-[10px] font-medium text-gray-400 sm:block sm:text-xs">
                 CLEAN UP, SNAP, EARN
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap justify-start gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
             <WalletConnect />
           </div>
         </div>

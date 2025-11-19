@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Wallet, LogOut, ChevronDown } from 'lucide-react'
 import { isFarcasterContext } from '@/lib/farcaster'
 import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
+import { tryAddRequiredChain } from '@/lib/network'
 
 export function WalletConnect() {
   const [mounted, setMounted] = useState(false)
@@ -34,18 +35,33 @@ export function WalletConnect() {
     }
   )
   
-  const externalConnectors = connectors.filter(
-    c => {
-      const name = c.name.toLowerCase()
-      const id = c.id?.toLowerCase() || ''
-      return !name.includes('farcaster') && 
-             !name.includes('frame') &&
-             !name.includes('miniapp') &&
-             !id.includes('farcaster') &&
-             !id.includes('frame') &&
-             !id.includes('miniapp')
-    }
-  )
+  // Detect if we're in an in-app browser (no window.ethereum)
+  const isInAppBrowser = typeof window !== 'undefined' && !(window as any)?.ethereum
+  
+  // Prioritize WalletConnect for in-app browsers (mobile webviews, etc.)
+  const externalConnectors = connectors
+    .filter(
+      c => {
+        const name = c.name.toLowerCase()
+        const id = c.id?.toLowerCase() || ''
+        return !name.includes('farcaster') && 
+               !name.includes('frame') &&
+               !name.includes('miniapp') &&
+               !id.includes('farcaster') &&
+               !id.includes('frame') &&
+               !id.includes('miniapp')
+      }
+    )
+    .sort((a, b) => {
+      // If in-app browser, prioritize WalletConnect
+      if (isInAppBrowser) {
+        const aIsWC = a.name.toLowerCase().includes('walletconnect') || a.id?.toLowerCase().includes('walletconnect')
+        const bIsWC = b.name.toLowerCase().includes('walletconnect') || b.id?.toLowerCase().includes('walletconnect')
+        if (aIsWC && !bIsWC) return -1
+        if (!aIsWC && bIsWC) return 1
+      }
+      return 0
+    })
 
   const handleConnect = async (connector: Connector) => {
     try {
@@ -114,6 +130,27 @@ export function WalletConnect() {
           await switchChain({ chainId: REQUIRED_CHAIN_ID })
           setHasSwitchedNetwork(true)
         } catch (error: any) {
+          const message = (error?.message || '').toLowerCase()
+          const code = error?.code
+          const isChainMissing =
+            message.includes('not configured') ||
+            message.includes('unrecognized chain') ||
+            code === 4902
+          
+          if (isChainMissing) {
+            const added = await tryAddRequiredChain()
+            if (added) {
+              await new Promise(resolve => setTimeout(resolve, 1200))
+              try {
+                await switchChain({ chainId: REQUIRED_CHAIN_ID })
+                setHasSwitchedNetwork(true)
+                return
+              } catch (retryError) {
+                console.warn('Switch failed after auto-adding network:', retryError)
+              }
+            }
+          }
+          
           console.log('Auto network switch failed or was rejected:', error)
           // Don't set hasSwitchedNetwork so user can try again if needed
         }

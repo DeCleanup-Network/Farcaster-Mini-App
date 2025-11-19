@@ -10,24 +10,24 @@
   "miniapp": {
     "version": "1",
     "name": "DeCleanup Network",
-    "homeUrl": "https://decleanup.network",
-    "iconUrl": "https://decleanup.network/icon.png",
-    "splashImageUrl": "https://decleanup.network/splash.png",
+    "homeUrl": "https://farcaster-mini-app-umber.vercel.app/",
+    "iconUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeiegsc2siwxekclmuse56jnj37gborpeba2skovn5lbg6oq2ttfila",
+    "splashImageUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy",
     "splashBackgroundColor": "#000000",
     "subtitle": "Tokenize Your Environmental Impact",
     "description": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
     "screenshotUrls": [
-      "https://decleanup.network/screenshot1.png",
-      "https://decleanup.network/screenshot2.png",
-      "https://decleanup.network/screenshot3.png"
+      "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafkreibxivkhsrf54rz26a6p7jehxs36gugz5fywhwxd5axvgungj7v26y",
+      "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafkreihbfrmyviu62uf4nngbno3hwuuvkpt6xvtun52je7ojyps4xvcpky",
+      "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafkreibkfxo2myeu46sv3yxxdmhix27ul34ec6c4dwm5hjplewelsgpedi"
     ],
     "primaryCategory": "social",
     "tags": ["environment", "cleanup", "impact", "nft", "base"],
-    "heroImageUrl": "https://decleanup.network/og-image.png",
+    "heroImageUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru",
     "tagline": "Clean Up, Snap, Earn",
     "ogTitle": "DeCleanup Network - Tokenize Your Environmental Impact",
     "ogDescription": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
-    "ogImageUrl": "https://decleanup.network/og-image.png",
+    "ogImageUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru",
     "noindex": false
   }
 }
