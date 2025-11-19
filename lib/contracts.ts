@@ -993,6 +993,21 @@ export async function verifyCleanup(cleanupId: bigint, level: number): Promise<`
   // Ensure wallet is on the required chain (same logic as submitCleanup)
   await ensureWalletOnRequiredChain('verification')
 
+  // Final chain check right before transaction to catch any race conditions
+  const finalChainId = await getCurrentChainId()
+  if (finalChainId !== null && finalChainId !== REQUIRED_CHAIN_ID) {
+    if (finalChainId === 11142220) {
+      throw new Error(
+        `VeChain wallet detected (Chain ID: 11142220). Please disable the VeChain extension or use MetaMask, Coinbase Wallet, or the Farcaster wallet.\n\n` +
+          `Then switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) and try again.`
+      )
+    }
+    throw new Error(
+      `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
+        `Current network: ${finalChainId}\n${getNetworkSetupMessage()}`
+    )
+  }
+
   // Validate cleanup exists before submitting
   try {
     const status = await getCleanupStatus(cleanupId)
@@ -1024,6 +1039,26 @@ export async function verifyCleanup(cleanupId: bigint, level: number): Promise<`
     const errorMessage = getErrorMessage(error)
     console.error('Error calling verifyCleanup:', errorMessage)
     
+    // Check for chain mismatch errors first
+    if (
+      errorMessage.includes('ChainMismatchError') ||
+      errorMessage.includes('chain mismatch') ||
+      errorMessage.includes('does not match the target chain') ||
+      errorMessage.includes('11142220') // VeChain chain ID
+    ) {
+      const currentChainId = await getCurrentChainId()
+      if (currentChainId === 11142220) {
+        throw new Error(
+          `VeChain wallet detected (Chain ID: 11142220). Please disable the VeChain extension or use MetaMask, Coinbase Wallet, or the Farcaster wallet.\n\n` +
+            `Then switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) and try again.`
+        )
+      }
+      throw new Error(
+        `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
+          `Current network: ${currentChainId || 'unknown'}\n${getNetworkSetupMessage()}`
+      )
+    }
+    
     // Provide more specific error messages
     if (errorMessage.includes('Not authorized') || errorMessage.includes('not authorized')) {
       throw new Error(
@@ -1054,6 +1089,21 @@ export async function rejectCleanup(cleanupId: bigint): Promise<`0x${string}`> {
   // Ensure wallet is on the required chain (same logic as submitCleanup)
   await ensureWalletOnRequiredChain('rejection')
 
+  // Final chain check right before transaction to catch any race conditions
+  const finalChainId = await getCurrentChainId()
+  if (finalChainId !== null && finalChainId !== REQUIRED_CHAIN_ID) {
+    if (finalChainId === 11142220) {
+      throw new Error(
+        `VeChain wallet detected (Chain ID: 11142220). Please disable the VeChain extension or use MetaMask, Coinbase Wallet, or the Farcaster wallet.\n\n` +
+          `Then switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) and try again.`
+      )
+    }
+    throw new Error(
+      `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
+        `Current network: ${finalChainId}\n${getNetworkSetupMessage()}`
+    )
+  }
+
   // Validate cleanup exists before submitting
   try {
     const status = await getCleanupStatus(cleanupId)
@@ -1083,6 +1133,26 @@ export async function rejectCleanup(cleanupId: bigint): Promise<`0x${string}`> {
   } catch (error: any) {
     const errorMessage = getErrorMessage(error)
     console.error('Error calling rejectCleanup:', errorMessage)
+    
+    // Check for chain mismatch errors first
+    if (
+      errorMessage.includes('ChainMismatchError') ||
+      errorMessage.includes('chain mismatch') ||
+      errorMessage.includes('does not match the target chain') ||
+      errorMessage.includes('11142220') // VeChain chain ID
+    ) {
+      const currentChainId = await getCurrentChainId()
+      if (currentChainId === 11142220) {
+        throw new Error(
+          `VeChain wallet detected (Chain ID: 11142220). Please disable the VeChain extension or use MetaMask, Coinbase Wallet, or the Farcaster wallet.\n\n` +
+            `Then switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) and try again.`
+        )
+      }
+      throw new Error(
+        `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
+          `Current network: ${currentChainId || 'unknown'}\n${getNetworkSetupMessage()}`
+      )
+    }
     
     // Provide more specific error messages
     if (errorMessage.includes('Not authorized') || errorMessage.includes('not authorized')) {
