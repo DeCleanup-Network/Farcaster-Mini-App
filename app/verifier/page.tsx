@@ -111,6 +111,7 @@ export default function VerifierPage() {
         if (cleanup.impactReportHash && !impactDataMap.has(cleanup.impactReportHash)) {
           try {
             const url = getIPFSUrl(cleanup.impactReportHash)
+            if (!url) continue // Skip if URL is null
             const response = await fetch(url)
             if (response.ok) {
               const data = await response.json()
@@ -564,6 +565,9 @@ export default function VerifierPage() {
         try {
           setLoading(true)
           const url = getIPFSUrl(impactReportHash)
+          if (!url) {
+            throw new Error('Failed to generate IPFS URL for impact report')
+          }
           setImpactDataUrl(url)
           const response = await fetch(url)
           if (!response.ok) {
@@ -985,9 +989,9 @@ export default function VerifierPage() {
                             const impactData = cleanup.impactReportHash ? impactDataMap.get(cleanup.impactReportHash) : null
                             const allowed = impactData?.beforePhotoAllowed
                             if (allowed === true) {
-                              return <CheckCircle className="h-4 w-4 text-green-400" title="User allowed use of this image" />
+                              return <CheckCircle className="h-4 w-4 text-green-400" aria-label="User allowed use of this image" />
                             } else if (allowed === false) {
-                              return <XCircle className="h-4 w-4 text-red-400" title="User did not allow use of this image" />
+                              return <XCircle className="h-4 w-4 text-red-400" aria-label="User did not allow use of this image" />
                             }
                             return null
                           })()}
@@ -1012,14 +1016,14 @@ export default function VerifierPage() {
                               const allowed = impactData?.beforePhotoAllowed
                               if (allowed === true) {
                                 return (
-                                  <div className="absolute right-2 top-2 rounded-full bg-green-500/90 p-1.5">
-                                    <CheckCircle className="h-4 w-4 text-white" title="Allowed for social media" />
+                                  <div className="absolute right-2 top-2 rounded-full bg-green-500/90 p-1.5" title="Allowed for social media">
+                                    <CheckCircle className="h-4 w-4 text-white" />
                                   </div>
                                 )
                               } else if (allowed === false) {
                                 return (
-                                  <div className="absolute right-2 top-2 rounded-full bg-red-500/90 p-1.5">
-                                    <XCircle className="h-4 w-4 text-white" title="Not allowed for social media" />
+                                  <div className="absolute right-2 top-2 rounded-full bg-red-500/90 p-1.5" title="Not allowed for social media">
+                                    <XCircle className="h-4 w-4 text-white" />
                                   </div>
                                 )
                               }
@@ -1039,9 +1043,9 @@ export default function VerifierPage() {
                             const impactData = cleanup.impactReportHash ? impactDataMap.get(cleanup.impactReportHash) : null
                             const allowed = impactData?.afterPhotoAllowed
                             if (allowed === true) {
-                              return <CheckCircle className="h-4 w-4 text-green-400" title="User allowed use of this image" />
+                              return <CheckCircle className="h-4 w-4 text-green-400" aria-label="User allowed use of this image" />
                             } else if (allowed === false) {
-                              return <XCircle className="h-4 w-4 text-red-400" title="User did not allow use of this image" />
+                              return <XCircle className="h-4 w-4 text-red-400" aria-label="User did not allow use of this image" />
                             }
                             return null
                           })()}
@@ -1066,14 +1070,14 @@ export default function VerifierPage() {
                               const allowed = impactData?.afterPhotoAllowed
                               if (allowed === true) {
                                 return (
-                                  <div className="absolute right-2 top-2 rounded-full bg-green-500/90 p-1.5">
-                                    <CheckCircle className="h-4 w-4 text-white" title="Allowed for social media" />
+                                  <div className="absolute right-2 top-2 rounded-full bg-green-500/90 p-1.5" title="Allowed for social media">
+                                    <CheckCircle className="h-4 w-4 text-white" />
                                   </div>
                                 )
                               } else if (allowed === false) {
                                 return (
-                                  <div className="absolute right-2 top-2 rounded-full bg-red-500/90 p-1.5">
-                                    <XCircle className="h-4 w-4 text-white" title="Not allowed for social media" />
+                                  <div className="absolute right-2 top-2 rounded-full bg-red-500/90 p-1.5" title="Not allowed for social media">
+                                    <XCircle className="h-4 w-4 text-white" />
                                   </div>
                                 )
                               }

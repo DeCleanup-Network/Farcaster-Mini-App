@@ -62,6 +62,11 @@ export default function ProfilePage() {
     }
 
     async function fetchProfileData() {
+      if (!address) return // Type guard
+      
+      // Store address in const for TypeScript narrowing
+      const userAddress = address
+      
       try {
         setLoading(true)
         const [
@@ -71,11 +76,11 @@ export default function ProfilePage() {
           streak,
           activeStreak,
         ] = await Promise.all([
-          getDCUBalance(address),
-          getStakedDCU(address),
-          getUserLevel(address),
-          getStreakCount(address),
-          hasActiveStreak(address),
+          getDCUBalance(userAddress),
+          getStakedDCU(userAddress),
+          getUserLevel(userAddress),
+          getStreakCount(userAddress),
+          hasActiveStreak(userAddress),
         ])
 
         let tokenURI = ''
@@ -86,9 +91,9 @@ export default function ProfilePage() {
         if (level > 0) {
           try {
             // Get the actual token ID for this user
-            const tokenId = await getUserTokenId(address)
+            const tokenId = await getUserTokenId(userAddress)
             
-            if (tokenId > 0n) {
+            if (tokenId > BigInt(0)) {
               // Use the actual tokenURI from the contract (more accurate)
               try {
                 tokenURI = await getTokenURI(tokenId)

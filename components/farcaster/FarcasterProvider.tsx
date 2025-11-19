@@ -31,7 +31,8 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
         const initialized = await initializeFarcaster()
         if (initialized) {
           const farcasterContext = await getFarcasterContext()
-          setContext(farcasterContext)
+          // Type assertion needed as SDK types may not match exactly
+          setContext(farcasterContext as FarcasterContextData | null)
           setIsInitialized(true)
         }
       } catch (error) {

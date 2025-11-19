@@ -272,22 +272,15 @@ export async function getTokenURI(tokenId: bigint): Promise<string> {
 }
 
 /**
- * Claim Impact Product level
+ * Claim Impact Product level (DEPRECATED - use claimImpactProductFromVerification instead)
+ * This function is not used in the current flow but kept for backwards compatibility
+ * @deprecated Use claimImpactProductFromVerification instead
  */
 export async function claimImpactProduct(cleanupId: bigint, level: number): Promise<`0x${string}`> {
-  if (!CONTRACT_ADDRESSES.IMPACT_PRODUCT) {
-    throw new Error('Impact Product contract address not set')
-  }
-
-  const hash = await writeContract(config, {
-    address: CONTRACT_ADDRESSES.IMPACT_PRODUCT,
-    abi: IMPACT_PRODUCT_ABI,
-    functionName: 'claimLevel',
-    args: [cleanupId, level],
-    chainId: REQUIRED_CHAIN_ID, // Explicitly set chain ID to Base Sepolia
-  })
-
-  return hash
+  // This function is deprecated - the actual flow uses claimImpactProductFromVerification
+  // which calls VerificationContract.claimImpactProduct() which then calls
+  // ImpactProductNFT.claimLevelForUser()
+  throw new Error('claimImpactProduct is deprecated. Use claimImpactProductFromVerification instead.')
 }
 
 // DCU Points Functions
@@ -456,7 +449,7 @@ export async function submitCleanup(
           )
         }
 
-        await switchChain(config, { chainId: REQUIRED_CHAIN_ID })
+        await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
         // Wait a bit for the switch to complete and verify
         await new Promise(resolve => setTimeout(resolve, 1500))
         
@@ -590,7 +583,7 @@ export async function submitCleanup(
         impactReportHash,
     ],
     value: value || BigInt(0), // Include fee if provided
-    chainId: REQUIRED_CHAIN_ID, // Explicitly set chain ID to Base Sepolia
+    chainId: REQUIRED_CHAIN_ID as 84532 | 8453, // Explicitly set chain ID to Base Sepolia
   })
 
   // Wait for transaction receipt
@@ -675,7 +668,7 @@ export async function claimImpactProductFromVerification(cleanupId: bigint): Pro
     abi: VERIFICATION_ABI,
     functionName: 'claimImpactProduct',
     args: [cleanupId],
-    chainId: REQUIRED_CHAIN_ID, // Explicitly set chain ID to Base Sepolia
+    chainId: REQUIRED_CHAIN_ID as 84532 | 8453, // Explicitly set chain ID to Base Sepolia
   })
 
   return hash
@@ -1021,7 +1014,7 @@ export async function verifyCleanup(cleanupId: bigint, level: number): Promise<`
           abi: VERIFICATION_ABI,
           functionName: 'verifyCleanup',
           args: [cleanupId, level],
-          chainId: REQUIRED_CHAIN_ID, // Explicitly set chain ID to Base Sepolia
+          chainId: REQUIRED_CHAIN_ID as 84532 | 8453, // Explicitly set chain ID to Base Sepolia
           // Don't specify blockNumber to avoid "block is out of range" errors
         })
 
@@ -1088,7 +1081,7 @@ export async function rejectCleanup(cleanupId: bigint): Promise<`0x${string}`> {
           abi: VERIFICATION_ABI,
           functionName: 'rejectCleanup',
           args: [cleanupId],
-          chainId: REQUIRED_CHAIN_ID, // Explicitly set chain ID to Base Sepolia
+          chainId: REQUIRED_CHAIN_ID as 84532 | 8453, // Explicitly set chain ID to Base Sepolia
         })
 
     return hash

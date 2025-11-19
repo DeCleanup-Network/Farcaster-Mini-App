@@ -84,7 +84,7 @@ if (walletConnectProjectId && walletConnectProjectId.trim() !== '') {
     connectors.push(
       walletConnect({
         projectId: walletConnectProjectId,
-      })
+      }) as any // Type assertion needed due to WalletConnect type incompatibility
     )
   } catch (error) {
     console.warn('WalletConnect connector initialization failed:', error)
