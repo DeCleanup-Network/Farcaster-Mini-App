@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
+import { SuccessModal } from '@/components/ui/success-modal'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
 import type { Connector } from 'wagmi'
@@ -37,6 +38,12 @@ export default function Home() {
   const [isClaiming, setIsClaiming] = useState(false)
   const [isInFarcaster, setIsInFarcaster] = useState(false)
   const [hasSwitchedNetwork, setHasSwitchedNetwork] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [successModalData, setSuccessModalData] = useState<{
+    title: string
+    message: string
+    transactionHash?: string
+  } | null>(null)
 
   const farcasterConnector = connectors.find((c) => {
     const name = c.name.toLowerCase()
@@ -173,7 +180,7 @@ export default function Home() {
               DECLEANUP REWARDS
             </h2>
             <p className="mx-auto mb-6 text-sm leading-relaxed text-gray-400 sm:text-base md:text-lg">
-              Self-tokenize environmental cleanup efforts. Apply with your cleanup results to receive a DeCleanup Impact Product, earn community token and progress through levels.
+              Self-tokenize environmental cleanup efforts. Apply with your cleanup results to receive a DeCleanup Impact Product, earn community token (coming soon) and progress through levels.
             </p>
           </div>
           
@@ -245,13 +252,19 @@ export default function Home() {
                 <Link href="/cleanup" className="w-full sm:w-auto">
                   <Button 
                     size="lg" 
-                    disabled={cleanupStatus?.hasPendingCleanup || false}
+                    disabled={cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim || false}
                     className={`w-full gap-2 sm:w-auto ${
-                      cleanupStatus?.hasPendingCleanup
+                      cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim
                         ? 'border-gray-700 bg-gray-900 text-gray-500 cursor-not-allowed'
                         : 'bg-brand-yellow text-black hover:bg-[#e6e600]'
                     }`}
-                    title={cleanupStatus?.hasPendingCleanup ? 'You have a cleanup pending verification. Please wait for verification before submitting a new cleanup.' : ''}
+                    title={
+                      cleanupStatus?.hasPendingCleanup 
+                        ? 'You have a cleanup pending verification. Please wait for verification before submitting a new cleanup.' 
+                        : cleanupStatus?.canClaim
+                        ? 'Please claim your Impact Product NFT before submitting a new cleanup.'
+                        : ''
+                    }
                   >
                     <Trash2 className="h-5 w-5" />
                     APPLY WITH CLEANUP
@@ -289,27 +302,31 @@ export default function Home() {
                             setCleanupStatus(status)
                             if (status.claimed || pollCount >= maxPolls) {
                               clearInterval(pollInterval)
-                              alert(
-                                `✅ Claim successful!\n\n` +
-                                `Transaction Hash: ${hash}\n\n` +
-                                `Your Impact Product NFT has been minted!\n\n` +
-                                `View on ${BLOCK_EXPLORER_NAME}: ${getExplorerTxUrl(hash)}`
-                              )
-                              // Redirect to profile to see the new NFT
-                              window.location.href = '/profile'
+                              setSuccessModalData({
+                                title: 'Impact Product Minted!',
+                                message: 'Your Impact Product NFT has been successfully minted!',
+                                transactionHash: hash,
+                              })
+                              setShowSuccessModal(true)
+                              // Redirect to profile after a short delay
+                              setTimeout(() => {
+                                window.location.href = '/profile'
+                              }, 3000)
                             }
                           }
                         } catch (error) {
                           console.error('Error polling status:', error)
                           if (pollCount >= maxPolls) {
                             clearInterval(pollInterval)
-                            alert(
-                              `⚠️ Transaction submitted but status check failed.\n\n` +
-                              `Transaction Hash: ${hash}\n\n` +
-                              `Please check your profile or ${BLOCK_EXPLORER_NAME} to confirm.\n\n` +
-                              `View on ${BLOCK_EXPLORER_NAME}: ${getExplorerTxUrl(hash)}`
-                            )
-                            window.location.href = '/profile'
+                            setSuccessModalData({
+                              title: 'Transaction Submitted',
+                              message: 'Transaction submitted but status check failed. Please check your profile or explorer to confirm.',
+                              transactionHash: hash,
+                            })
+                            setShowSuccessModal(true)
+                            setTimeout(() => {
+                              window.location.href = '/profile'
+                            }, 3000)
                           }
                         }
                       }, 2000) // Poll every 2 seconds
@@ -337,7 +354,7 @@ export default function Home() {
                   {isClaiming ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      CLAIMING...
+                      <span>Minting Impact Product...</span>
                     </>
                   ) : (
                     <>
@@ -468,6 +485,30 @@ export default function Home() {
             </div>
           </div>
         </footer>
+
+        {/* Success Modal */}
+        {showSuccessModal && successModalData && (
+          <SuccessModal
+            isOpen={showSuccessModal}
+            onClose={() => {
+              setShowSuccessModal(false)
+              setSuccessModalData(null)
+            }}
+            title={successModalData.title}
+            message={successModalData.message}
+            transactionHash={successModalData.transactionHash}
+            explorerUrl={successModalData.transactionHash ? getExplorerTxUrl(successModalData.transactionHash as `0x${string}`) : undefined}
+            explorerName={BLOCK_EXPLORER_NAME}
+            showShare={successModalData.title.includes('Minted')}
+            onShare={() => {
+              if (successModalData.transactionHash) {
+                const shareText = `🎉 I just minted my DeCleanup Impact Product NFT!\n\n${successModalData.message}\n\nView on ${BLOCK_EXPLORER_NAME}: ${getExplorerTxUrl(successModalData.transactionHash as `0x${string}`)}\n\n#DeCleanup #ImpactProduct #Base`
+                const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
+                window.open(twitterUrl, '_blank', 'noopener,noreferrer')
+              }
+            }}
+          />
+        )}
 
         {/* Farcaster User Info */}
         {context?.user && (

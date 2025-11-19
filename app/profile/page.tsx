@@ -753,7 +753,7 @@ export default function ProfilePage() {
                     {isClaiming ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Claiming...
+                        <span>Hang on, your Impact Product is being minted...</span>
                       </>
                     ) : (
                       <>

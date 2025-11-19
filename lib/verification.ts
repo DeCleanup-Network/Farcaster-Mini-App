@@ -199,7 +199,7 @@ export async function getUserCleanupStatus(
       reason: hasPending
         ? 'Your cleanup is still under review. Please wait for verification.'
         : latest.claimed
-        ? 'This cleanup has already been claimed.'
+        ? 'Your cleanup has already been claimed.'
         : canClaim
         ? undefined
         : 'No cleanup ready to claim.',

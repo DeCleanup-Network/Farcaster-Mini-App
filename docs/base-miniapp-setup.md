@@ -112,14 +112,55 @@ Update the URL to match your deployed domain.
 
 ## Step 4: Deploy & Verify
 
-1. **Deploy your app** to your hosting provider (Vercel, etc.)
-2. **Verify manifest is accessible**: 
-   - Visit `https://your-domain.com/.well-known/farcaster.json`
+### Testnet Deployment
+
+1. **Deploy to Vercel**
+   - Follow the detailed [Vercel Deployment Guide](./vercel-deployment.md)
+   - Deploy to a testnet domain (e.g., `testnet.decleanup.network` or Vercel preview URL)
+   - Ensure all environment variables are set for Base Sepolia
+   - Update `.well-known/farcaster.json` with testnet URLs
+
+2. **Verify Manifest Accessibility**
+   - Visit `https://your-testnet-domain.com/.well-known/farcaster.json`
    - Should return valid JSON with your `accountAssociation`
-3. **Test in Farcaster**: 
+   - Check CORS headers if accessing from different domain
+
+3. **Test in Farcaster Client**
    - Open your app in a Farcaster client (Warpcast, etc.)
    - Verify wallet connection works via Farcaster SDK
-   - Test Base network switching
+   - Test Base Sepolia network switching
+   - Test cleanup submission flow
+   - Test Impact Product NFT claiming
+
+4. **Testnet Checklist**
+   - [ ] App loads in Farcaster client
+   - [ ] Wallet connects successfully
+   - [ ] Network switches to Base Sepolia
+   - [ ] Cleanup submission works
+   - [ ] Impact Product NFT claiming works
+   - [ ] Verifier dashboard accessible
+   - [ ] All contract interactions work
+
+### Mainnet Deployment
+
+1. **Deploy to Production Domain**
+   - Deploy your app to production domain (e.g., `decleanup.network`)
+   - Update environment variables for Base Mainnet
+   - Update `.well-known/farcaster.json` with production URLs
+   - Update `app/layout.tsx` metadata URLs
+
+2. **Verify Production Setup**
+   - Visit `https://your-domain.com/.well-known/farcaster.json`
+   - Should return valid JSON with your `accountAssociation`
+   - Test all flows in production environment
+
+3. **Mainnet Checklist**
+   - [ ] All testnet tests pass
+   - [ ] Contracts deployed to Base Mainnet
+   - [ ] Environment variables updated
+   - [ ] Manifest accessible
+   - [ ] App works in Farcaster client
+   - [ ] All features tested end-to-end
 
 ## Step 5: Environment Variables
 

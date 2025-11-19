@@ -47,6 +47,8 @@ export default function CleanupPage() {
   const [step, setStep] = useState<Step>('before')
   const [beforePhoto, setBeforePhoto] = useState<File | null>(null)
   const [afterPhoto, setAfterPhoto] = useState<File | null>(null)
+  const [beforePhotoAllowed, setBeforePhotoAllowed] = useState(false)
+  const [afterPhotoAllowed, setAfterPhotoAllowed] = useState(false)
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isGettingLocation, setIsGettingLocation] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -410,6 +412,9 @@ export default function CleanupPage() {
             environmentalChallenges: enhancedData.environmentalChallenges,
             preventionIdeas: enhancedData.preventionIdeas,
             additionalNotes: enhancedData.additionalNotes,
+            // Image usage permissions
+            beforePhotoAllowed: beforePhotoAllowed,
+            afterPhotoAllowed: afterPhotoAllowed,
             timestamp: new Date().toISOString(),
             userAddress: address,
           }
@@ -841,9 +846,11 @@ export default function CleanupPage() {
             <label className="mt-4 flex items-center gap-2 text-sm text-gray-400">
               <input
                 type="checkbox"
+                checked={beforePhotoAllowed}
+                onChange={(e) => setBeforePhotoAllowed(e.target.checked)}
                 className="rounded border-gray-700 bg-gray-800"
               />
-              Agree if you allow us to post your pictures on social platforms (X, Telegram)
+              Agree if you allow us to post this picture on social platforms (X, Telegram)
             </label>
           </div>
 
@@ -944,9 +951,11 @@ export default function CleanupPage() {
             <label className="mt-4 flex items-center gap-2 text-sm text-gray-400">
               <input
                 type="checkbox"
+                checked={afterPhotoAllowed}
+                onChange={(e) => setAfterPhotoAllowed(e.target.checked)}
                 className="rounded border-gray-700 bg-gray-800"
               />
-              Agree if you allow us to post your pictures on social platforms (X, Telegram)
+              Agree if you allow us to post this picture on social platforms (X, Telegram)
             </label>
           </div>
 
@@ -990,10 +999,10 @@ export default function CleanupPage() {
               Impact Report
             </h1>
             <p className="mb-2 text-sm font-medium text-brand-yellow">
-              +5 Points Bonus
+              +5 DCU Points Bonus
             </p>
             <p className="text-sm text-gray-400">
-              Provide more details on your cleanup (optional, rewarded with 5 Points).
+              Provide more details on your cleanup (optional, rewarded with 5 DCU Points).
             </p>
           </div>
 

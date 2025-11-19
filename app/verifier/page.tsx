@@ -68,6 +68,7 @@ export default function VerifierPage() {
   const [signingAddress, setSigningAddress] = useState<Address | null>(null)
   const [pollingStatus, setPollingStatus] = useState<{ cleanupId: bigint | null; count: number } | null>(null)
   const [expandedForms, setExpandedForms] = useState<Set<string>>(new Set())
+  const [impactDataMap, setImpactDataMap] = useState<Map<string, any>>(new Map())
 
   const { signMessageAsync, isPending: isSigning } = useSignMessage()
 
@@ -99,7 +100,37 @@ export default function VerifierPage() {
     
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVerifier]) // Only depend on isVerifier, not loading
+  }, [isVerifier])
+
+  // Preload impact data for all cleanups with impact reports (so permissions are visible)
+  useEffect(() => {
+    if (cleanups.length === 0) return
+
+    async function preloadImpactData() {
+      for (const cleanup of cleanups) {
+        if (cleanup.impactReportHash && !impactDataMap.has(cleanup.impactReportHash)) {
+          try {
+            const url = getIPFSUrl(cleanup.impactReportHash)
+            const response = await fetch(url)
+            if (response.ok) {
+              const data = await response.json()
+              setImpactDataMap(prev => {
+                const newMap = new Map(prev)
+                newMap.set(cleanup.impactReportHash, data)
+                return newMap
+              })
+            }
+          } catch (error) {
+            // Silently fail - will load when form is expanded
+            console.debug('Could not preload impact data for cleanup', cleanup.id.toString())
+          }
+        }
+      }
+    }
+
+    preloadImpactData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleanups]) // Only depend on isVerifier, not loading
 
   function checkStoredVerification() {
     try {
@@ -540,6 +571,14 @@ export default function VerifierPage() {
           }
           const data = await response.json()
           setImpactData(data)
+          // Store in map for easy access by cleanup ID
+          if (impactReportHash) {
+            setImpactDataMap(prev => {
+              const newMap = new Map(prev)
+              newMap.set(impactReportHash, data)
+              return newMap
+            })
+          }
         } catch (err: any) {
           console.error('Error fetching impact report data:', err)
           setError(err.message || 'Failed to load impact report data')
@@ -851,7 +890,7 @@ export default function VerifierPage() {
         )}
 
         {/* Stats */}
-        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
             <div className="text-sm text-gray-400">Total Cleanups</div>
             <div className="mt-1 text-2xl font-bold text-white">{cleanups.length}</div>
@@ -871,6 +910,10 @@ export default function VerifierPage() {
           <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-4">
             <div className="text-sm text-gray-400">Verified Cleanups</div>
             <div className="mt-1 text-2xl font-bold text-green-400">{verifiedCleanups.length}</div>
+          </div>
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4">
+            <div className="text-sm text-gray-400">Rejected Cleanups</div>
+            <div className="mt-1 text-2xl font-bold text-red-400">{rejectedCleanups.length}</div>
           </div>
         </div>
 
@@ -936,13 +979,25 @@ export default function VerifierPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <div className="mb-2 text-xs text-gray-400">Before Photo</div>
+                        <div className="mb-2 flex items-center gap-2 text-xs text-gray-400">
+                          <span>Before Photo</span>
+                          {(() => {
+                            const impactData = cleanup.impactReportHash ? impactDataMap.get(cleanup.impactReportHash) : null
+                            const allowed = impactData?.beforePhotoAllowed
+                            if (allowed === true) {
+                              return <CheckCircle className="h-4 w-4 text-green-400" title="User allowed use of this image" />
+                            } else if (allowed === false) {
+                              return <XCircle className="h-4 w-4 text-red-400" title="User did not allow use of this image" />
+                            }
+                            return null
+                          })()}
+                        </div>
                         {getIPFSUrl(cleanup.beforePhotoHash) ? (
                           <a
                             href={getIPFSUrl(cleanup.beforePhotoHash)!}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="block overflow-hidden rounded-lg border border-gray-700"
+                            className="relative block overflow-hidden rounded-lg border border-gray-700"
                           >
                             <img
                               src={getIPFSUrl(cleanup.beforePhotoHash)!}
@@ -952,6 +1007,24 @@ export default function VerifierPage() {
                                 e.currentTarget.src = '/placeholder-image.png'
                               }}
                             />
+                            {(() => {
+                              const impactData = cleanup.impactReportHash ? impactDataMap.get(cleanup.impactReportHash) : null
+                              const allowed = impactData?.beforePhotoAllowed
+                              if (allowed === true) {
+                                return (
+                                  <div className="absolute right-2 top-2 rounded-full bg-green-500/90 p-1.5">
+                                    <CheckCircle className="h-4 w-4 text-white" title="Allowed for social media" />
+                                  </div>
+                                )
+                              } else if (allowed === false) {
+                                return (
+                                  <div className="absolute right-2 top-2 rounded-full bg-red-500/90 p-1.5">
+                                    <XCircle className="h-4 w-4 text-white" title="Not allowed for social media" />
+                                  </div>
+                                )
+                              }
+                              return null
+                            })()}
                           </a>
                         ) : (
                           <div className="flex h-32 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-xs text-gray-500">
@@ -960,13 +1033,25 @@ export default function VerifierPage() {
                         )}
                       </div>
                       <div>
-                        <div className="mb-2 text-xs text-gray-400">After Photo</div>
+                        <div className="mb-2 flex items-center gap-2 text-xs text-gray-400">
+                          <span>After Photo</span>
+                          {(() => {
+                            const impactData = cleanup.impactReportHash ? impactDataMap.get(cleanup.impactReportHash) : null
+                            const allowed = impactData?.afterPhotoAllowed
+                            if (allowed === true) {
+                              return <CheckCircle className="h-4 w-4 text-green-400" title="User allowed use of this image" />
+                            } else if (allowed === false) {
+                              return <XCircle className="h-4 w-4 text-red-400" title="User did not allow use of this image" />
+                            }
+                            return null
+                          })()}
+                        </div>
                         {getIPFSUrl(cleanup.afterPhotoHash) ? (
                           <a
                             href={getIPFSUrl(cleanup.afterPhotoHash)!}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="block overflow-hidden rounded-lg border border-gray-700"
+                            className="relative block overflow-hidden rounded-lg border border-gray-700"
                           >
                             <img
                               src={getIPFSUrl(cleanup.afterPhotoHash)!}
@@ -976,6 +1061,24 @@ export default function VerifierPage() {
                                 e.currentTarget.src = '/placeholder-image.png'
                               }}
                             />
+                            {(() => {
+                              const impactData = cleanup.impactReportHash ? impactDataMap.get(cleanup.impactReportHash) : null
+                              const allowed = impactData?.afterPhotoAllowed
+                              if (allowed === true) {
+                                return (
+                                  <div className="absolute right-2 top-2 rounded-full bg-green-500/90 p-1.5">
+                                    <CheckCircle className="h-4 w-4 text-white" title="Allowed for social media" />
+                                  </div>
+                                )
+                              } else if (allowed === false) {
+                                return (
+                                  <div className="absolute right-2 top-2 rounded-full bg-red-500/90 p-1.5">
+                                    <XCircle className="h-4 w-4 text-white" title="Not allowed for social media" />
+                                  </div>
+                                )
+                              }
+                              return null
+                            })()}
                           </a>
                         ) : (
                           <div className="flex h-32 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-xs text-gray-500">

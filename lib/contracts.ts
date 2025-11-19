@@ -428,6 +428,15 @@ export async function submitCleanup(
     // If we couldn't determine chain ID (null), skip the check and let wallet handle it
     if (currentChainId === null) {
       console.warn('Could not verify chain ID, proceeding with transaction. Wallet will reject if on wrong network.')
+    } else if (currentChainId === 11142220) {
+      // Explicitly reject VeChain (chain ID 11142220)
+      throw new Error(
+        `VeChain wallet detected (Chain ID: 11142220). Please disable the VeChain extension or use a different wallet.\n\n` +
+        `To fix this:\n` +
+        `1. Disable the VeChain browser extension\n` +
+        `2. Or use MetaMask, Coinbase Wallet, or the Farcaster wallet\n` +
+        `3. Then switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID})`
+      )
     } else if (currentChainId !== REQUIRED_CHAIN_ID) {
       // Try to switch to the required chain
       const targetChain = getRequiredChain()

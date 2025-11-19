@@ -64,25 +64,42 @@ export function WalletConnect() {
 
   // Auto-connect Farcaster wallet when in Farcaster context
   // Note: farcasterMiniApp() connector should auto-connect if wallet is already connected in Farcaster
-  // This effect is a fallback to ensure connection happens
+  // This effect is a fallback to ensure connection happens, with timeout to prevent hanging
   useEffect(() => {
     if (mounted && isInFarcaster && !isConnected && farcasterConnector) {
-      const timeout = setTimeout(() => {
-        const attempt = async () => {
-          if (!isConnected && farcasterConnector) {
-            try {
-              console.log('Auto-connecting Farcaster wallet...')
-              await connectAsync({ connector: farcasterConnector })
-            } catch (error) {
-              console.error('Auto-connect failed:', error)
+      let timeoutId: NodeJS.Timeout
+      let isCancelled = false
+      
+      const attempt = async () => {
+        if (isCancelled || isConnected) return
+        
+        try {
+          console.log('Auto-connecting Farcaster wallet...')
+          // Add timeout to prevent hanging
+          const connectPromise = connectAsync({ connector: farcasterConnector })
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Connection timeout')), 5000)
+          )
+          
+          await Promise.race([connectPromise, timeoutPromise])
+        } catch (error: any) {
+          // Only log if not cancelled and not already connected
+          if (!isCancelled && !isConnected) {
+            const errorMessage = error?.message || String(error)
+            // Don't log timeout errors as they're expected if wallet isn't available
+            if (!errorMessage.includes('timeout') && !errorMessage.includes('rejected')) {
+              console.error('Auto-connect failed:', errorMessage)
             }
           }
         }
+      }
 
-        attempt()
-      }, 500)
+      timeoutId = setTimeout(attempt, 500)
 
-      return () => clearTimeout(timeout)
+      return () => {
+        isCancelled = true
+        clearTimeout(timeoutId)
+      }
     }
   }, [mounted, isInFarcaster, isConnected, farcasterConnector, connectAsync])
 

@@ -1,6 +1,6 @@
 import { base, baseSepolia } from 'wagmi/chains'
 import { createConfig, http } from 'wagmi'
-import { injected, walletConnect } from 'wagmi/connectors'
+import { injected, walletConnect, metaMask, coinbaseWallet } from 'wagmi/connectors'
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector'
 import { defineChain } from 'viem'
 
@@ -62,12 +62,18 @@ const requiredBlockExplorerUrl = requiredChain.testnet
 const requiredRpcUrl = requiredChain.id === baseMainnet.id ? baseMainnetRpcUrl : baseSepoliaRpcUrl
 
 // Wagmi configuration with Farcaster wallet support
-// Note: Using injected() instead of metaMask() to avoid SSR issues
-// injected() connector automatically detects MetaMask and other injected wallets
+// Note: Using explicit connectors (metaMask, coinbaseWallet) instead of injected() to avoid VeChain
+// VeChain (chain ID 11142220) injects itself into window.ethereum and causes chain mismatch errors
+// By using explicit connectors, we bypass VeChain and only connect to supported wallets
 const connectors = [
   // Farcaster wallet connector (prioritized when in Farcaster context)
   farcasterMiniApp(),
-  // injected() connector handles MetaMask, Coinbase Wallet, and other injected wallets
+  // Explicit MetaMask connector (filters out VeChain automatically)
+  metaMask(),
+  // Explicit Coinbase Wallet connector
+  coinbaseWallet({ appName: 'DeCleanup Network' }),
+  // Fallback to injected() only if explicit connectors aren't available
+  // This will be used as a last resort for other browser wallets
   injected(),
 ]
 
