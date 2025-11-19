@@ -903,6 +903,89 @@ export default function ProfilePage() {
                       )}
                     </Button>
                   </div>
+                  {/* Share buttons */}
+                  {address && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-medium text-gray-400">
+                        Share your Impact Product and invite friends:
+                      </p>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        {isInFarcaster && (
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              if (!address || sharing) return
+                              setSharing(true)
+                              try {
+                                const referralLink = generateReferralLink(address)
+                                const shareText = `🎉 I just minted my DeCleanup Impact Product NFT (Level ${profileData.level})!\n\nClean up, snap, earn! Join me: ${referralLink}\n\n#DeCleanup #ImpactProduct #Base`
+                                await shareCast(shareText, referralLink)
+                              } catch (error) {
+                                console.error('Failed to share on Farcaster:', error)
+                                alert('Failed to share. Please try copying the link manually.')
+                              } finally {
+                                setSharing(false)
+                              }
+                            }}
+                            disabled={sharing}
+                            className="w-full gap-2 border-purple-600 bg-purple-600/10 text-purple-400 hover:bg-purple-600/20 sm:flex-1"
+                          >
+                            {sharing ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Sharing...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Share2 className="h-4 w-4" />
+                                Share on Farcaster
+                              </>
+                            )}
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            if (!address || sharing) return
+                            setSharing(true)
+                            try {
+                              const referralLink = generateReferralLink(address)
+                              const shareText = `🎉 I just minted my DeCleanup Impact Product NFT (Level ${profileData.level})!\n\nClean up, snap, earn! Join me: ${referralLink}\n\n#DeCleanup #ImpactProduct #Base`
+                              const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
+                              window.open(twitterUrl, '_blank', 'noopener,noreferrer')
+                            } catch (error) {
+                              console.error('Failed to share on X:', error)
+                            } finally {
+                              setSharing(false)
+                            }
+                          }}
+                          disabled={sharing}
+                          className="w-full gap-2 border-gray-700 bg-black text-white hover:bg-gray-800 sm:flex-1"
+                        >
+                          <Share2 className="h-4 w-4" />
+                          Share on X
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            if (!address) return
+                            try {
+                              const referralLink = generateReferralLink(address)
+                              await navigator.clipboard.writeText(referralLink)
+                              alert('Referral link copied to clipboard!')
+                            } catch (error) {
+                              console.error('Failed to copy link:', error)
+                              alert('Failed to copy link. Please try again.')
+                            }
+                          }}
+                          className="w-full gap-2 border-gray-700 bg-black text-white hover:bg-gray-800 sm:flex-1"
+                        >
+                          <Share2 className="h-4 w-4" />
+                          Copy Referral Link
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
