@@ -10,9 +10,9 @@
   "miniapp": {
     "version": "1",
     "name": "DeCleanup Network",
-    "homeUrl": "https://decleanup-mini-app-base.vercel.app",
+    "homeUrl": "https://farcaster-mini-app-umber.vercel.app",
     "iconUrl": "https://gateway.pinata.cloud/ipfs/bafybeiegsc2siwxekclmuse56jnj37gborpeba2skovn5lbg6oq2ttfila?filename=icon.png",
-    "castShareUrl": "https://decleanup-mini-app-base.vercel.app/share",
+    "castShareUrl": "https://farcaster-mini-app-umber.vercel.app/share",
     "splashImageUrl": "https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png",
     "splashBackgroundColor": "#000000",
     "subtitle": "Tokenize Cleanup Impact",
