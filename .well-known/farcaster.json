@@ -11,9 +11,9 @@
     "version": "1",
     "name": "DeCleanup Network",
     "homeUrl": "https://farcaster-mini-app-umber.vercel.app/",
-    "iconUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeiegsc2siwxekclmuse56jnj37gborpeba2skovn5lbg6oq2ttfila",
+    "iconUrl": "https://gateway.pinata.cloud/ipfs/bafybeiegsc2siwxekclmuse56jnj37gborpeba2skovn5lbg6oq2ttfila?filename=icon.png",
     "castShareUrl": "https://farcaster-mini-app-umber.vercel.app/share",
-    "splashImageUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy",
+    "splashImageUrl": "https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png",
     "splashBackgroundColor": "#000000",
     "subtitle": "Tokenize Cleanup Impact",
     "description": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
@@ -24,11 +24,11 @@
     ],
     "primaryCategory": "social",
     "tags": ["environment", "cleanup", "impact", "nft", "base"],
-    "heroImageUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru",
+    "heroImageUrl": "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png",
     "tagline": "Clean Up, Snap, Earn",
     "ogTitle": "DCU - Tokenize cleanups",
     "ogDescription": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
-    "ogImageUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru",
+    "ogImageUrl": "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png",
     "noindex": false
   }
 }
