@@ -35,6 +35,10 @@ const describeChain = (id?: number) => {
       return 'Base Mainnet'
     case 84532:
       return 'Base Sepolia'
+    case 44787:
+      return 'Celo Sepolia'
+    case 11142220:
+      return 'VeChain (Carbon)'
     default:
       return 'Unknown Network'
   }
@@ -55,6 +59,11 @@ function CleanupContent() {
   const [afterPhotoAllowed, setAfterPhotoAllowed] = useState(false)
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isGettingLocation, setIsGettingLocation] = useState(false)
+  const [locationError, setLocationError] = useState<string | null>(null)
+  const [manualLocationMode, setManualLocationMode] = useState(false)
+  const [manualLatInput, setManualLatInput] = useState('')
+  const [manualLngInput, setManualLngInput] = useState('')
+  const [hostName, setHostName] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [cleanupId, setCleanupId] = useState<bigint | null>(null)
   const [hasImpactForm, setHasImpactForm] = useState(false)
@@ -64,12 +73,15 @@ function CleanupContent() {
     claimed: boolean
   } | null>(null)
   const [checkingPending, setCheckingPending] = useState(true)
-
+  
   // Fix hydration error by only rendering after mount
   useEffect(() => {
     setMounted(true)
+    if (typeof window !== 'undefined') {
+      setHostName(window.location.hostname)
+    }
   }, [])
-
+  
   // Read referrer from URL params
   useEffect(() => {
     if (mounted && searchParams) {
@@ -161,7 +173,7 @@ function CleanupContent() {
     if (!location) {
       getLocation()
     }
-
+    
   }, [isConnected, address])
 
   // Check for pending cleanup submissions
@@ -178,17 +190,17 @@ function CleanupContent() {
           setCheckingPending(false)
           return
         }
-
+        
         if (typeof window !== 'undefined') {
           // Check for pending cleanup ID scoped to this user's address
           const pendingKey = `pending_cleanup_id_${address.toLowerCase()}`
           const pendingCleanupId = localStorage.getItem(pendingKey)
-
+          
           if (pendingCleanupId) {
             try {
               const status = await getCleanupStatus(BigInt(pendingCleanupId))
               console.log('Cleanup status found:', status)
-
+              
               // Verify this cleanup belongs to the current user
               if (status.user.toLowerCase() !== address.toLowerCase()) {
                 console.log('Cleanup belongs to different user, clearing localStorage')
@@ -197,7 +209,7 @@ function CleanupContent() {
                 setPendingCleanup(null)
                 return
               }
-
+              
               // Only set pending if it's actually pending (not verified)
               if (!status.verified) {
                 setPendingCleanup({
@@ -248,6 +260,7 @@ function CleanupContent() {
 
   // Detect if we're on mobile
   const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  const isBaseBuildHost = hostName.includes('build.base.org')
 
   const handlePhotoSelect = (type: 'before' | 'after') => {
     const input = document.createElement('input')
@@ -275,13 +288,18 @@ function CleanupContent() {
   }
 
   const getLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.')
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      const message = 'Geolocation is not supported or allowed in this browser. Please enter coordinates manually below.'
+      setLocationError(message)
+      setManualLocationMode(true)
+      console.warn(message)
       return
     }
 
     setIsGettingLocation(true)
-
+    setLocationError(null)
+    setManualLocationMode(false)
+    
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const locationData = {
@@ -290,8 +308,10 @@ function CleanupContent() {
         }
         setLocation(locationData)
         setIsGettingLocation(false)
+        setLocationError(null)
+        setManualLocationMode(false)
         console.log('Location obtained:', locationData)
-
+        
         // Store location in localStorage as backup
         if (typeof window !== 'undefined') {
           localStorage.setItem('last_cleanup_location', JSON.stringify(locationData))
@@ -300,7 +320,8 @@ function CleanupContent() {
       (error) => {
         setIsGettingLocation(false)
         console.error('Error getting location:', error)
-
+        setManualLocationMode(true)
+        
         // Try to use last known location as fallback
         if (typeof window !== 'undefined') {
           const lastLocation = localStorage.getItem('last_cleanup_location')
@@ -316,22 +337,24 @@ function CleanupContent() {
             }
           }
         }
-
-        let errorMessage = 'Unable to get location. '
+        
+        let errorMessage = 'Unable to get location.'
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage += 'Please enable location permissions in your browser settings.'
+            errorMessage += isBaseBuildHost
+              ? ' This Base Build preview is running inside a sandbox that blocks location prompts. Open the app in a new tab or enter coordinates manually below.'
+              : ' Please enable location permissions in your browser settings.'
             break
           case error.POSITION_UNAVAILABLE:
-            errorMessage += 'Location information is unavailable.'
+            errorMessage += ' Location information is unavailable.'
             break
           case error.TIMEOUT:
-            errorMessage += 'Location request timed out. Please try again.'
+            errorMessage += ' Location request timed out. Please try again.'
             break
           default:
-            errorMessage += error.message
+            errorMessage += ` ${error.message}`
         }
-        alert(errorMessage)
+        setLocationError(errorMessage.trim())
       },
       {
         enableHighAccuracy: true,
@@ -339,6 +362,28 @@ function CleanupContent() {
         maximumAge: 0,
       }
     )
+  }
+
+  const handleManualLocationApply = () => {
+    const lat = parseFloat(manualLatInput)
+    const lng = parseFloat(manualLngInput)
+
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      alert('Please enter valid latitude and longitude values.')
+      return
+    }
+
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      alert('Latitude must be between -90 and 90, and longitude between -180 and 180.')
+      return
+    }
+
+    const manualLocation = { lat, lng }
+    setLocation(manualLocation)
+    setLocationError(null)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('last_cleanup_location', JSON.stringify(manualLocation))
+    }
   }
 
   const handleBeforeNext = () => {
@@ -454,14 +499,14 @@ function CleanupContent() {
       // Check if submission fee is required
       const feeInfo = await getSubmissionFee()
       const feeValue = feeInfo.enabled && feeInfo.fee > 0 ? feeInfo.fee : undefined
-
+      
       if (feeInfo.enabled && feeInfo.fee > 0) {
         console.log('Submission fee required:', feeInfo.fee.toString(), 'wei')
       }
 
       // Chain switching is handled by ensureWalletOnRequiredChain() in submitCleanup()
       // No need to duplicate the logic here - it will handle switching and show errors if needed
-
+      
       // Submit to contract
       console.log('Submitting to contract...')
       console.log('Contract address:', CONTRACT_ADDRESSES.VERIFICATION)
@@ -474,7 +519,7 @@ function CleanupContent() {
         hasForm,
         feeValue: feeValue?.toString() || '0'
       })
-
+      
       try {
         const cleanupId = await submitCleanup(
           beforeHash.hash,
@@ -490,19 +535,19 @@ function CleanupContent() {
         console.log('Cleanup submitted with ID:', cleanupId.toString())
         setCleanupId(cleanupId)
         setStep('review')
-
+        
         // Store cleanup ID in localStorage for verification checking (scoped to user address)
         if (typeof window !== 'undefined' && address) {
           const pendingKey = `pending_cleanup_id_${address.toLowerCase()}`
           const locationKey = `pending_cleanup_location_${address.toLowerCase()}`
           localStorage.setItem(pendingKey, cleanupId.toString())
           localStorage.setItem(locationKey, JSON.stringify(location))
-
+          
           // Also clear old global keys if they exist
           localStorage.removeItem('pending_cleanup_id')
           localStorage.removeItem('pending_cleanup_location')
         }
-
+        
         // Redirect to home after 3 seconds
         setTimeout(() => {
           router.push('/')
@@ -714,9 +759,11 @@ function CleanupContent() {
   // Cooldown/Wrong Network banner component
   const CooldownBanner = () => {
     if (checkingPending) return null
-
+    
     // Show wrong network warning first (higher priority)
     if (isWrongNetwork) {
+      const isVeChain = chainId === 11142220
+      const isCelo = chainId === 44787
       return (
         <div className="mb-6 rounded-lg border border-red-500/50 bg-red-500/10 p-4">
           <div className="flex items-start gap-3">
@@ -725,7 +772,11 @@ function CleanupContent() {
               <h3 className="mb-1 font-semibold text-red-400">Wrong Network</h3>
               <p className="mb-3 text-sm text-gray-300">
                 You're on Chain ID {chainId} ({describeChain(chainId)}).
-                Please switch to <span className="font-mono font-semibold">{REQUIRED_CHAIN_NAME}</span> (Chain ID {REQUIRED_CHAIN_ID}) to submit cleanups.
+                {isVeChain
+                  ? ' VeChain browser extensions hijack window.ethereum and block Base transactions. Please disable the VeChain extension (or use MetaMask/Coinbase/Farcaster) and switch to the required network.'
+                  : isCelo
+                    ? ' This looks like Celo Sepolia. Switch to Base Sepolia Testnet to continue.'
+                    : ' Please switch to the required network before submitting a cleanup.'}
               </p>
               <Button
                 onClick={async () => {
@@ -746,7 +797,7 @@ function CleanupContent() {
         </div>
       )
     }
-
+    
     // Show cooldown warning if pending cleanup
     if (pendingCleanup && !pendingCleanup.verified) {
       return (
@@ -758,11 +809,11 @@ function CleanupContent() {
                 Submission on Cooldown
               </h3>
               <p className="text-sm text-gray-300">
-                You have a cleanup submission (ID: {pendingCleanup.id.toString()}) pending verification.
+                You have a cleanup submission (ID: {pendingCleanup.id.toString()}) pending verification. 
                 Please wait until it's verified before submitting a new cleanup.
               </p>
-              <Link
-                href="/profile"
+              <Link 
+                href="/profile" 
                 className="mt-2 inline-flex items-center gap-1 text-xs text-yellow-400 hover:text-yellow-300 underline"
               >
                 Check status in your profile
@@ -773,7 +824,7 @@ function CleanupContent() {
         </div>
       )
     }
-
+    
     return null
   }
 
@@ -785,9 +836,9 @@ function CleanupContent() {
           <div className="mb-6">
             <BackButton href="/" />
           </div>
-
+          
           <CooldownBanner />
-
+          
           <div className="mb-6 text-center">
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               Upload Before Photo
@@ -801,7 +852,7 @@ function CleanupContent() {
             <p className="mb-4 text-sm font-medium text-gray-300">
               Step 1: Snap a photo of the area before you start. Show the impact your cleanup will make!
             </p>
-
+            
             {beforePhoto ? (
               <div className="relative mb-4">
                 <img
@@ -860,14 +911,65 @@ function CleanupContent() {
                 Location captured: {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
               </div>
             ) : (
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-gray-400">Location not captured</span>
-                <button
-                  onClick={getLocation}
-                  className="text-sm text-brand-green hover:text-[#4a9a26]"
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <button
+                    onClick={getLocation}
+                    className="text-sm text-brand-green hover:text-[#4a9a26]"
+                  >
+                    Get Location
+                  </button>
+                  <button
+                    onClick={() => setManualLocationMode(true)}
+                    className="text-xs text-gray-400 underline-offset-2 hover:text-gray-200"
+                  >
+                    Enter manually
+                  </button>
+                </div>
+              </div>
+            )}
+            {locationError && (
+              <div className="mt-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs text-yellow-200">
+                {locationError}
+                {isBaseBuildHost && (
+                  <p className="mt-2 text-[11px] text-yellow-300/90">
+                    Base Build sandboxes block GPS prompts. Open https://decleanup-mini-app-base.vercel.app/cleanup in a new tab or enter approximate coordinates below.
+                  </p>
+                )}
+              </div>
+            )}
+            {manualLocationMode && (
+              <div className="mt-3 space-y-3 rounded-lg border border-gray-800 bg-gray-950 p-3">
+                <p className="text-xs text-gray-400">
+                  Paste coordinates (e.g. 37.7749, -122.4194) from Google Maps. We'll store them locally for this session.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="number"
+                    value={manualLatInput}
+                    onChange={(e) => setManualLatInput(e.target.value)}
+                    placeholder="Latitude"
+                    className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500"
+                    step="0.000001"
+                  />
+                  <input
+                    type="number"
+                    value={manualLngInput}
+                    onChange={(e) => setManualLngInput(e.target.value)}
+                    placeholder="Longitude"
+                    className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500"
+                    step="0.000001"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleManualLocationApply}
+                  className="w-full bg-brand-green text-black hover:bg-[#4a9a26]"
                 >
-                  Get Location
-                </button>
+                  Save Manual Location
+                </Button>
               </div>
             )}
           </div>
@@ -902,7 +1004,7 @@ function CleanupContent() {
           <div className="mb-6">
             <BackButton />
           </div>
-
+          
           <div className="mb-6 text-center">
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               Upload After Photo
@@ -916,7 +1018,7 @@ function CleanupContent() {
             <p className="mb-4 text-sm font-medium text-gray-300">
               Step 2: Capture the transformed space! Upload your after photo to complete your submission and earn rewards.
             </p>
-
+            
             {afterPhoto ? (
               <div className="relative mb-4">
                 <img
@@ -994,7 +1096,7 @@ function CleanupContent() {
           <div className="mb-6">
             <BackButton />
           </div>
-
+          
           <div className="mb-6 text-center">
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               Impact Report
@@ -1035,12 +1137,12 @@ function CleanupContent() {
                 Area Cleaned
               </label>
               <div className="flex gap-2">
-                <input
-                  type="number"
-                  value={enhancedData.area}
-                  onChange={(e) => setEnhancedData({ ...enhancedData, area: e.target.value })}
+              <input
+                type="number"
+                value={enhancedData.area}
+                onChange={(e) => setEnhancedData({ ...enhancedData, area: e.target.value })}
                   className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                  placeholder="50"
+                placeholder="50"
                   min="0"
                   step="0.1"
                 />
@@ -1061,12 +1163,12 @@ function CleanupContent() {
                 Weight Removed
               </label>
               <div className="flex gap-2">
-                <input
-                  type="number"
-                  value={enhancedData.weight}
-                  onChange={(e) => setEnhancedData({ ...enhancedData, weight: e.target.value })}
+              <input
+                type="number"
+                value={enhancedData.weight}
+                onChange={(e) => setEnhancedData({ ...enhancedData, weight: e.target.value })}
                   className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                  placeholder="5"
+                placeholder="5"
                   min="0"
                   step="0.1"
                 />
@@ -1374,7 +1476,7 @@ function CleanupContent() {
         >
           In Review
         </Button>
-
+        
         <p className="mt-4 text-xs text-gray-500">
           Redirecting to home page...
         </p>
