@@ -1,13 +1,33 @@
 {
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "baseBuilder": {
+    "ownerAddress": "0x54e2bC746Cf63469A0ca1e3c6647BB3cfCE48978"
+  },
   "miniapp": {
-    "version": "1.0.0",
-    "name": "DeCleanup",
-    "iconUrl": "https://decleanup.network/icon.png",
-    "homeUrl": "https://decleanup.network",
-    "splashImageUrl": "https://decleanup.network/splash.png",
-    "splashBackgroundColor": "#58B12F",
-    "heroImageUrl": "https://decleanup.network/hero.png",
-    "tagline": "Tokenize your environmental impact"
+    "version": "1",
+    "name": "DeCleanup Network",
+    "homeUrl": "https://farcaster-mini-app-umber.vercel.app/",
+    "iconUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeiegsc2siwxekclmuse56jnj37gborpeba2skovn5lbg6oq2ttfila",
+    "splashImageUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy",
+    "splashBackgroundColor": "#000000",
+    "subtitle": "Tokenize Your Environmental Impact",
+    "description": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
+    "screenshotUrls": [
+      "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafkreibxivkhsrf54rz26a6p7jehxs36gugz5fywhwxd5axvgungj7v26y",
+      "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafkreihbfrmyviu62uf4nngbno3hwuuvkpt6xvtun52je7ojyps4xvcpky",
+      "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafkreibkfxo2myeu46sv3yxxdmhix27ul34ec6c4dwm5hjplewelsgpedi"
+    ],
+    "primaryCategory": "social",
+    "tags": ["environment", "cleanup", "impact", "nft", "base"],
+    "heroImageUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru",
+    "tagline": "Clean Up, Snap, Earn",
+    "ogTitle": "DeCleanup Network - Tokenize Your Environmental Impact",
+    "ogDescription": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
+    "ogImageUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru",
+    "noindex": false
   }
 }
-
