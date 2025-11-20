@@ -21,6 +21,23 @@ const bebasNeue = Bebas_Neue({
   subsets: ["latin"],
 });
 
+// Base Build embed metadata configuration
+// Required for Base Build embeds & previews - must match homeUrl in manifest
+const EMBED_METADATA = {
+  version: "next",
+  imageUrl: "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru", // heroImageUrl from manifest (3:2 aspect ratio)
+  button: {
+    title: "Open DeCleanup", // Max 32 chars
+    action: {
+      type: "launch_frame",
+      url: "https://farcaster-mini-app-umber.vercel.app/", // Must match homeUrl in manifest
+      name: "DeCleanup Network", // Max 32 chars, defaults to manifest name
+      splashImageUrl: "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy", // 200x200px, defaults to manifest splash
+      splashBackgroundColor: "#000000", // Hex color, defaults to manifest splashBackgroundColor
+    },
+  },
+};
+
 export const metadata: Metadata = {
   title: "DeCleanup - Tokenize Your Environmental Impact",
   description: "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
@@ -33,7 +50,7 @@ export const metadata: Metadata = {
     telephone: false,
   },
   other: {
-    "fc:miniapp": "https://decleanup.network",
+    "fc:miniapp": JSON.stringify(EMBED_METADATA),
     "fc:frame": "vNext",
   },
 };
