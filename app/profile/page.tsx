@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useAccount } from 'wagmi'
+import { useAccount, useChainId, useSwitchChain, useWalletClient } from 'wagmi'
 import type { Address } from 'viem'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
@@ -20,7 +20,7 @@ import {
   claimImpactProductFromVerification,
   CONTRACT_ADDRESSES,
 } from '@/lib/contracts'
-import { REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
+import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { shareCast, generateReferralLink, isFarcasterContext } from '@/lib/farcaster'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 
@@ -62,6 +62,9 @@ function extractImpactStats(metadata: ImpactMetadata | null) {
 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount()
+  const { switchChain } = useSwitchChain()
+  const { data: walletClient } = useWalletClient()
+  const chainId = useChainId()
   const [hasMounted, setHasMounted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [profileData, setProfileData] = useState({
@@ -150,7 +153,7 @@ export default function ProfilePage() {
                 'https://dweb.link/ipfs/',
               ]
               const gatewayList = gateways || defaultGateways
-              return `${gatewayList[0]}${path}`
+              return `${gatewayList[0]}${path} `
             }
 
             const fetchWithFallback = async (ipfsUrl: string): Promise<Response> => {
@@ -170,7 +173,7 @@ export default function ProfilePage() {
 
               for (const gateway of gateways) {
                 try {
-                  const url = `${gateway}${path}`
+                  const url = `${gateway}${path} `
                   const response = await fetch(url, {
                     method: 'GET',
                     headers: { Accept: 'application/json' },
@@ -180,18 +183,18 @@ export default function ProfilePage() {
                     return response
                   }
                 } catch (error) {
-                  console.warn(`Gateway ${gateway} failed:`, error)
+                  console.warn(`Gateway ${gateway} failed: `, error)
                 }
               }
 
-              throw new Error(`All IPFS gateways failed for: ${ipfsUrl}`)
+              throw new Error(`All IPFS gateways failed for: ${ipfsUrl} `)
             }
 
             if (tokenURI) {
               try {
                 const metadataResponse = await fetchWithFallback(tokenURI)
                 if (!metadataResponse.ok) {
-                  throw new Error(`Failed to fetch metadata: ${metadataResponse.status} ${metadataResponse.statusText}`)
+                  throw new Error(`Failed to fetch metadata: ${metadataResponse.status} ${metadataResponse.statusText} `)
                 }
 
                 metadata = (await metadataResponse.json()) as ImpactMetadata
@@ -325,18 +328,18 @@ export default function ProfilePage() {
           setCleanupStatus(null)
           return
         }
-        
+
         // Check localStorage for pending cleanup ID (scoped to user address)
         if (typeof window !== 'undefined') {
           const pendingKey = `pending_cleanup_id_${address.toLowerCase()}`
           const pendingCleanupId = localStorage.getItem(pendingKey)
-          
+
           if (pendingCleanupId) {
             setCleanupStatus({ cleanupId: BigInt(pendingCleanupId), verified: false, claimed: false, level: 0, loading: true })
-            
+
             try {
               const status = await getCleanupStatus(BigInt(pendingCleanupId))
-              
+
               // Verify this cleanup belongs to the current user
               if (status.user.toLowerCase() !== address.toLowerCase()) {
                 console.log('Cleanup belongs to different user, clearing localStorage')
@@ -345,7 +348,7 @@ export default function ProfilePage() {
                 setCleanupStatus(null)
                 return
               }
-              
+
               setCleanupStatus({
                 cleanupId: BigInt(pendingCleanupId),
                 verified: status.verified,
@@ -353,7 +356,7 @@ export default function ProfilePage() {
                 level: status.level,
                 loading: false,
               })
-              
+
               // If verified and claimed, remove from localStorage
               if (status.verified && status.claimed) {
                 localStorage.removeItem(pendingKey)
@@ -448,31 +451,95 @@ export default function ProfilePage() {
       return
     }
 
-    if (typeof window === 'undefined') return
-    const provider = (window as any)?.ethereum
-    if (!provider?.request) {
-      alert('No compatible wallet detected. Please open this page in MetaMask, Coinbase Wallet, or another EVM wallet.')
+    if (!isConnected) {
+      alert('Please connect your wallet first.')
+      return
+    }
+
+    // Use Wagmi's wallet client instead of window.ethereum
+    // This handles different connector types (MetaMask, Coinbase, WalletConnect, etc.)
+    if (!walletClient) {
+      alert('Wallet client not initialized. Please try reconnecting your wallet.')
       return
     }
 
     try {
       setAddingToWallet(true)
-      await provider.request({
-        method: 'wallet_watchAsset',
-        params: {
-          type: 'ERC721',
-          options: {
-            address: CONTRACT_ADDRESSES.IMPACT_PRODUCT,
-            symbol: 'DCIP',
-            tokenId: profileData.tokenId.toString(),
-            image: profileData.imageUrl || undefined,
-          },
+
+      // Get current chain ID - wallet_watchAsset needs to know which chain the NFT is on
+      const { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } = await import('@/lib/wagmi')
+
+      // Ensure we're on the correct chain before adding NFT
+      if (chainId !== REQUIRED_CHAIN_ID) {
+        alert(`Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet first, then try adding the NFT again.`)
+        setAddingToWallet(false)
+        return
+      }
+
+      // Construct the request
+      // Note: Some wallets are strict about the image URL format or size
+      const watchAssetParams = {
+        type: 'ERC721',
+        options: {
+          address: CONTRACT_ADDRESSES.IMPACT_PRODUCT,
+          symbol: 'DCIP',
+          tokenId: profileData.tokenId.toString(),
+          // Only include image if it's a valid URL (http/https/ipfs)
+          image: profileData.imageUrl && profileData.imageUrl.startsWith('http') ? profileData.imageUrl : undefined,
         },
+      }
+
+      console.log('Adding asset to wallet:', watchAssetParams)
+
+      // Use the wallet client to make the request
+      await walletClient.request({
+        method: 'wallet_watchAsset',
+        params: watchAssetParams as any, // Type cast needed as viem types might be strict
       })
-      alert('Impact Product added to your wallet.')
+      alert('Impact Product added to your wallet! Check your wallet\'s NFT/Collectibles tab.')
     } catch (error: any) {
       console.error('Failed to add Impact Product to wallet:', error)
-      alert(`Unable to add Impact Product to wallet: ${error?.message || error}`)
+
+      // Extract error message from various possible formats
+      let errorMessage = 'Unknown error'
+      if (error) {
+        if (typeof error === 'string') {
+          errorMessage = error
+        } else if (error?.message) {
+          errorMessage = error.message
+        } else if (error?.error?.message) {
+          errorMessage = error.error.message
+        } else if (error?.reason) {
+          errorMessage = error.reason
+        } else if (error?.shortMessage) {
+          errorMessage = error.shortMessage
+        } else if (typeof error === 'object' && Object.keys(error).length > 0) {
+          // Try to stringify the error object
+          try {
+            errorMessage = JSON.stringify(error)
+          } catch {
+            errorMessage = String(error)
+          }
+        } else {
+          errorMessage = String(error)
+        }
+      }
+
+      // Provide helpful error messages
+      const lowerMessage = errorMessage.toLowerCase()
+      if (lowerMessage.includes('chain') || lowerMessage.includes('network') || lowerMessage.includes('chainid')) {
+        alert(`Chain mismatch: Please ensure you're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet, then try again.`)
+      } else if (lowerMessage.includes('not supported') || lowerMessage.includes('standard') || lowerMessage.includes('erc721') || lowerMessage.includes('method not found')) {
+        alert(`Your wallet may not support adding ERC721 NFTs programmatically. Please try viewing it in your wallet's NFT tab manually.`)
+      } else if (lowerMessage.includes('rejected') || lowerMessage.includes('denied') || lowerMessage.includes('user')) {
+        // User rejected, no need to alert
+        console.log('User rejected add to wallet request')
+      } else if (errorMessage === '{}' || errorMessage === 'Unknown error' || errorMessage.trim() === '') {
+        // Empty error object - likely a silent rejection or unsupported wallet
+        alert(`Unable to add NFT to wallet automatically.\n\nPlease check your wallet's NFT tab - it might already be there!`)
+      } else {
+        alert(`Unable to add Impact Product to wallet: ${errorMessage}`)
+      }
     } finally {
       setAddingToWallet(false)
     }
@@ -485,7 +552,7 @@ export default function ProfilePage() {
         <div className="mb-6">
           <BackButton href="/" />
         </div>
-        
+
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
@@ -594,7 +661,7 @@ export default function ProfilePage() {
                 Cleanup Status
               </h2>
             </div>
-            
+
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-400">Cleanup ID:</span>
@@ -602,26 +669,25 @@ export default function ProfilePage() {
                   #{cleanupStatus.cleanupId.toString()}
                 </span>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-400">Status:</span>
-                <span className={`text-sm font-semibold ${
-                  cleanupStatus.verified && cleanupStatus.claimed
-                    ? 'text-brand-green'
-                    : cleanupStatus.verified && !cleanupStatus.claimed
+                <span className={`text-sm font-semibold ${cleanupStatus.verified && cleanupStatus.claimed
+                  ? 'text-brand-green'
+                  : cleanupStatus.verified && !cleanupStatus.claimed
                     ? 'text-brand-yellow'
                     : 'text-brand-yellow'
-                }`}>
+                  }`}>
                   {cleanupStatus.loading
                     ? 'Checking...'
                     : cleanupStatus.verified && cleanupStatus.claimed
-                    ? 'Verified & Claimed'
-                    : cleanupStatus.verified && !cleanupStatus.claimed
-                    ? 'Verified - Ready to Claim'
-                    : 'Pending Review'}
+                      ? 'Verified & Claimed'
+                      : cleanupStatus.verified && !cleanupStatus.claimed
+                        ? 'Verified - Ready to Claim'
+                        : 'Pending Review'}
                 </span>
               </div>
-              
+
               {cleanupStatus.verified && cleanupStatus.level > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-400">Assigned Level:</span>
@@ -630,7 +696,7 @@ export default function ProfilePage() {
                   </span>
                 </div>
               )}
-              
+
               {cleanupStatus.verified && !cleanupStatus.claimed && (
                 <div className="mt-4 space-y-3">
                   <div className="rounded-lg border border-brand-yellow bg-brand-yellow/10 p-3">
@@ -641,7 +707,7 @@ export default function ProfilePage() {
                   <Button
                     onClick={async () => {
                       if (!cleanupStatus.cleanupId || isClaiming) return
-                      
+
                       try {
                         setIsClaiming(true)
                         const hash = await claimImpactProductFromVerification(cleanupStatus.cleanupId)
@@ -651,18 +717,18 @@ export default function ProfilePage() {
                           `Your Impact Product NFT will be minted once the transaction confirms.\n\n` +
                           `View on ${BLOCK_EXPLORER_NAME}: ${getExplorerTxUrl(hash)}`
                         )
-                        
+
                         // Wait for transaction confirmation
                         const { waitForTransactionReceipt } = await import('wagmi/actions')
                         const { config } = await import('@/lib/wagmi')
-                        
+
                         try {
                           await waitForTransactionReceipt(config, { hash, timeout: 60000 })
                           console.log('✅ Claim transaction confirmed!')
                         } catch (waitError) {
                           console.warn('Transaction confirmation wait failed, but continuing:', waitError)
                         }
-                        
+
                         // Poll for status update
                         let pollCount = 0
                         const maxPolls = 10
@@ -677,7 +743,7 @@ export default function ProfilePage() {
                               level: status.level,
                               loading: false,
                             })
-                            
+
                             if (status.claimed || pollCount >= maxPolls) {
                               clearInterval(pollInterval)
                               // Refresh profile data to show new level
@@ -691,7 +757,7 @@ export default function ProfilePage() {
                             }
                           }
                         }, 2000) // Poll every 2 seconds
-                        
+
                         // Fallback: reload after max time
                         setTimeout(() => {
                           clearInterval(pollInterval)
@@ -722,7 +788,7 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               )}
-              
+
               {!cleanupStatus.verified && !cleanupStatus.loading && (
                 <div className="mt-4 rounded-lg border border-gray-700 bg-gray-800/50 p-3">
                   <p className="text-sm text-gray-300">
@@ -770,7 +836,7 @@ export default function ProfilePage() {
                     className="h-full w-full object-cover"
                     onError={(e) => {
                       const img = e.currentTarget as HTMLImageElement
-                      
+
                       // Prevent infinite loops - check if we've already tried fallbacks
                       const hasTriedFallback = img.dataset.fallbackAttempted === 'true'
                       if (hasTriedFallback) {
@@ -785,11 +851,11 @@ export default function ProfilePage() {
                         }
                         return
                       }
-                      
+
                       // Mark that we're trying fallback
                       img.dataset.fallbackAttempted = 'true'
                       console.warn('⚠️ Primary gateway failed, trying fallbacks:', profileData.imageUrl)
-                      
+
                       // Extract IPFS path
                       if (profileData.imageUrl.includes('/ipfs/')) {
                         const ipfsPath = profileData.imageUrl.split('/ipfs/')[1]
@@ -798,12 +864,12 @@ export default function ProfilePage() {
                           `https://dweb.link/ipfs/${ipfsPath}`,
                           `https://gateway.ipfs.io/ipfs/${ipfsPath}`,
                         ]
-                        
+
                         // Try first fallback gateway
                         const currentGateway = fallbackGateways[0]
                         console.log('🔄 Trying fallback gateway:', currentGateway)
                         img.src = currentGateway
-                        
+
                         // Set up handler for fallback failure
                         img.onerror = () => {
                           console.error('❌ All gateways exhausted for:', ipfsPath)
@@ -904,84 +970,75 @@ export default function ProfilePage() {
                     </Button>
                   </div>
                   {/* Share buttons */}
-                  {address && (
+                  {address && profileData.level > 0 && (
                     <div className="mt-3 space-y-2">
                       <p className="text-xs font-medium text-gray-400">
                         Share your Impact Product and invite friends:
                       </p>
                       <div className="flex flex-col gap-2 sm:flex-row">
-                        {isInFarcaster && (
-                          <Button
-                            variant="outline"
-                            onClick={async () => {
-                              if (!address || sharing) return
-                              setSharing(true)
-                              try {
-                                const referralLink = generateReferralLink(address)
-                                const shareText = `🎉 I just minted my DeCleanup Impact Product NFT (Level ${profileData.level})!\n\nClean up, snap, earn! Join me: ${referralLink}\n\n#DeCleanup #ImpactProduct #Base`
-                                await shareCast(shareText, referralLink)
-                              } catch (error) {
-                                console.error('Failed to share on Farcaster:', error)
-                                alert('Failed to share. Please try copying the link manually.')
-                              } finally {
-                                setSharing(false)
-                              }
-                            }}
-                            disabled={sharing}
-                            className="w-full gap-2 border-purple-600 bg-purple-600/10 text-purple-400 hover:bg-purple-600/20 sm:flex-1"
-                          >
-                            {sharing ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span>Sharing...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Share2 className="h-4 w-4" />
-                                Share on Farcaster
-                              </>
-                            )}
-                          </Button>
-                        )}
                         <Button
-                          variant="outline"
                           onClick={async () => {
-                            if (!address || sharing) return
+                            if (sharing || !address) return
                             setSharing(true)
                             try {
-                              const referralLink = generateReferralLink(address)
-                              const shareText = `🎉 I just minted my DeCleanup Impact Product NFT (Level ${profileData.level})!\n\nClean up, snap, earn! Join me: ${referralLink}\n\n#DeCleanup #ImpactProduct #Base`
-                              const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
-                              window.open(twitterUrl, '_blank', 'noopener,noreferrer')
+                              const link = generateReferralLink(address)
+                              const text = `🎉 I just minted my DeCleanup Impact Product NFT (Level ${profileData.level})!\n\nClean up, snap, earn! Join me: ${link}\n\n#DeCleanup #ImpactProduct #Base`
+                              await shareCast(text, link)
                             } catch (error) {
-                              console.error('Failed to share on X:', error)
+                              console.error('Failed to share:', error)
                             } finally {
                               setSharing(false)
                             }
                           }}
                           disabled={sharing}
+                          className="w-full gap-2 bg-purple-600 text-white hover:bg-purple-700 sm:flex-1"
+                        >
+                          {sharing ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Sharing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Share2 className="h-4 w-4" />
+                              Share on Farcaster
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            if (!address) return
+                            const link = generateReferralLink(address)
+                            const text = `🎉 I just minted my DeCleanup Impact Product NFT (Level ${profileData.level})!\n\nClean up, snap, earn! Join me: ${link}\n\n#DeCleanup #ImpactProduct #Base`
+                            const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
+                            window.open(xUrl, '_blank')
+                          }}
+                          variant="outline"
                           className="w-full gap-2 border-gray-700 bg-black text-white hover:bg-gray-800 sm:flex-1"
                         >
-                          <Share2 className="h-4 w-4" />
+                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                          </svg>
                           Share on X
                         </Button>
                         <Button
-                          variant="outline"
                           onClick={async () => {
                             if (!address) return
+                            const link = generateReferralLink(address)
                             try {
-                              const referralLink = generateReferralLink(address)
-                              await navigator.clipboard.writeText(referralLink)
+                              await navigator.clipboard.writeText(link)
                               alert('Referral link copied to clipboard!')
                             } catch (error) {
-                              console.error('Failed to copy link:', error)
-                              alert('Failed to copy link. Please try again.')
+                              alert(`Referral link: ${link}`)
                             }
                           }}
+                          variant="outline"
                           className="w-full gap-2 border-gray-700 bg-black text-white hover:bg-gray-800 sm:flex-1"
                         >
-                          <Share2 className="h-4 w-4" />
-                          Copy Referral Link
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Copy Link
                         </Button>
                       </div>
                     </div>

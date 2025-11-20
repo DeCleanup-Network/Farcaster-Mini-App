@@ -79,19 +79,41 @@ export const closeMiniApp = async () => {
 // Share a cast (post) on Farcaster
 export const shareCast = async (text: string, url?: string): Promise<boolean> => {
   try {
+    // Try Web Share API first if available (mobile native share sheet)
+    if (navigator.share && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      try {
+        await navigator.share({
+          title: 'DeCleanup Network',
+          text: text,
+          url: url
+        })
+        return true
+      } catch (shareError) {
+        // User cancelled or share failed, fall back to other methods
+        console.log('Web Share API failed or cancelled, falling back:', shareError)
+      }
+    }
+
     // Farcaster SDK doesn't have a direct cast action, but we can use openUrl
     // to open the Farcaster compose interface with pre-filled text
-    const farcasterUrl = url 
+    const farcasterUrl = url
       ? `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(url)}`
       : `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
-    
-    await openUrl(farcasterUrl)
+
+    // Check if we are in Farcaster context
+    if (isFarcasterContext()) {
+      await openUrl(farcasterUrl)
+      return true
+    }
+
+    // If not in Farcaster, open in new tab
+    window.open(farcasterUrl, '_blank')
     return true
   } catch (error) {
     console.error('Failed to share cast:', error)
     // Fallback: try to copy to clipboard
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(text + (url ? ` ${url}` : ''))
       return true
     } catch (clipboardError) {
       console.error('Failed to copy to clipboard:', clipboardError)

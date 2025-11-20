@@ -74,28 +74,8 @@ export default function Home() {
     setIsInFarcaster(isFarcasterContext())
   }, [])
 
-  // Auto-switch to required chain after connection
-  useEffect(() => {
-    if (isConnected && chainId !== REQUIRED_CHAIN_ID && !hasSwitchedNetwork) {
-      const attemptSwitch = async () => {
-        try {
-          console.log(
-            `Auto-switching from chain ${chainId} to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})...`
-          )
-          await switchChain({ chainId: REQUIRED_CHAIN_ID })
-          setHasSwitchedNetwork(true)
-        } catch (error: any) {
-          console.log('Auto network switch failed or was rejected:', error)
-          // Don't set hasSwitchedNetwork so user can try again if needed
-        }
-      }
-      // Wait a bit after connection before attempting switch
-      const timeout = setTimeout(attemptSwitch, 1000)
-      return () => clearTimeout(timeout)
-    } else if (chainId === REQUIRED_CHAIN_ID) {
-      setHasSwitchedNetwork(true)
-    }
-  }, [isConnected, chainId, hasSwitchedNetwork, switchChain])
+  // Note: Chain switching is handled by ensureWalletOnRequiredChain() in contract functions
+  // No need for auto-switch here - it will be handled when user tries to interact (claim, etc.)
 
   // Check cleanup status when connected (optimized single call)
   useEffect(() => {
@@ -113,7 +93,7 @@ export default function Home() {
         const status = await getUserCleanupStatus(address)
         if (isMounted) {
           setCleanupStatus(status)
-          
+
           // Only poll if there's something pending (pending cleanup or ready to claim)
           // Stop polling if already claimed or no cleanup exists
           if (status.hasPendingCleanup || status.canClaim) {
@@ -183,12 +163,12 @@ export default function Home() {
               Self-tokenize environmental cleanup efforts. Apply with your cleanup results to receive a DeCleanup Impact Product, earn community token (coming soon) and progress through levels.
             </p>
           </div>
-          
+
           {!mounted ? (
             // Show consistent initial state on server and client
             <div className="mx-auto max-w-md">
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
                 disabled
                 className="w-full gap-2 bg-brand-green text-black"
               >
@@ -202,13 +182,12 @@ export default function Home() {
             <div className="mx-auto max-w-md space-y-4">
               {/* Status Banner */}
               {cleanupStatus && (
-                <div className={`mx-auto max-w-md rounded-lg border p-4 ${
-                  cleanupStatus.canClaim
-                    ? 'border-brand-yellow bg-brand-yellow/10'
-                    : cleanupStatus.hasPendingCleanup
+                <div className={`mx-auto max-w-md rounded-lg border p-4 ${cleanupStatus.canClaim
+                  ? 'border-brand-yellow bg-brand-yellow/10'
+                  : cleanupStatus.hasPendingCleanup
                     ? 'border-brand-green bg-brand-green/10'
                     : 'border-gray-800 bg-gray-900'
-                }`}>
+                  }`}>
                   <div className="flex items-start gap-3">
                     {cleanupStatus.canClaim ? (
                       <>
@@ -250,47 +229,46 @@ export default function Home() {
 
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
                 <Link href="/cleanup" className="w-full sm:w-auto">
-                  <Button 
-                    size="lg" 
+                  <Button
+                    size="lg"
                     disabled={cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim || false}
-                    className={`w-full gap-2 sm:w-auto ${
-                      cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim
-                        ? 'border-gray-700 bg-gray-900 text-gray-500 cursor-not-allowed'
-                        : 'bg-brand-yellow text-black hover:bg-[#e6e600]'
-                    }`}
+                    className={`w-full gap-2 sm:w-auto ${cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim
+                      ? 'border-gray-700 bg-gray-900 text-gray-500 cursor-not-allowed'
+                      : 'bg-brand-yellow text-black hover:bg-[#e6e600]'
+                      }`}
                     title={
-                      cleanupStatus?.hasPendingCleanup 
-                        ? 'You have a cleanup pending verification. Please wait for verification before submitting a new cleanup.' 
+                      cleanupStatus?.hasPendingCleanup
+                        ? 'You have a cleanup pending verification. Please wait for verification before submitting a new cleanup.'
                         : cleanupStatus?.canClaim
-                        ? 'Please claim your Impact Product NFT before submitting a new cleanup.'
-                        : ''
+                          ? 'Please claim your Impact Product NFT before submitting a new cleanup.'
+                          : ''
                     }
                   >
                     <Trash2 className="h-5 w-5" />
                     APPLY WITH CLEANUP
                   </Button>
                 </Link>
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   disabled={!cleanupStatus?.canClaim || isClaiming}
                   onClick={async () => {
                     if (!cleanupStatus?.canClaim || !cleanupStatus?.cleanupId || isClaiming) return
-                    
+
                     try {
                       setIsClaiming(true)
                       const hash = await claimImpactProductFromVerification(cleanupStatus.cleanupId)
-                      
+
                       // Wait for transaction confirmation
                       const { waitForTransactionReceipt } = await import('wagmi/actions')
                       const { config } = await import('@/lib/wagmi')
-                      
+
                       try {
                         await waitForTransactionReceipt(config, { hash, timeout: 60000 })
                         console.log('✅ Claim transaction confirmed!')
                       } catch (waitError) {
                         console.warn('Transaction confirmation wait failed, but continuing:', waitError)
                       }
-                      
+
                       // Poll for status update (transaction confirmed, but state might take a moment)
                       let pollCount = 0
                       const maxPolls = 10
@@ -330,25 +308,37 @@ export default function Home() {
                           }
                         }
                       }, 2000) // Poll every 2 seconds
-                      
+
                       // Fallback: redirect after max time even if polling doesn't complete
                       setTimeout(() => {
                         clearInterval(pollInterval)
                         window.location.href = '/profile'
                       }, 20000) // Max 20 seconds
-                      
+
                     } catch (error: any) {
                       console.error('Error claiming:', error)
+
+                      // Check if user rejected the transaction
                       const errorMessage = error?.message || String(error)
-                      alert(`Failed to claim: ${errorMessage}`)
+                      if (
+                        error?.code === 4001 ||
+                        errorMessage.includes('User rejected') ||
+                        errorMessage.includes('User denied') ||
+                        errorMessage.includes('rejected the request')
+                      ) {
+                        console.log('User cancelled transaction')
+                        // Don't show an error for user cancellation
+                      } else {
+                        // Show error for actual failures
+                        alert(`Failed to claim: ${errorMessage}`)
+                      }
                       setIsClaiming(false)
                     }
                   }}
-                  className={`w-full gap-2 border-2 font-semibold uppercase sm:w-auto ${
-                    cleanupStatus?.canClaim
-                      ? 'bg-brand-yellow text-black hover:bg-[#e6e600] border-brand-yellow'
-                      : 'border-gray-700 bg-gray-900 text-gray-500 cursor-not-allowed'
-                  }`}
+                  className={`w-full gap-2 border-2 font-semibold uppercase sm:w-auto ${cleanupStatus?.canClaim
+                    ? 'bg-brand-yellow text-black hover:bg-[#e6e600] border-brand-yellow'
+                    : 'border-gray-700 bg-gray-900 text-gray-500 cursor-not-allowed'
+                    }`}
                   title={cleanupStatus?.reason}
                 >
                   {isClaiming ? (
@@ -415,7 +405,92 @@ export default function Home() {
               View your Impact Products, track your progress, and see your environmental contributions.
             </p>
           </Link>
+
+
         </section>
+
+        {/* Invite Friends Section */}
+        {mounted && isConnected && address && (
+          <section className="mb-8 rounded-lg border border-gray-800 bg-gradient-to-br from-gray-900 to-gray-800 p-6 sm:mb-12 sm:p-8">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-brand-green/20">
+                <Users className="h-6 w-6 text-brand-green" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold uppercase tracking-wide text-white sm:text-xl">
+                  Invite Friends
+                </h3>
+                <p className="text-xs text-gray-400 sm:text-sm">
+                  Earn 3 $DCU when friends submit and verify their first cleanup
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm text-gray-300">
+                Share your referral link and earn rewards when your friends join DeCleanup Network!
+              </p>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button
+                  onClick={async () => {
+                    const { generateReferralLink } = await import('@/lib/farcaster')
+                    const { shareCast } = await import('@/lib/farcaster')
+                    const referralLink = generateReferralLink(address)
+                    const message = `🌱 Join me on DeCleanup Network! Clean up, earn Impact Products, and tokenize your environmental impact.\n\n${referralLink}`
+                    await shareCast(message, referralLink)
+                  }}
+                  className="flex-1 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
+                >
+                  <Users className="h-4 w-4" />
+                  Share on Farcaster
+                </Button>
+
+                <Button
+                  onClick={async () => {
+                    const { generateReferralLink } = await import('@/lib/farcaster')
+                    const referralLink = generateReferralLink(address)
+                    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`🌱 Join me on DeCleanup Network! Clean up, earn Impact Products, and tokenize your environmental impact.\n\n${referralLink}`)}`
+                    window.open(xUrl, '_blank')
+                  }}
+                  variant="outline"
+                  className="flex-1 gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800"
+                >
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                  Share on X
+                </Button>
+
+                <Button
+                  onClick={async () => {
+                    const { generateReferralLink } = await import('@/lib/farcaster')
+                    const referralLink = generateReferralLink(address)
+                    try {
+                      await navigator.clipboard.writeText(referralLink)
+                      alert('Referral link copied to clipboard!')
+                    } catch (error) {
+                      alert(`Referral link: ${referralLink}`)
+                    }
+                  }}
+                  variant="outline"
+                  className="flex-1 gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Copy Link
+                </Button>
+              </div>
+
+              <div className="mt-4 rounded-lg bg-gray-800/50 p-3">
+                <p className="text-xs text-gray-400">
+                  <strong className="text-brand-green">How it works:</strong> When someone uses your referral link to submit their first cleanup and it gets verified, you both earn <strong className="text-white">3 $DCU</strong>!
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Quick Actions */}
         <section className="mb-8 rounded-lg border border-gray-800 bg-gray-900 p-4 sm:mb-12 sm:p-6">
@@ -423,39 +498,39 @@ export default function Home() {
             Quick Actions
           </h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <a 
-              href="https://t.me/DecentralizedCleanup" 
-              target="_blank" 
+            <a
+              href="https://t.me/DecentralizedCleanup"
+              target="_blank"
               rel="noopener noreferrer"
             >
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="w-full justify-start gap-2 border-2 border-gray-700 bg-black font-semibold uppercase text-white hover:bg-gray-900"
               >
                 <Users className="h-4 w-4" />
                 Join the Community
               </Button>
             </a>
-            <a 
-              href="https://paragraph.com/@decleanupnet" 
-              target="_blank" 
+            <a
+              href="https://paragraph.com/@decleanupnet"
+              target="_blank"
               rel="noopener noreferrer"
             >
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="w-full justify-start gap-2 border-2 border-gray-700 bg-black font-semibold uppercase text-white hover:bg-gray-900"
               >
                 <Award className="h-4 w-4" />
                 Read Publications
               </Button>
             </a>
-            <a 
-              href="https://giveth.io/project/decentralized-cleanup-network" 
-              target="_blank" 
+            <a
+              href="https://giveth.io/project/decentralized-cleanup-network"
+              target="_blank"
               rel="noopener noreferrer"
             >
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="w-full justify-start gap-2 border-2 border-gray-700 bg-black font-semibold uppercase text-white hover:bg-gray-900"
               >
                 <Heart className="h-4 w-4" />

@@ -2,7 +2,7 @@ import { base, baseSepolia } from 'wagmi/chains'
 import { createConfig, http } from 'wagmi'
 import { injected, walletConnect, metaMask, coinbaseWallet } from 'wagmi/connectors'
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector'
-import { defineChain } from 'viem'
+import { defineChain, type Chain } from 'viem'
 
 const baseMainnetRpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'
 const baseSepoliaRpcUrl = process.env.NEXT_PUBLIC_TESTNET_RPC_URL || 'https://sepolia.base.org'
@@ -51,7 +51,7 @@ const baseSepoliaChain = defineChain({
   testnet: true,
 })
 
-const configuredChains = [baseSepoliaChain, baseMainnet] as const
+const configuredChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet]
 const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || baseSepoliaChain.id)
 const requiredChain =
   configuredChains.find((chain) => chain.id === requiredChainId) ?? baseSepoliaChain
@@ -65,21 +65,19 @@ const requiredRpcUrl = requiredChain.id === baseMainnet.id ? baseMainnetRpcUrl :
 // Note: Using explicit connectors (metaMask, coinbaseWallet) instead of injected() to avoid VeChain
 // VeChain (chain ID 11142220) injects itself into window.ethereum and causes chain mismatch errors
 // By using explicit connectors, we bypass VeChain and only connect to supported wallets
-const connectors = [
-  // Farcaster wallet connector (prioritized when in Farcaster context)
+// IMPORTANT: Only initialize connectors on client side to avoid SSR errors
+// All wallet connectors require browser APIs and will fail during server-side rendering
+const connectors = typeof window !== 'undefined' ? [
   farcasterMiniApp(),
-  // Explicit MetaMask connector (filters out VeChain automatically)
-  metaMask(),
-  // Explicit Coinbase Wallet connector
   coinbaseWallet({ appName: 'DeCleanup Network' }),
-  // Fallback to injected() only if explicit connectors aren't available
-  // This will be used as a last resort for other browser wallets
-  injected(),
-]
+  // Use a single injected connector for MetaMask and others, but prefer EIP-6963 if available
+  // We'll use the specific metaMask connector which uses EIP-6963 or window.ethereum
+  metaMask(),
+] : []
 
-// Only add WalletConnect if Project ID is configured
+// Only add WalletConnect if Project ID is configured and on client side
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
-if (walletConnectProjectId && walletConnectProjectId.trim() !== '') {
+if (typeof window !== 'undefined' && walletConnectProjectId && walletConnectProjectId.trim() !== '') {
   try {
     connectors.push(
       walletConnect({
@@ -89,7 +87,7 @@ if (walletConnectProjectId && walletConnectProjectId.trim() !== '') {
   } catch (error) {
     console.warn('WalletConnect connector initialization failed:', error)
   }
-} else {
+} else if (typeof window !== 'undefined') {
   console.warn('WalletConnect Project ID not configured. WalletConnect will not be available. Get your Project ID at https://cloud.reown.com')
 }
 

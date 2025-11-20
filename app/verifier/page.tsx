@@ -417,75 +417,108 @@ export default function VerifierPage() {
       console.log(`Verifying cleanup ${cleanupId.toString()} with level ${nextLevel}`)
       console.log(`Transaction hash: ${hash}`)
       
-      // Transaction was submitted successfully
-      // Instead of waiting for receipt (which can fail with RPC errors),
-      // we'll just reload cleanups and let the user know the transaction was sent
-      console.log('Verification transaction submitted, hash:', hash)
-      
-      // Reload cleanups - the transaction will process on-chain
-      await loadCleanups()
-      setSelectedCleanup(null)
-      
-      // Show success with transaction hash
+      // Show initial success message
       const explorerUrl = getExplorerTxUrl(hash)
-      alert(
-        `✅ Verification transaction submitted!\n\n` +
-        `Transaction Hash: ${hash}\n\n` +
-        `The cleanup will be verified once the transaction confirms (usually within 1-2 minutes).\n\n` +
-        `View on ${BLOCK_EXPLORER_NAME}: ${explorerUrl}`
-      )
-      
-      // Poll for verification status by checking the cleanup directly
-      // This is more reliable than waiting for transaction receipt
       setPollingStatus({ cleanupId, count: 0 })
-      let pollCount = 0
-      const maxPolls = 90 // Poll for up to 3 minutes (90 * 2 seconds)
-      const pollInterval = setInterval(async () => {
-        pollCount++
-        setPollingStatus({ cleanupId, count: pollCount })
-        console.log(`Polling for verification status (attempt ${pollCount}/${maxPolls})...`)
-        try {
-          // Check if the cleanup is now verified by reading from contract
-          const status = await getCleanupStatus(cleanupId)
-          console.log(`Cleanup ${cleanupId.toString()} status check:`, { verified: status.verified, level: status.level })
-          if (status.verified) {
-            console.log('✅ Cleanup verified confirmed on-chain, reloading cleanups...')
-            clearInterval(pollInterval)
-            setPollingStatus(null)
-            // Reload cleanups to show updated verified status
-            await loadCleanups()
-            alert(`✅ Cleanup ${cleanupId.toString()} is now verified!`)
-          } else if (pollCount >= maxPolls) {
-            console.log('Max polls reached, stopping background check')
-            clearInterval(pollInterval)
-            setPollingStatus(null)
-            alert(
-              `Polling stopped after ${maxPolls} attempts. The transaction may still be pending. Check ${BLOCK_EXPLORER_NAME} for status.`
-            )
-          }
-        } catch (checkError: any) {
-          const errorMsg = checkError?.message || String(checkError)
-          console.log(`Poll attempt ${pollCount} failed:`, errorMsg)
-          // If check fails, continue polling (might be RPC issues)
-          if (pollCount >= maxPolls) {
-            console.log('Max polls reached, stopping background check')
-            clearInterval(pollInterval)
-            setPollingStatus(null)
-          }
-        }
-      }, 2000) // Poll every 2 seconds
       
-      // Cleanup interval after 3 minutes
-      setTimeout(() => {
-        clearInterval(pollInterval)
-        if (pollingStatus?.cleanupId === cleanupId) {
-          setPollingStatus(null)
+      // Wait for transaction receipt first to ensure it was confirmed
+      try {
+        console.log('Waiting for transaction receipt...')
+        const receipt = await waitForTransactionReceipt(config, { 
+          hash,
+          timeout: 120000, // 2 minute timeout
+        })
+        console.log('Transaction confirmed in block:', receipt.blockNumber)
+        
+        // Transaction confirmed, now check if verification was successful
+        // Give it a moment for state to update
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        
+        // Check verification status
+        let pollCount = 0
+        const maxPolls = 30 // Poll for up to 1 minute after confirmation (30 * 2 seconds)
+        const pollInterval = setInterval(async () => {
+          pollCount++
+          setPollingStatus({ cleanupId, count: pollCount })
+          console.log(`Polling for verification status (attempt ${pollCount}/${maxPolls})...`)
+          try {
+            const status = await getCleanupStatus(cleanupId)
+            console.log(`Cleanup ${cleanupId.toString()} status check:`, { verified: status.verified, level: status.level })
+            if (status.verified) {
+              console.log('✅ Cleanup verified confirmed on-chain, reloading cleanups...')
+              clearInterval(pollInterval)
+              setPollingStatus(null)
+              await loadCleanups()
+              setSelectedCleanup(null)
+              alert(
+                `✅ Cleanup ${cleanupId.toString()} is now verified!\n\n` +
+                `View on ${BLOCK_EXPLORER_NAME}: ${explorerUrl}`
+              )
+            } else if (pollCount >= maxPolls) {
+              console.log('Max polls reached after confirmation, stopping check')
+              clearInterval(pollInterval)
+              setPollingStatus(null)
+              await loadCleanups()
+              setSelectedCleanup(null)
+              alert(
+                `⚠️ Transaction confirmed but verification status not updated yet.\n\n` +
+                `This may be a temporary RPC issue. Check ${BLOCK_EXPLORER_NAME}:\n${explorerUrl}`
+              )
+            }
+          } catch (checkError: any) {
+            const errorMsg = checkError?.message || String(checkError)
+            console.log(`Poll attempt ${pollCount} failed:`, errorMsg)
+            if (pollCount >= maxPolls) {
+              clearInterval(pollInterval)
+              setPollingStatus(null)
+              await loadCleanups()
+              setSelectedCleanup(null)
+            }
+          }
+        }, 2000) // Poll every 2 seconds
+        
+        // Cleanup interval after 1 minute
+        setTimeout(() => {
+          clearInterval(pollInterval)
+          if (pollingStatus?.cleanupId === cleanupId) {
+            setPollingStatus(null)
+          }
+        }, 60000)
+      } catch (receiptError: any) {
+        // Transaction receipt wait failed (timeout or error)
+        console.error('Error waiting for transaction receipt:', receiptError)
+        setPollingStatus(null)
+        await loadCleanups()
+        setSelectedCleanup(null)
+        
+        const errorMsg = receiptError?.message || String(receiptError)
+        if (errorMsg.includes('timeout')) {
+          alert(
+            `⏱️ Transaction submitted but confirmation is taking longer than expected.\n\n` +
+            `Transaction Hash: ${hash}\n\n` +
+            `Please check ${BLOCK_EXPLORER_NAME} for status:\n${explorerUrl}\n\n` +
+            `The cleanup will be verified once the transaction confirms.`
+          )
+        } else {
+          alert(
+            `⚠️ Transaction submitted but could not confirm receipt.\n\n` +
+            `Transaction Hash: ${hash}\n\n` +
+            `Please check ${BLOCK_EXPLORER_NAME} for status:\n${explorerUrl}`
+          )
         }
-      }, 180000)
+      }
     } catch (error) {
       console.error('Error verifying cleanup:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setError(`Failed to verify: ${errorMessage}`)
+      
+      // Show alert for critical errors (chain mismatches, etc.)
+      if (errorMessage.includes('CRITICAL') || errorMessage.includes('Chain') || errorMessage.includes('network')) {
+        alert(`❌ ${errorMessage}`)
+      } else {
+        // For other errors, show a more user-friendly message
+        alert(`Failed to verify cleanup:\n\n${errorMessage}\n\nPlease check your wallet connection and network settings.`)
+      }
     } finally {
       setVerifying(false)
     }

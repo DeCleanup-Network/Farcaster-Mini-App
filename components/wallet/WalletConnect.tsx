@@ -11,7 +11,7 @@ import { tryAddRequiredChain } from '@/lib/network'
 
 export function WalletConnect() {
   const [mounted, setMounted] = useState(false)
-  const { address, isConnected } = useAccount()
+  const { address, isConnected, connector } = useAccount()
   const chainId = useChainId()
   const { switchChain } = useSwitchChain()
   const { connectAsync, connectors, isPending } = useConnect()
@@ -26,30 +26,30 @@ export function WalletConnect() {
     c => {
       const name = c.name.toLowerCase()
       const id = c.id?.toLowerCase() || ''
-      return name.includes('farcaster') || 
-             name.includes('frame') ||
-             name.includes('miniapp') ||
-             id.includes('farcaster') ||
-             id.includes('frame') ||
-             id.includes('miniapp')
+      return name.includes('farcaster') ||
+        name.includes('frame') ||
+        name.includes('miniapp') ||
+        id.includes('farcaster') ||
+        id.includes('frame') ||
+        id.includes('miniapp')
     }
   )
-  
+
   // Detect if we're in an in-app browser (no window.ethereum)
   const isInAppBrowser = typeof window !== 'undefined' && !(window as any)?.ethereum
-  
+
   // Prioritize WalletConnect for in-app browsers (mobile webviews, etc.)
   const externalConnectors = connectors
     .filter(
       c => {
         const name = c.name.toLowerCase()
         const id = c.id?.toLowerCase() || ''
-        return !name.includes('farcaster') && 
-               !name.includes('frame') &&
-               !name.includes('miniapp') &&
-               !id.includes('farcaster') &&
-               !id.includes('frame') &&
-               !id.includes('miniapp')
+        return !name.includes('farcaster') &&
+          !name.includes('frame') &&
+          !name.includes('miniapp') &&
+          !id.includes('farcaster') &&
+          !id.includes('frame') &&
+          !id.includes('miniapp')
       }
     )
     .sort((a, b) => {
@@ -79,45 +79,38 @@ export function WalletConnect() {
   }, [])
 
   // Auto-connect Farcaster wallet when in Farcaster context
+  // BUT: Don't auto-connect if user has already manually connected a different wallet
   // Note: farcasterMiniApp() connector should auto-connect if wallet is already connected in Farcaster
-  // This effect is a fallback to ensure connection happens, with timeout to prevent hanging
+  // This effect is a fallback to ensure connection happens
   useEffect(() => {
-    if (mounted && isInFarcaster && !isConnected && farcasterConnector) {
-      let timeoutId: NodeJS.Timeout
-      let isCancelled = false
-      
-      const attempt = async () => {
-        if (isCancelled || isConnected) return
-        
-        try {
-          console.log('Auto-connecting Farcaster wallet...')
-          // Add timeout to prevent hanging
-          const connectPromise = connectAsync({ connector: farcasterConnector })
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Connection timeout')), 5000)
-          )
-          
-          await Promise.race([connectPromise, timeoutPromise])
-        } catch (error: any) {
-          // Only log if not cancelled and not already connected
-          if (!isCancelled && !isConnected) {
-            const errorMessage = error?.message || String(error)
-            // Don't log timeout errors as they're expected if wallet isn't available
-            if (!errorMessage.includes('timeout') && !errorMessage.includes('rejected')) {
-              console.error('Auto-connect failed:', errorMessage)
-            }
-          }
+    if (!mounted || !isInFarcaster || isConnected || isPending || !farcasterConnector) {
+      return
+    }
+
+    // Check if user has manually connected a non-Farcaster wallet
+    // If so, don't auto-connect Farcaster wallet
+    const currentConnector = connector
+    if (currentConnector && currentConnector.id !== farcasterConnector.id) {
+      console.log('User has manually connected a different wallet, skipping Farcaster auto-connect')
+      return
+    }
+
+    const attemptConnect = async () => {
+      try {
+        console.log('Auto-connecting Farcaster wallet...')
+        await connectAsync({ connector: farcasterConnector })
+      } catch (error: any) {
+        // Ignore user rejection or if already processing
+        if (error?.code !== 4001 && !error?.message?.includes('already pending')) {
+          console.error('Auto-connect failed:', error)
         }
       }
-
-      timeoutId = setTimeout(attempt, 500)
-
-      return () => {
-        isCancelled = true
-        clearTimeout(timeoutId)
-      }
     }
-  }, [mounted, isInFarcaster, isConnected, farcasterConnector, connectAsync])
+
+    // Small delay to allow initial state to settle
+    const timer = setTimeout(attemptConnect, 500)
+    return () => clearTimeout(timer)
+  }, [mounted, isInFarcaster, isConnected, isPending, farcasterConnector, connectAsync, connector])
 
   // Auto-switch to required chain after connection
   useEffect(() => {
@@ -127,6 +120,7 @@ export function WalletConnect() {
           console.log(
             `Auto-switching from chain ${chainId} to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})...`
           )
+
           await switchChain({ chainId: REQUIRED_CHAIN_ID })
           setHasSwitchedNetwork(true)
         } catch (error: any) {
@@ -135,12 +129,14 @@ export function WalletConnect() {
           const isChainMissing =
             message.includes('not configured') ||
             message.includes('unrecognized chain') ||
+            message.includes('unknown chain') ||
             code === 4902
-          
+
           if (isChainMissing) {
             const added = await tryAddRequiredChain()
             if (added) {
-              await new Promise(resolve => setTimeout(resolve, 1200))
+              // Wait for wallet to process the add request
+              await new Promise(resolve => setTimeout(resolve, 1000))
               try {
                 await switchChain({ chainId: REQUIRED_CHAIN_ID })
                 setHasSwitchedNetwork(true)
@@ -150,11 +146,13 @@ export function WalletConnect() {
               }
             }
           }
-          
+
           console.log('Auto network switch failed or was rejected:', error)
-          // Don't set hasSwitchedNetwork so user can try again if needed
+          // Don't keep retrying automatically to avoid spamming the user
+          setHasSwitchedNetwork(true) // Mark as "attempted" to stop loop
         }
       }
+
       // Wait a bit after connection before attempting switch
       const timeout = setTimeout(attemptSwitch, 1000)
       return () => clearTimeout(timeout)
@@ -181,13 +179,23 @@ export function WalletConnect() {
 
   // Connected state
   if (isConnected && address) {
+    // Log the connected wallet for debugging
+    if (typeof window !== 'undefined') {
+      console.log('Connected wallet:', {
+        address,
+        connector: connector?.name,
+        connectorId: connector?.id,
+        isFarcaster: connector?.name?.toLowerCase().includes('farcaster'),
+      })
+    }
+
     return (
       <div className="relative">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-2 py-1.5 sm:px-3 sm:py-2">
             <Wallet className="h-3 w-3 text-brand-green sm:h-4 sm:w-4" />
-            <span className="text-xs font-medium text-white sm:text-sm">
-              {isInFarcaster ? 'Farcaster' : 'Wallet'}: {address.slice(0, 4)}...{address.slice(-4)}
+            <span className="text-xs font-medium text-white sm:text-sm" title={`Full address: ${address}\nConnector: ${connector?.name || 'Unknown'}`}>
+              {connector?.name?.toLowerCase().includes('farcaster') ? 'Farcaster' : connector?.name || 'Wallet'}: {address.slice(0, 6)}...{address.slice(-4)}
             </span>
           </div>
           {externalConnectors.length > 0 && (
@@ -210,7 +218,7 @@ export function WalletConnect() {
             <span className="hidden sm:inline">Disconnect</span>
           </Button>
         </div>
-        
+
         {/* External wallet options dropdown */}
         {showOtherWallets && externalConnectors.length > 0 && (
           <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-gray-700 bg-gray-900 p-2 shadow-lg">
@@ -276,7 +284,7 @@ export function WalletConnect() {
             <span>No Wallet Available</span>
           </Button>
         )}
-        
+
         {/* Show other wallets button if multiple options */}
         {externalConnectors.length > (isInFarcaster && farcasterConnector ? 0 : 1) && (
           <Button
@@ -289,7 +297,7 @@ export function WalletConnect() {
           </Button>
         )}
       </div>
-      
+
       {/* External wallet options dropdown */}
       {showOtherWallets && (
         <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-gray-700 bg-gray-900 p-2 shadow-lg">

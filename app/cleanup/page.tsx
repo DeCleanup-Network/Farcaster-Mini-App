@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -40,7 +40,7 @@ const describeChain = (id?: number) => {
   }
 }
 
-export default function CleanupPage() {
+function CleanupContent() {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
@@ -64,7 +64,7 @@ export default function CleanupPage() {
     claimed: boolean
   } | null>(null)
   const [checkingPending, setCheckingPending] = useState(true)
-  
+
   // Fix hydration error by only rendering after mount
   useEffect(() => {
     setMounted(true)
@@ -80,7 +80,7 @@ export default function CleanupPage() {
       }
     }
   }, [mounted, searchParams])
-  
+
   // Impact Report form data
   const [enhancedData, setEnhancedData] = useState({
     locationType: '',
@@ -161,7 +161,7 @@ export default function CleanupPage() {
     if (!location) {
       getLocation()
     }
-    
+
   }, [isConnected, address])
 
   // Check for pending cleanup submissions
@@ -178,17 +178,17 @@ export default function CleanupPage() {
           setCheckingPending(false)
           return
         }
-        
+
         if (typeof window !== 'undefined') {
           // Check for pending cleanup ID scoped to this user's address
           const pendingKey = `pending_cleanup_id_${address.toLowerCase()}`
           const pendingCleanupId = localStorage.getItem(pendingKey)
-          
+
           if (pendingCleanupId) {
             try {
               const status = await getCleanupStatus(BigInt(pendingCleanupId))
               console.log('Cleanup status found:', status)
-              
+
               // Verify this cleanup belongs to the current user
               if (status.user.toLowerCase() !== address.toLowerCase()) {
                 console.log('Cleanup belongs to different user, clearing localStorage')
@@ -197,7 +197,7 @@ export default function CleanupPage() {
                 setPendingCleanup(null)
                 return
               }
-              
+
               // Only set pending if it's actually pending (not verified)
               if (!status.verified) {
                 setPendingCleanup({
@@ -246,11 +246,17 @@ export default function CleanupPage() {
     return () => clearInterval(interval)
   }, [isConnected, address])
 
-  const handlePhotoCapture = (type: 'before' | 'after') => {
+  // Detect if we're on mobile
+  const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+
+  const handlePhotoSelect = (type: 'before' | 'after') => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'image/jpeg,image/jpg,image/heic'
-    input.capture = 'environment'
+    // Use generic image/* to allow all image types
+    // Do NOT set capture attribute - this forces camera on some devices
+    // By omitting it, mobile browsers will offer "Camera" or "Photo Library" options
+    input.accept = 'image/*'
+
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (file) {
@@ -275,7 +281,7 @@ export default function CleanupPage() {
     }
 
     setIsGettingLocation(true)
-    
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const locationData = {
@@ -285,7 +291,7 @@ export default function CleanupPage() {
         setLocation(locationData)
         setIsGettingLocation(false)
         console.log('Location obtained:', locationData)
-        
+
         // Store location in localStorage as backup
         if (typeof window !== 'undefined') {
           localStorage.setItem('last_cleanup_location', JSON.stringify(locationData))
@@ -294,7 +300,7 @@ export default function CleanupPage() {
       (error) => {
         setIsGettingLocation(false)
         console.error('Error getting location:', error)
-        
+
         // Try to use last known location as fallback
         if (typeof window !== 'undefined') {
           const lastLocation = localStorage.getItem('last_cleanup_location')
@@ -310,7 +316,7 @@ export default function CleanupPage() {
             }
           }
         }
-        
+
         let errorMessage = 'Unable to get location. '
         switch (error.code) {
           case error.PERMISSION_DENIED:
@@ -436,9 +442,9 @@ export default function CleanupPage() {
           const impactDataResult = await uploadJSONToIPFS(impactData, `impact-report-${Date.now()}`)
           impactFormDataHash = impactDataResult.hash
           console.log('Impact report data uploaded to IPFS:', impactFormDataHash)
-          
+
           // Store the hash in localStorage with cleanup ID (will be set after submission)
-        // We'll associate this hash with the cleanup on-chain below
+          // We'll associate this hash with the cleanup on-chain below
         } catch (error) {
           console.error('Error uploading impact report data to IPFS:', error)
           // Don't fail the submission if IPFS upload fails, just log it
@@ -448,96 +454,14 @@ export default function CleanupPage() {
       // Check if submission fee is required
       const feeInfo = await getSubmissionFee()
       const feeValue = feeInfo.enabled && feeInfo.fee > 0 ? feeInfo.fee : undefined
-      
+
       if (feeInfo.enabled && feeInfo.fee > 0) {
         console.log('Submission fee required:', feeInfo.fee.toString(), 'wei')
       }
 
-      // Check network before submitting - try to auto-switch first
-      if (chainId !== REQUIRED_CHAIN_ID) {
-        console.log(`Wrong network detected: ${chainId}, attempting to switch to ${REQUIRED_CHAIN_ID}...`)
-        
-        try {
-          // Try to auto-switch
-          await switchChain({ chainId: REQUIRED_CHAIN_ID })
-          // Wait a bit for the switch
-          await new Promise(resolve => setTimeout(resolve, 2000))
-          
-          // Re-check chain ID after switch attempt
-          // Note: chainId from hook might not update immediately, so we'll proceed
-          // The contract call will fail if still on wrong network
-          console.log('Network switch attempted, continuing...')
-        } catch (switchError: any) {
-          // If auto-switch fails, show instructions
-          const errorMessage = switchError?.message || switchError?.shortMessage || String(switchError) || 'Unknown error'
-          const isChainNotConfigured = 
-            errorMessage.includes('Chain not configured') ||
-            errorMessage.includes('chain not configured') ||
-            errorMessage.includes('not configured') ||
-            errorMessage.includes('Unrecognized chain') ||
-            switchError?.name === 'ChainNotConfiguredError' ||
-            switchError?.code === 4902
-          const wasRejected = errorMessage.includes('rejected') || errorMessage.includes('denied') || errorMessage.includes('User rejected')
-          let autoFixed = false
-          
-          if (isChainNotConfigured) {
-            const added = await tryAddRequiredChain()
-            if (added) {
-              console.log('✅ Added Base network via wallet_addEthereumChain. Retrying switch...')
-              await new Promise(resolve => setTimeout(resolve, 1200))
-              try {
-                await switchChain({ chainId: REQUIRED_CHAIN_ID })
-                autoFixed = true
-                console.log('Successfully switched after auto-adding network.')
-              } catch (retryError) {
-                console.warn('Retry switch failed after adding network:', retryError)
-              }
-            }
-            
-            if (!autoFixed) {
-              alert(
-                `❌ ${REQUIRED_CHAIN_NAME} is not configured in your wallet!\n\n` +
-                `Please add ${REQUIRED_CHAIN_NAME} to your wallet:\n\n` +
-                `1. Open your wallet (MetaMask, Coinbase Wallet, etc.)\n` +
-                `2. Go to Settings → Networks → Add Network\n` +
-                `3. Click "Add a network manually"\n` +
-                `4. Enter these details:\n` +
-                `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
-                `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
-                `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
-                `   • Currency Symbol: ETH\n` +
-                `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
-                `5. Click "Save" and switch to ${REQUIRED_CHAIN_NAME}\n` +
-                `${REQUIRED_CHAIN_IS_TESTNET ? `6. Get testnet ETH from: https://www.coinbase.com/faucets/base-ethereum-goerli-faucet\n` : ''}` +
-                `${REQUIRED_CHAIN_IS_TESTNET ? `7. Then try submitting again.` : `6. Then try submitting again.`}`
-              )
-              setIsSubmitting(false)
-              return
-            }
-          } else {
-            alert(
-              `❌ Wrong Network!\n\n` +
-              `You're on Chain ID ${chainId} (${describeChain(chainId)}), ` +
-              `but need ${REQUIRED_CHAIN_NAME} (Chain ID ${REQUIRED_CHAIN_ID}).\n\n` +
-              `${wasRejected ? 'Network switch was rejected. ' : ''}Please switch manually:\n\n` +
-              `1. Click the network dropdown in MetaMask (top of the extension)\n` +
-              `2. Select "${REQUIRED_CHAIN_NAME}" if it's already added\n` +
-              `3. OR click "Add Network" → "Add a network manually" and enter:\n` +
-              `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
-              `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
-              `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
-              `   • Currency Symbol: ETH\n` +
-              `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n\n` +
-              `4. Click "Save" and switch to it\n` +
-              `5. Then try submitting again.\n\n` +
-              `Error: ${errorMessage}`
-            )
-            setIsSubmitting(false)
-            return
-          }
-        }
-      }
-      
+      // Chain switching is handled by ensureWalletOnRequiredChain() in submitCleanup()
+      // No need to duplicate the logic here - it will handle switching and show errors if needed
+
       // Submit to contract
       console.log('Submitting to contract...')
       console.log('Contract address:', CONTRACT_ADDRESSES.VERIFICATION)
@@ -550,7 +474,7 @@ export default function CleanupPage() {
         hasForm,
         feeValue: feeValue?.toString() || '0'
       })
-      
+
       try {
         const cleanupId = await submitCleanup(
           beforeHash.hash,
@@ -566,19 +490,19 @@ export default function CleanupPage() {
         console.log('Cleanup submitted with ID:', cleanupId.toString())
         setCleanupId(cleanupId)
         setStep('review')
-        
+
         // Store cleanup ID in localStorage for verification checking (scoped to user address)
         if (typeof window !== 'undefined' && address) {
           const pendingKey = `pending_cleanup_id_${address.toLowerCase()}`
           const locationKey = `pending_cleanup_location_${address.toLowerCase()}`
           localStorage.setItem(pendingKey, cleanupId.toString())
           localStorage.setItem(locationKey, JSON.stringify(location))
-          
+
           // Also clear old global keys if they exist
           localStorage.removeItem('pending_cleanup_id')
           localStorage.removeItem('pending_cleanup_location')
         }
-        
+
         // Redirect to home after 3 seconds
         setTimeout(() => {
           router.push('/')
@@ -588,21 +512,51 @@ export default function CleanupPage() {
         const errorMessage = submitError?.message || submitError?.shortMessage || String(submitError) || 'Unknown error'
         const errorName = submitError?.name || ''
         const errorDetails = submitError?.details || ''
-        
+
+        // CRITICAL: Check for Celo Sepolia - this is a common mistake!
+        const isCeloError =
+          errorMessage.includes('CELO') ||
+          errorMessage.includes('Celo') ||
+          errorMessage.includes('44787') ||
+          errorMessage.includes('Celo Sepolia') ||
+          chainId === 44787
+
         // Check if it's truly a "chain not configured" error (not just a switch error)
-        const isChainNotConfigured = 
+        const isChainNotConfigured =
           errorDetails?.includes('Chain not configured') ||
           errorMessage.includes('Chain not configured') ||
           errorMessage.includes('chain not configured') ||
           errorMessage.includes('Unrecognized chain') ||
           submitError?.code === 4902 // MetaMask error code for chain not configured
-        
+
         // Check if it's a switch chain error (could be configured but switch failed)
-        const isSwitchError = 
+        const isSwitchError =
           errorName === 'SwitchChainError' ||
           errorMessage.includes('switch chain') ||
           errorMessage.includes('SwitchChainError')
-        
+
+        if (isCeloError) {
+          // Show very clear Celo error message
+          alert(
+            `❌ WRONG NETWORK: CELO SEPOLIA DETECTED!\n\n` +
+            `You are currently on Celo Sepolia Testnet, but this app requires ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
+            `Please switch to ${REQUIRED_CHAIN_NAME}:\n\n` +
+            `1. Open your wallet (MetaMask, Coinbase Wallet, etc.)\n` +
+            `2. Click the network dropdown at the top\n` +
+            `3. Select "${REQUIRED_CHAIN_NAME}" from the list\n` +
+            `4. If ${REQUIRED_CHAIN_NAME} is not in the list, add it:\n` +
+            `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+            `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
+            `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+            `   • Currency Symbol: ETH\n` +
+            `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
+            `5. Once on ${REQUIRED_CHAIN_NAME}, try submitting again.\n\n` +
+            `⚠️ Do NOT submit transactions on Celo - they will fail!`
+          )
+          setIsSubmitting(false)
+          return
+        }
+
         if (isChainNotConfigured) {
           // Show detailed instructions for adding the network
           alert(
@@ -648,7 +602,7 @@ export default function CleanupPage() {
             `- The contract address is correct`
           )
         }
-        
+
         setIsSubmitting(false)
         return
       }
@@ -658,21 +612,21 @@ export default function CleanupPage() {
       const errorName = error instanceof Error ? error.name : ''
       const errorDetails = (error as any)?.details || ''
       const errorCode = (error as any)?.code
-      
+
       // Check if it's truly a "chain not configured" error (not just a switch error)
-      const isChainNotConfigured = 
+      const isChainNotConfigured =
         errorDetails?.includes('Chain not configured') ||
         errorMessage.includes('Chain not configured') ||
         errorMessage.includes('chain not configured') ||
         errorMessage.includes('Unrecognized chain') ||
         errorCode === 4902 // MetaMask error code for chain not configured
-      
+
       // Check if it's a switch chain error (could be configured but switch failed)
-      const isSwitchError = 
+      const isSwitchError =
         errorName === 'SwitchChainError' ||
         errorMessage.includes('switch chain') ||
         errorMessage.includes('SwitchChainError')
-      
+
       if (isChainNotConfigured) {
         // Show detailed instructions for adding the network
         alert(
@@ -760,7 +714,7 @@ export default function CleanupPage() {
   // Cooldown/Wrong Network banner component
   const CooldownBanner = () => {
     if (checkingPending) return null
-    
+
     // Show wrong network warning first (higher priority)
     if (isWrongNetwork) {
       return (
@@ -770,7 +724,7 @@ export default function CleanupPage() {
             <div className="flex-1">
               <h3 className="mb-1 font-semibold text-red-400">Wrong Network</h3>
               <p className="mb-3 text-sm text-gray-300">
-                You're on Chain ID {chainId} ({describeChain(chainId)}). 
+                You're on Chain ID {chainId} ({describeChain(chainId)}).
                 Please switch to <span className="font-mono font-semibold">{REQUIRED_CHAIN_NAME}</span> (Chain ID {REQUIRED_CHAIN_ID}) to submit cleanups.
               </p>
               <Button
@@ -792,7 +746,7 @@ export default function CleanupPage() {
         </div>
       )
     }
-    
+
     // Show cooldown warning if pending cleanup
     if (pendingCleanup && !pendingCleanup.verified) {
       return (
@@ -804,11 +758,11 @@ export default function CleanupPage() {
                 Submission on Cooldown
               </h3>
               <p className="text-sm text-gray-300">
-                You have a cleanup submission (ID: {pendingCleanup.id.toString()}) pending verification. 
+                You have a cleanup submission (ID: {pendingCleanup.id.toString()}) pending verification.
                 Please wait until it's verified before submitting a new cleanup.
               </p>
-              <Link 
-                href="/profile" 
+              <Link
+                href="/profile"
                 className="mt-2 inline-flex items-center gap-1 text-xs text-yellow-400 hover:text-yellow-300 underline"
               >
                 Check status in your profile
@@ -819,7 +773,7 @@ export default function CleanupPage() {
         </div>
       )
     }
-    
+
     return null
   }
 
@@ -831,9 +785,9 @@ export default function CleanupPage() {
           <div className="mb-6">
             <BackButton href="/" />
           </div>
-          
+
           <CooldownBanner />
-          
+
           <div className="mb-6 text-center">
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               Upload Before Photo
@@ -847,7 +801,7 @@ export default function CleanupPage() {
             <p className="mb-4 text-sm font-medium text-gray-300">
               Step 1: Snap a photo of the area before you start. Show the impact your cleanup will make!
             </p>
-            
+
             {beforePhoto ? (
               <div className="relative mb-4">
                 <img
@@ -865,14 +819,20 @@ export default function CleanupPage() {
               </div>
             ) : (
               <button
-                onClick={() => handlePhotoCapture('before')}
+                onClick={() => handlePhotoSelect('before')}
                 disabled={isSubmissionDisabled}
-                className="flex h-64 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-700 bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex h-64 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-700 bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed hover:border-gray-600"
               >
-                <Camera className={`mb-2 h-12 w-12 ${isSubmissionDisabled ? 'text-gray-600' : 'text-gray-500'}`} />
+                <Upload className={`mb-2 h-12 w-12 ${isSubmissionDisabled ? 'text-gray-600' : 'text-gray-500'}`} />
                 <p className={`text-sm ${isSubmissionDisabled ? 'text-gray-600' : 'text-gray-400'}`}>
-                  {isSubmissionDisabled ? 'Submission on cooldown' : 'Tap to upload photo'}
+                  {isSubmissionDisabled ? 'Submission on cooldown' : isMobile ? 'Tap to take photo or choose from gallery' : 'Click to upload photo'}
                 </p>
+                {isMobile && (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                    <Camera className="h-4 w-4" />
+                    <span>Camera or Gallery</span>
+                  </div>
+                )}
               </button>
             )}
 
@@ -942,7 +902,7 @@ export default function CleanupPage() {
           <div className="mb-6">
             <BackButton />
           </div>
-          
+
           <div className="mb-6 text-center">
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               Upload After Photo
@@ -956,7 +916,7 @@ export default function CleanupPage() {
             <p className="mb-4 text-sm font-medium text-gray-300">
               Step 2: Capture the transformed space! Upload your after photo to complete your submission and earn rewards.
             </p>
-            
+
             {afterPhoto ? (
               <div className="relative mb-4">
                 <img
@@ -973,11 +933,19 @@ export default function CleanupPage() {
               </div>
             ) : (
               <button
-                onClick={() => handlePhotoCapture('after')}
-                className="flex h-64 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-700 bg-gray-900"
+                onClick={() => handlePhotoSelect('after')}
+                className="flex h-64 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-700 bg-gray-900 hover:border-gray-600"
               >
-                <Camera className="mb-2 h-12 w-12 text-gray-500" />
-                <p className="text-sm text-gray-400">Tap to upload photo</p>
+                <Upload className="mb-2 h-12 w-12 text-gray-500" />
+                <p className="text-sm text-gray-400">
+                  {isMobile ? 'Tap to take photo or choose from gallery' : 'Click to upload photo'}
+                </p>
+                {isMobile && (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                    <Camera className="h-4 w-4" />
+                    <span>Camera or Gallery</span>
+                  </div>
+                )}
               </button>
             )}
 
@@ -1026,7 +994,7 @@ export default function CleanupPage() {
           <div className="mb-6">
             <BackButton />
           </div>
-          
+
           <div className="mb-6 text-center">
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               Impact Report
@@ -1222,7 +1190,7 @@ export default function CleanupPage() {
                   Add Contributor
                 </button>
                 {enhancedData.contributors.length > 0 && (
-                  <p className="text-xs text-gray-500">Contributors will receive +5 $DCU when they submit cleanup photos</p>
+                  <p className="text-xs text-gray-500">Contributors are listed for attribution purposes only</p>
                 )}
               </div>
             </div>
@@ -1406,11 +1374,27 @@ export default function CleanupPage() {
         >
           In Review
         </Button>
-        
+
         <p className="mt-4 text-xs text-gray-500">
           Redirecting to home page...
         </p>
       </div>
     </div>
+  )
+}
+
+export default function CleanupPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-black px-4 py-8">
+        <div className="mx-auto max-w-md">
+          <div className="mt-8 flex items-center justify-center p-8">
+            <Loader2 className="h-8 w-8 animate-spin text-brand-green" />
+          </div>
+        </div>
+      </div>
+    }>
+      <CleanupContent />
+    </Suspense>
   )
 }
