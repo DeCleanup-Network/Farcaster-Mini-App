@@ -1259,8 +1259,9 @@ function CleanupContent() {
                 Contributors
               </label>
               <div className="space-y-2">
-                <div className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-400">
-                  {address || 'Your wallet address'} (You)
+                <div className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-400 break-all">
+                  <span className="font-mono text-xs">{address || 'Your wallet address'}</span>
+                  <span className="ml-2 text-gray-500">(You)</span>
                 </div>
                 {enhancedData.contributors.map((contributor, idx) => (
                   <div key={idx} className="flex gap-2">

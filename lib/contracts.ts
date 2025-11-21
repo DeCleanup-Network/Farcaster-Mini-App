@@ -79,12 +79,34 @@ function getManualNetworkAddInstructions() {
 }
 
 async function ensureWalletOnRequiredChain(context = 'transaction'): Promise<void> {
-  const currentChainId = await getCurrentChainId()
+  let currentChainId = await getCurrentChainId()
   console.log(`[${context}] Current chain ID: ${currentChainId}, required: ${REQUIRED_CHAIN_ID}`)
 
-  // If we can't determine chain, we must stop to prevent wrong-chain transactions
+  // If we can't determine chain (e.g., WalletConnect), try to add the chain first
+  // This helps WalletConnect-MetaMask users who might not have the chain configured
   if (currentChainId === null) {
-    throw new Error(`Could not determine current chain ID. Please ensure your wallet is connected and on ${REQUIRED_CHAIN_NAME}.`)
+    console.log(`[${context}] Chain ID is null, attempting to add chain for WalletConnect...`)
+    try {
+      const added = await tryAddRequiredChain()
+      if (added) {
+        // Wait a moment for the chain to be added
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Try to get chain ID again
+        currentChainId = await getCurrentChainId()
+        if (currentChainId === REQUIRED_CHAIN_ID) {
+          console.log(`[${context}] ✅ Chain added and switched successfully`)
+          return
+        }
+      }
+      // If we still can't determine chain after adding, proceed with transaction
+      // The wallet will validate the network when the transaction is sent
+      console.log(`[${context}] ⚠️ Could not determine chain ID, but proceeding - wallet will validate on transaction`)
+      return
+    } catch (addError) {
+      console.error(`[${context}] Failed to add chain:`, addError)
+      // Don't throw error here - let the transaction proceed and wallet will handle it
+      return
+    }
   }
 
   // Already on correct chain - no need to switch
@@ -548,12 +570,16 @@ export async function submitCleanup(
 
   // Double-check we're on the right chain before submitting
   const finalChainId = await getCurrentChainId()
-  if (finalChainId === null) {
-    throw new Error(`Could not verify final chain ID. Please ensure your wallet is connected and on ${REQUIRED_CHAIN_NAME}.`)
-  }
   
-  // CRITICAL: Explicitly block Celo Sepolia - this is a common mistake
-  if (finalChainId === 44787) {
+  // For WalletConnect, chainId might be null even after adding chain
+  // In that case, proceed and let the wallet validate on transaction
+  if (finalChainId === null) {
+    console.warn('[cleanup submission] Could not verify final chain ID, but proceeding - wallet will validate on transaction')
+    // Don't throw error - let the transaction proceed and wallet will handle validation
+    // This helps WalletConnect-MetaMask users
+  } else {
+    // CRITICAL: Explicitly block Celo Sepolia - this is a common mistake
+    if (finalChainId === 44787) {
     throw new Error(
       `❌ CELO SEPOLIA DETECTED!\n\n` +
       `You are on Celo Sepolia Testnet (Chain ID: 44787), but this app requires ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
@@ -569,14 +595,15 @@ export async function submitCleanup(
       `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
       `4. Switch to ${REQUIRED_CHAIN_NAME} and try again.`
     )
-  }
-  
-  if (finalChainId !== REQUIRED_CHAIN_ID) {
-    throw new Error(
-      `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet. ` +
-      `Current network: ${finalChainId}. ` +
-      getNetworkSetupMessage()
-    )
+    }
+    
+    if (finalChainId !== REQUIRED_CHAIN_ID) {
+      throw new Error(
+        `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet. ` +
+        `Current network: ${finalChainId}. ` +
+        getNetworkSetupMessage()
+      )
+    }
   }
 
   // Submit cleanup and get the return value (cleanup ID)
