@@ -5,7 +5,7 @@ import { useAccount, useChainId, useSwitchChain, useWalletClient } from 'wagmi'
 import type { Address } from 'viem'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
-import { Award, TrendingUp, Trash2, Loader2, Flame, Clock, CheckCircle, RefreshCw, ExternalLink, Wallet, Share2 } from 'lucide-react'
+import { Award, TrendingUp, Leaf, Loader2, Flame, Clock, CheckCircle, RefreshCw, ExternalLink, Wallet, Share2 } from 'lucide-react'
 import Link from 'next/link'
 import {
   getDCUBalance,
@@ -21,7 +21,7 @@ import {
   CONTRACT_ADDRESSES,
 } from '@/lib/contracts'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
-import { shareCast, generateReferralLink, isFarcasterContext } from '@/lib/farcaster'
+import { shareCast, generateReferralLink, isFarcasterContext, formatReferralMessage } from '@/lib/farcaster'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
@@ -969,6 +969,9 @@ export default function ProfilePage() {
                       )}
                     </Button>
                   </div>
+                  <p className="text-xs text-gray-500">
+                    If your wallet doesn&apos;t support auto-adding ERC721s yet, open its NFT/Collectibles tab to view the Impact Product manually.
+                  </p>
                   {/* Share buttons */}
                   {address && profileData.level > 0 && (
                     <div className="mt-3 space-y-2">
@@ -982,8 +985,8 @@ export default function ProfilePage() {
                             setSharing(true)
                             try {
                               const link = generateReferralLink(address)
-                              const text = `🎉 I just minted my DeCleanup Impact Product NFT (Level ${profileData.level})!\n\nClean up, snap, earn! Join me: ${link}\n\n#DeCleanup #ImpactProduct #Base`
-                              await shareCast(text, link)
+                            const text = formatReferralMessage(link)
+                            await shareCast(text, link)
                             } catch (error) {
                               console.error('Failed to share:', error)
                             } finally {
@@ -1009,7 +1012,7 @@ export default function ProfilePage() {
                           onClick={() => {
                             if (!address) return
                             const link = generateReferralLink(address)
-                            const text = `🎉 I just minted my DeCleanup Impact Product NFT (Level ${profileData.level})!\n\nClean up, snap, earn! Join me: ${link}\n\n#DeCleanup #ImpactProduct #Base`
+                            const text = formatReferralMessage(link)
                             const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
                             window.open(xUrl, '_blank')
                           }}
@@ -1026,10 +1029,11 @@ export default function ProfilePage() {
                             if (!address) return
                             const link = generateReferralLink(address)
                             try {
-                              await navigator.clipboard.writeText(link)
-                              alert('Referral link copied to clipboard!')
+                              const copyMessage = formatReferralMessage(link)
+                              await navigator.clipboard.writeText(copyMessage)
+                              alert('Referral message copied to clipboard!')
                             } catch (error) {
-                              alert(`Referral link: ${link}`)
+                              alert(formatReferralMessage(link))
                             }
                           }}
                           variant="outline"
@@ -1061,7 +1065,7 @@ export default function ProfilePage() {
             </p>
             <Link href="/cleanup">
               <Button className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26]">
-                <Trash2 className="h-4 w-4" />
+                <Leaf className="h-4 w-4" />
                 Submit Your First Cleanup
               </Button>
             </Link>
@@ -1072,7 +1076,7 @@ export default function ProfilePage() {
         <div className="flex flex-col gap-4">
           <Link href="/cleanup">
             <Button className="w-full gap-2 bg-brand-yellow text-black hover:bg-[#e6e600]">
-              <Trash2 className="h-4 w-4" />
+              <Leaf className="h-4 w-4" />
               Submit New Cleanup
             </Button>
           </Link>

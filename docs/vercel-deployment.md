@@ -195,7 +195,7 @@ Once your domain is live, update `.well-known/farcaster.json`:
      },
      "miniapp": {
        "version": "1",
-       "name": "DeCleanup Network",
+      "name": "DeCleanup Rewards",
        "homeUrl": "https://your-testnet-domain.vercel.app",
        "iconUrl": "https://your-testnet-domain.vercel.app/icon.png",
        "splashImageUrl": "https://your-testnet-domain.vercel.app/splash.png",

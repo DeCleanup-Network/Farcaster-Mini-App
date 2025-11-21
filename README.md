@@ -1,4 +1,4 @@
-# DeCleanup Network - Farcaster Mini App
+# DeCleanup Rewards - Farcaster Mini App
 
 > **A mobile-first Farcaster Mini App that gamifies environmental cleanup through Impact Product NFTs - onchain commodities, community token (coming soon) and engagement.**
 
@@ -169,7 +169,7 @@ Contributions are welcome! Fork the repository, create a feature branch, and ope
 
 ## Resources
 
-- [DeCleanup Network GitHub](https://github.com/DeCleanup-Network)
+- [DeCleanup Rewards GitHub](https://github.com/DeCleanup-Network)
 - [Farcaster Mini Apps Docs](https://docs.farcaster.xyz/developers/mini-apps)
 - [Base Documentation](https://docs.base.org)
 - [Base Mini App Guide](https://docs.base.org/miniapp)

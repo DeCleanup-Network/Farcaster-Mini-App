@@ -25,7 +25,7 @@ When your `baseBuilder.ownerAddress` is different from your Base Build account a
 1. **Log into Base Build**
    - Go to [base.org](https://base.org) and sign in
    - Navigate to **Base Build** section
-   - Find your Mini App: "DeCleanup Network"
+   - Find your Mini App: "DeCleanup Rewards"
 
 2. **Open Account Association Tool**
    - In Base Build, look for "Account Association" or "Verify Domain" section

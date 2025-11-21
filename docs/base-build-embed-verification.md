@@ -76,7 +76,7 @@ Expected structure:
     "action": {
       "type": "launch_frame",
       "url": "https://farcaster-mini-app-umber.vercel.app/",
-      "name": "DeCleanup Network",
+      "name": "DeCleanup Rewards",
       "splashImageUrl": "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy",
       "splashBackgroundColor": "#000000"
     }
@@ -91,7 +91,7 @@ Expected structure:
    - Navigate to **Base Build** section
 
 2. **Open Your Mini App**
-   - Find "DeCleanup Network" in your mini apps list
+   - Find "DeCleanup Rewards" in your mini apps list
    - Click on it to open the configuration
 
 3. **Check Manifest Validation**

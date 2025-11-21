@@ -75,7 +75,7 @@ The complete structure should look like:
   },
   "miniapp": {
     "version": "1",
-    "name": "DeCleanup Network",
+    "name": "DeCleanup Rewards",
     "homeUrl": "https://decleanup.network",
     "iconUrl": "https://decleanup.network/icon.png",
     "splashImageUrl": "https://decleanup.network/splash.png",
@@ -87,7 +87,7 @@ The complete structure should look like:
     "tags": ["environment", "cleanup", "impact", "nft", "base"],
     "heroImageUrl": "https://decleanup.network/og-image.png",
     "tagline": "Clean Up, Snap, Earn",
-    "ogTitle": "DeCleanup Network - Tokenize Your Environmental Impact",
+    "ogTitle": "DeCleanup Rewards - Tokenize Your Environmental Impact",
     "ogDescription": "Join the global cleanup movement...",
     "ogImageUrl": "https://decleanup.network/og-image.png",
     "noindex": false

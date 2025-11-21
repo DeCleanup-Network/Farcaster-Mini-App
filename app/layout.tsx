@@ -25,26 +25,26 @@ const bebasNeue = Bebas_Neue({
 // Required for Base Build embeds & previews - must match homeUrl in manifest
 const EMBED_METADATA = {
   version: "next",
-  imageUrl: "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru", // heroImageUrl from manifest (3:2 aspect ratio)
+  imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png",
   button: {
-    title: "Open DeCleanup", // Max 32 chars
+    title: "Open DeCleanup Rewards",
     action: {
       type: "launch_frame",
-      url: "https://farcaster-mini-app-umber.vercel.app/", // Must match homeUrl in manifest
-      name: "DeCleanup Network", // Max 32 chars, defaults to manifest name
-      splashImageUrl: "https://beige-defiant-spoonbill-537.mypinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy", // 200x200px, defaults to manifest splash
-      splashBackgroundColor: "#000000", // Hex color, defaults to manifest splashBackgroundColor
+      url: "https://farcaster-mini-app-umber.vercel.app/",
+      name: "DeCleanup Rewards",
+      splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png",
+      splashBackgroundColor: "#000000",
     },
   },
 };
 
 export const metadata: Metadata = {
-  title: "DeCleanup - Tokenize Your Environmental Impact",
+  title: "DeCleanup Rewards - Tokenize Your Environmental Impact",
   description: "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "DeCleanup",
+    title: "DeCleanup Rewards",
   },
   formatDetection: {
     telephone: false,

@@ -38,7 +38,7 @@ function buildMetadata(levelConfig) {
 
   const metadata = {
     name: `DeCleanup Impact Product • Level ${level}`,
-    description: 'Tokenized proof of real-world cleanups, verified by DeCleanup Network.',
+    description: 'Tokenized proof of real-world cleanups, verified by DeCleanup Rewards.',
     external_url: 'https://decleanup.network',
     image: `ipfs://${BASE_CID}/images/level${level}.png`,
     attributes: [

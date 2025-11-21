@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { X, CheckCircle, ExternalLink, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { shareCast, generateReferralLink, isFarcasterContext } from '@/lib/farcaster'
+import { shareCast, generateReferralLink, isFarcasterContext, formatReferralMessage } from '@/lib/farcaster'
 
 interface SuccessModalProps {
   isOpen: boolean
@@ -132,7 +132,9 @@ export function SuccessModal({
                       onShare()
                     } else {
                       const referralLink = generateReferralLink(userAddress)
-                      const shareText = `🎉 I just minted my DeCleanup Impact Product NFT${level ? ` (Level ${level})` : ''}!\n\nClean up, snap, earn! Join me: ${referralLink}\n\n${explorerUrl ? `View on ${explorerName}: ${explorerUrl}\n\n` : ''}#DeCleanup #ImpactProduct #Base`
+                      const shareText = explorerUrl
+                        ? `${formatReferralMessage(referralLink)}\n\nView on ${explorerName}: ${explorerUrl}`
+                        : formatReferralMessage(referralLink)
                       await shareCast(shareText, referralLink)
                     }
                   }}
@@ -148,7 +150,9 @@ export function SuccessModal({
                     onShare()
                   } else if (transactionHash && explorerUrl) {
                     const referralLink = userAddress ? generateReferralLink(userAddress) : ''
-                    const shareText = `🎉 I just minted my DeCleanup Impact Product NFT${level ? ` (Level ${level})` : ''}!\n\nClean up, snap, earn!${referralLink ? ` Join me: ${referralLink}\n\n` : '\n\n'}View on ${explorerName}: ${explorerUrl}\n\n#DeCleanup #ImpactProduct #Base`
+                    const shareText = referralLink
+                      ? `${formatReferralMessage(referralLink)}\n\nView on ${explorerName}: ${explorerUrl}`
+                      : `View on ${explorerName}: ${explorerUrl}`
                     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
                     window.open(twitterUrl, '_blank', 'noopener,noreferrer')
                   }

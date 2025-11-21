@@ -69,6 +69,7 @@ export default function VerifierPage() {
   const [pollingStatus, setPollingStatus] = useState<{ cleanupId: bigint | null; count: number } | null>(null)
   const [expandedForms, setExpandedForms] = useState<Set<string>>(new Set())
   const [impactDataMap, setImpactDataMap] = useState<Map<string, any>>(new Map())
+  const [activeTx, setActiveTx] = useState<{ cleanupId: bigint; hash: `0x${string}` } | null>(null)
 
   const { signMessageAsync, isPending: isSigning } = useSignMessage()
 
@@ -414,6 +415,7 @@ export default function VerifierPage() {
 
       // Verify with automatically calculated level
       const hash = await verifyCleanup(cleanupId, nextLevel)
+      setActiveTx({ cleanupId, hash })
       console.log(`Verifying cleanup ${cleanupId.toString()} with level ${nextLevel}`)
       console.log(`Transaction hash: ${hash}`)
       
@@ -521,6 +523,7 @@ export default function VerifierPage() {
       }
     } finally {
       setVerifying(false)
+      setActiveTx(null)
     }
   }
 
@@ -587,6 +590,7 @@ export default function VerifierPage() {
     const [impactDataUrl, setImpactDataUrl] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [reloadKey, setReloadKey] = useState(0)
 
     useEffect(() => {
       async function fetchImpactData() {
@@ -625,7 +629,7 @@ export default function VerifierPage() {
       }
 
       fetchImpactData()
-    }, [impactReportHash])
+    }, [impactReportHash, reloadKey])
 
     if (loading) {
       return (
@@ -643,6 +647,14 @@ export default function VerifierPage() {
           <p className="mt-2 text-gray-200">
             {error || 'Impact report metadata is unavailable. Ask the submitter to re-open the cleanup and re-send the enhanced form if needed.'}
           </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setReloadKey((prev) => prev + 1)}
+            className="mt-3 border-yellow-500/60 text-yellow-200 hover:bg-yellow-500/10"
+          >
+            Retry Load
+          </Button>
         </div>
       )
     }
@@ -1167,6 +1179,23 @@ export default function VerifierPage() {
                       </Button>
                     </div>
                   </div>
+                  {activeTx && activeTx.cleanupId === cleanup.id && (
+                    <div className="mt-4 rounded-lg border border-brand-green/40 bg-brand-green/5 p-4 text-sm text-white">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-brand-green" />
+                        <span>Verification transaction submitted. Waiting for Base confirmation…</span>
+                      </div>
+                      <a
+                        href={getExplorerTxUrl(activeTx.hash)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-2 text-xs text-brand-green underline hover:text-brand-green/80"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        View on {BLOCK_EXPLORER_NAME}
+                      </a>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

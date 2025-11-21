@@ -1,5 +1,14 @@
 import { sdk } from '@farcaster/miniapp-sdk'
 
+const APP_NAME = 'DeCleanup Rewards'
+const DEFAULT_MINIAPP_URL =
+  process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
+export const REFERRAL_MESSAGE =
+  '🌱 Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact:'
+
+export const formatReferralMessage = (referralLink: string) =>
+  `${REFERRAL_MESSAGE}\n\n${referralLink}`
+
 // EIP-1193 Provider type (for wallet integration)
 export type EIP1193Provider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
@@ -83,9 +92,9 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
     if (navigator.share && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
       try {
         await navigator.share({
-          title: 'DeCleanup Network',
-          text: text,
-          url: url
+          title: APP_NAME,
+          text,
+          url,
         })
         return true
       } catch (shareError) {
@@ -124,7 +133,7 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
 
 // Generate referral link with wallet address
 export const generateReferralLink = (walletAddress: string, baseUrl?: string): string => {
-  const url = baseUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://decleanup.network')
+  const url = (baseUrl || DEFAULT_MINIAPP_URL).replace(/\/$/, '')
   return `${url}/cleanup?ref=${walletAddress}`
 }
 

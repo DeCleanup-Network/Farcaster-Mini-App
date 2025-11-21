@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
 import { SuccessModal } from '@/components/ui/success-modal'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
 import type { Connector } from 'wagmi'
-import { Trash2, Award, Users, AlertCircle, Wallet, Heart, Loader2 } from 'lucide-react'
+import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, ShieldCheck } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
-import { claimImpactProductFromVerification } from '@/lib/contracts'
-import { isFarcasterContext } from '@/lib/farcaster'
+import { claimImpactProductFromVerification, isVerifier as checkIsVerifier } from '@/lib/contracts'
+import { isFarcasterContext, formatReferralMessage } from '@/lib/farcaster'
 import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
@@ -20,6 +21,7 @@ const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
 const getExplorerTxUrl = (hash: `0x${string}`) => `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${hash}`
 
 export default function Home() {
+  const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const { context, isLoading } = useFarcaster()
   const { address, isConnected } = useAccount()
@@ -44,6 +46,8 @@ export default function Home() {
     message: string
     transactionHash?: string
   } | null>(null)
+  const [isVerifierWallet, setIsVerifierWallet] = useState(false)
+  const [isCheckingVerifier, setIsCheckingVerifier] = useState(false)
 
   const farcasterConnector = connectors.find((c) => {
     const name = c.name.toLowerCase()
@@ -73,6 +77,42 @@ export default function Home() {
     setMounted(true)
     setIsInFarcaster(isFarcasterContext())
   }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+
+    if (!address || !isConnected) {
+      setIsVerifierWallet(false)
+      setIsCheckingVerifier(false)
+      return
+    }
+
+    let cancelled = false
+    async function checkVerifierStatus() {
+      setIsCheckingVerifier(true)
+      try {
+        const allowed = await checkIsVerifier(address as `0x${string}`)
+        if (!cancelled) {
+          setIsVerifierWallet(Boolean(allowed))
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('Failed to fetch verifier status:', error)
+          setIsVerifierWallet(false)
+        }
+      } finally {
+        if (!cancelled) {
+          setIsCheckingVerifier(false)
+        }
+      }
+    }
+
+    checkVerifierStatus()
+
+    return () => {
+      cancelled = true
+    }
+  }, [mounted, address, isConnected])
 
   // Note: Chain switching is handled by ensureWalletOnRequiredChain() in contract functions
   // No need for auto-switch here - it will be handled when user tries to interact (claim, etc.)
@@ -134,14 +174,14 @@ export default function Home() {
         <div className="container mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:flex-nowrap sm:px-6 sm:py-0">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-green">
-              <Trash2 className="h-5 w-5 text-black" />
+              <Leaf className="h-5 w-5 text-black" />
             </div>
             <div className="flex flex-col">
               <h1 className="text-base font-bold uppercase tracking-tight text-white sm:text-lg">
-                DECLEANUP NETWORK
+                DECLEANUP REWARDS
               </h1>
               <p className="hidden text-[10px] font-medium text-gray-400 sm:block sm:text-xs">
-                CLEAN UP, SNAP, EARN
+                TOKENIZE CLEANUPS ON BASE
               </p>
             </div>
           </div>
@@ -160,7 +200,7 @@ export default function Home() {
               DECLEANUP REWARDS
             </h2>
             <p className="mx-auto mb-6 text-sm leading-relaxed text-gray-400 sm:text-base md:text-lg">
-              Self-tokenize environmental cleanup efforts. Apply with your cleanup results to receive a DeCleanup Impact Product, earn community token (coming soon) and progress through levels.
+              DeCleanup Rewards turns real-world cleanups into tokenized proof. Submit evidence, level up Impact Product NFTs, and stack $DCU rewards ahead of token launch.
             </p>
           </div>
 
@@ -244,8 +284,8 @@ export default function Home() {
                           : ''
                     }
                   >
-                    <Trash2 className="h-5 w-5" />
-                    APPLY WITH CLEANUP
+                    <Leaf className="h-5 w-5" />
+                    SUBMIT CLEANUP
                   </Button>
                 </Link>
                 <Button
@@ -380,20 +420,8 @@ export default function Home() {
           )}
         </section>
 
-        {/* Features Grid - Two Cards */}
+        {/* Features Grid */}
         <section className="mb-8 grid gap-4 sm:mb-12 sm:grid-cols-2 sm:gap-6">
-          <Link href="/cleanup" className="rounded-lg border border-gray-800 bg-gray-900 p-4 transition-colors hover:border-brand-green sm:p-6">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-brand-green/20">
-              <Trash2 className="h-6 w-6 text-brand-green" />
-            </div>
-            <h3 className="mb-2 text-lg font-bold uppercase tracking-wide text-white sm:text-xl">
-              Submit Cleanup
-            </h3>
-            <p className="text-sm leading-relaxed text-gray-400 sm:text-base">
-              Document your cleanup efforts with before/after photos and geotagged locations.
-            </p>
-          </Link>
-
           <Link href="/profile" className="rounded-lg border border-gray-800 bg-gray-900 p-4 transition-colors hover:border-brand-yellow sm:p-6">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-brand-yellow/20">
               <Award className="h-6 w-6 text-brand-yellow" />
@@ -406,7 +434,46 @@ export default function Home() {
             </p>
           </Link>
 
-
+          <div className={`rounded-lg border p-4 sm:p-6 ${isVerifierWallet ? 'border-brand-green/70 bg-brand-green/10' : 'border-dashed border-gray-800 bg-gray-900'} transition-colors`}>
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-brand-green/20">
+              <ShieldCheck className={`h-6 w-6 ${isVerifierWallet ? 'text-brand-green' : 'text-gray-500'}`} />
+            </div>
+            <h3 className="mb-2 text-lg font-bold uppercase tracking-wide text-white sm:text-xl">
+              Verify Cleanups
+            </h3>
+            <p className="text-sm leading-relaxed text-gray-400 sm:text-base">
+              Reserved for registered verifiers while $DCU staking is finalized. Once staked, you&apos;ll unlock review rights and reward multipliers.
+            </p>
+            <Button
+              size="lg"
+              disabled={!isVerifierWallet || isCheckingVerifier}
+              onClick={() => {
+                if (isVerifierWallet) {
+                  router.push('/verifier')
+                }
+              }}
+              className={`mt-4 w-full gap-2 ${isVerifierWallet
+                ? 'bg-brand-green text-black hover:bg-[#4a9a26]'
+                : 'cursor-not-allowed border border-gray-700 bg-gray-900 text-gray-500'} ${isCheckingVerifier ? 'cursor-wait' : ''}`}
+            >
+              {isCheckingVerifier ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Checking Access...
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="h-5 w-5" />
+                  {isVerifierWallet ? 'Open Verifier' : 'Reserved Access'}
+                </>
+              )}
+            </Button>
+            {!isVerifierWallet && (
+              <p className="mt-3 text-xs text-gray-500">
+                Only approved verifiers can enter right now. This button will light up for you once your wallet is on the allowlist.
+              </p>
+            )}
+          </div>
         </section>
 
         {/* Invite Friends Section */}
@@ -428,17 +495,15 @@ export default function Home() {
 
             <div className="space-y-3">
               <p className="text-sm text-gray-300">
-                Share your referral link and earn rewards when your friends join DeCleanup Network!
+                Share your referral link and earn rewards when your friends join DeCleanup Rewards!
               </p>
 
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button
                   onClick={async () => {
-                    const { generateReferralLink } = await import('@/lib/farcaster')
-                    const { shareCast } = await import('@/lib/farcaster')
+                    const { generateReferralLink, shareCast } = await import('@/lib/farcaster')
                     const referralLink = generateReferralLink(address)
-                    const message = `🌱 Join me on DeCleanup Network! Clean up, earn Impact Products, and tokenize your environmental impact.\n\n${referralLink}`
-                    await shareCast(message, referralLink)
+                    await shareCast(formatReferralMessage(referralLink), referralLink)
                   }}
                   className="flex-1 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
                 >
@@ -450,7 +515,7 @@ export default function Home() {
                   onClick={async () => {
                     const { generateReferralLink } = await import('@/lib/farcaster')
                     const referralLink = generateReferralLink(address)
-                    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`🌱 Join me on DeCleanup Network! Clean up, earn Impact Products, and tokenize your environmental impact.\n\n${referralLink}`)}`
+                    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(formatReferralMessage(referralLink))}`
                     window.open(xUrl, '_blank')
                   }}
                   variant="outline"
@@ -467,10 +532,11 @@ export default function Home() {
                     const { generateReferralLink } = await import('@/lib/farcaster')
                     const referralLink = generateReferralLink(address)
                     try {
-                      await navigator.clipboard.writeText(referralLink)
-                      alert('Referral link copied to clipboard!')
+                      const copyText = formatReferralMessage(referralLink)
+                      await navigator.clipboard.writeText(copyText)
+                      alert('Referral message copied to clipboard!')
                     } catch (error) {
-                      alert(`Referral link: ${referralLink}`)
+                      alert(formatReferralMessage(referralLink))
                     }
                   }}
                   variant="outline"

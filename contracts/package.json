@@ -1,7 +1,7 @@
 {
   "name": "decleanup-contracts",
   "version": "1.0.0",
-  "description": "DeCleanup Network Smart Contracts for Base",
+  "description": "DeCleanup Rewards smart contracts for Base",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",

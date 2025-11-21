@@ -1,6 +1,6 @@
 import { base, baseSepolia } from 'wagmi/chains'
 import { createConfig, http } from 'wagmi'
-import { injected, walletConnect, metaMask, coinbaseWallet } from 'wagmi/connectors'
+import { walletConnect, coinbaseWallet } from 'wagmi/connectors'
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector'
 import { defineChain, type Chain } from 'viem'
 
@@ -61,18 +61,20 @@ const requiredBlockExplorerUrl = requiredChain.testnet
   : 'https://basescan.org'
 const requiredRpcUrl = requiredChain.id === baseMainnet.id ? baseMainnetRpcUrl : baseSepoliaRpcUrl
 
+const APP_NAME = 'DeCleanup Rewards'
+const MINIAPP_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
+const APP_DESCRIPTION = 'Clean up, share proof, and earn tokenized environmental rewards on Base.'
+const APP_ICON_URL =
+  process.env.NEXT_PUBLIC_MINIAPP_ICON_URL ||
+  'https://gateway.pinata.cloud/ipfs/bafybeiatsp354gtary234ie6irpa5x56q3maykjynkbe3f2hj6lq7pbvba?filename=icon.png'
+
 // Wagmi configuration with Farcaster wallet support
-// Note: Using explicit connectors (metaMask, coinbaseWallet) instead of injected() to avoid VeChain
-// VeChain (chain ID 11142220) injects itself into window.ethereum and causes chain mismatch errors
-// By using explicit connectors, we bypass VeChain and only connect to supported wallets
+// Note: Using explicit connectors to avoid VeChain hijacking window.ethereum.
 // IMPORTANT: Only initialize connectors on client side to avoid SSR errors
 // All wallet connectors require browser APIs and will fail during server-side rendering
 const connectors = typeof window !== 'undefined' ? [
   farcasterMiniApp(),
-  coinbaseWallet({ appName: 'DeCleanup Network' }),
-  // Use a single injected connector for MetaMask and others, but prefer EIP-6963 if available
-  // We'll use the specific metaMask connector which uses EIP-6963 or window.ethereum
-  metaMask(),
+  coinbaseWallet({ appName: APP_NAME }),
 ] : []
 
 // Only add WalletConnect if Project ID is configured and on client side
@@ -82,6 +84,12 @@ if (typeof window !== 'undefined' && walletConnectProjectId && walletConnectProj
     connectors.push(
       walletConnect({
         projectId: walletConnectProjectId,
+        metadata: {
+          name: APP_NAME,
+          description: APP_DESCRIPTION,
+          url: MINIAPP_URL,
+          icons: [APP_ICON_URL],
+        },
       }) as any // Type assertion needed due to WalletConnect type incompatibility
     )
   } catch (error) {

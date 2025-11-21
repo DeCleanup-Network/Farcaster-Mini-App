@@ -1,7 +1,7 @@
 const { ethers } = require("hardhat");
 
 /**
- * DeCleanup Network - Contract Deployment Script
+ * DeCleanup Rewards - Contract Deployment Script
  * 
  * Deployment Order:
  * 1. ImpactProductNFT (needs baseURI, verifier)
