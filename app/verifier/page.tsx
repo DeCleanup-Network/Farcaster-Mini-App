@@ -5,7 +5,7 @@ import { useAccount, useSignMessage, useChainId, useSwitchChain } from 'wagmi'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
-import { CheckCircle, XCircle, Clock, MapPin, User, Calendar, ExternalLink, Loader2, Shield } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, MapPin, User, Calendar, ExternalLink, Loader2, Shield, RefreshCw } from 'lucide-react'
 import * as contractsLib from '@/lib/contracts'
 const {
   getCleanupCounter,
@@ -317,12 +317,6 @@ export default function VerifierPage() {
   }
 
   async function loadCleanups() {
-    // Prevent multiple simultaneous loads
-    if (loading) {
-      console.log('Already loading cleanups, skipping...')
-      return
-    }
-    
     try {
       setLoading(true)
       const counter = await getCleanupCounter()
@@ -337,10 +331,11 @@ export default function VerifierPage() {
       const maxCleanupId = totalCleanups > 0 ? totalCleanups - 1 : 0
       console.log(`Counter: ${totalCleanups}, Loading cleanups 1 to ${maxCleanupId}...`)
       
-      // If counter suggests no cleanups, still try to load ID 1 in case counter is wrong
-      // This can happen if there's a timing issue or counter wasn't updated
-      const startId = maxCleanupId === 0 ? 1 : 1
-      const endId = maxCleanupId === 0 ? 10 : maxCleanupId // Try up to 10 if counter is 0/1
+      // Always try to load a wider range to catch any cleanups that might exist
+      // Start from 1, go up to counter-1, but also try a few more in case counter is off
+      const startId = 1
+      // Load up to counter-1, but also try a few more IDs in case counter is slightly off
+      const endId = Math.max(maxCleanupId, 20) // Try at least up to ID 20, or counter-1 if higher
       
       console.log(`Attempting to load cleanups from ${startId} to ${endId}...`)
       
@@ -354,11 +349,8 @@ export default function VerifierPage() {
               !details.user || 
               details.user === '0x') {
             console.log(`Cleanup ${i} is empty (zero address), skipping...`)
-            // If we're past the expected range, stop trying
-            if (i > maxCleanupId && maxCleanupId > 0) {
-              console.log(`Reached end of valid cleanups at ${i}, stopping...`)
-              break
-            }
+            // If we've checked many empty IDs in a row, we might be past the end
+            // But don't stop too early - continue checking
             continue
           }
           
@@ -385,14 +377,10 @@ export default function VerifierPage() {
               errorMessage.includes('does not exist') || 
               errorMessage.includes('Invalid cleanup ID') ||
               errorMessage.includes('Failed to get cleanup')) {
-            // If we're past the expected range and hit a "does not exist", stop trying
-            if (i > maxCleanupId && maxCleanupId > 0) {
-              console.log(`Reached end of expected cleanups at ${i}, stopping...`)
-              break
-            }
-            // If counter was 0/1 and we're checking beyond, continue trying a few more
-            if (maxCleanupId === 0 && i > 5) {
-              console.log(`No cleanups found after checking ${i}, stopping...`)
+            // Continue checking - don't stop early as counter might be off
+            // Only stop if we've checked many IDs and found nothing
+            if (i > 50) {
+              console.log(`Checked up to ID ${i}, stopping search...`)
               break
             }
             continue
@@ -952,13 +940,36 @@ export default function VerifierPage() {
       <div className="mx-auto max-w-6xl">
         <BackButton href="/" />
         
-        <div className="mb-8 mt-6">
-          <h1 className="mb-2 text-4xl font-bold uppercase tracking-wide text-white sm:text-5xl">
-            Verifier Dashboard
-          </h1>
-          <p className="text-sm text-gray-400">
-            Review and verify cleanup submissions. Assign levels (1-10) based on impact and quality.
-          </p>
+        <div className="mb-8 mt-6 flex items-start justify-between">
+          <div>
+            <h1 className="mb-2 text-4xl font-bold uppercase tracking-wide text-white sm:text-5xl">
+              Verifier Dashboard
+            </h1>
+            <p className="text-sm text-gray-400">
+              Review and verify cleanup submissions. Assign levels (1-10) based on impact and quality.
+            </p>
+          </div>
+          <Button
+            onClick={() => {
+              setLoading(true)
+              loadCleanups()
+            }}
+            disabled={loading}
+            variant="outline"
+            className="gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </>
+            )}
+          </Button>
         </div>
 
         {error && (
