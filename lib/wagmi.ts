@@ -94,7 +94,6 @@ if (typeof window !== 'undefined' && walletConnectProjectId && walletConnectProj
           url: MINIAPP_URL,
           icons: [APP_ICON_URL],
         },
-        chains: configuredChains,
       }) as any // Type assertion needed due to WalletConnect type incompatibility
     )
   } catch (error) {
