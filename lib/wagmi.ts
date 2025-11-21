@@ -72,10 +72,15 @@ const APP_ICON_URL =
 // Note: Using explicit connectors to avoid VeChain hijacking window.ethereum.
 // IMPORTANT: Only initialize connectors on client side to avoid SSR errors
 // All wallet connectors require browser APIs and will fail during server-side rendering
-const connectors = typeof window !== 'undefined' ? [
-  farcasterMiniApp(),
-  coinbaseWallet({ appName: APP_NAME }),
-] : []
+const connectors = typeof window !== 'undefined'
+  ? [
+      farcasterMiniApp(),
+      coinbaseWallet({
+        appName: APP_NAME,
+        chains: configuredChains,
+      }),
+    ]
+  : []
 
 // Only add WalletConnect if Project ID is configured and on client side
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
@@ -90,6 +95,7 @@ if (typeof window !== 'undefined' && walletConnectProjectId && walletConnectProj
           url: MINIAPP_URL,
           icons: [APP_ICON_URL],
         },
+        chains: configuredChains,
       }) as any // Type assertion needed due to WalletConnect type incompatibility
     )
   } catch (error) {

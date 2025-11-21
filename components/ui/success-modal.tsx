@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { X, CheckCircle, ExternalLink, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { shareCast, generateReferralLink, isFarcasterContext, formatReferralMessage } from '@/lib/farcaster'
+import { shareCast, generateReferralLink, formatImpactShareMessage, MINIAPP_URL } from '@/lib/farcaster'
 
 interface SuccessModalProps {
   isOpen: boolean
@@ -32,7 +32,6 @@ export function SuccessModal({
   userAddress,
   level,
 }: SuccessModalProps) {
-  const isInFarcaster = isFarcasterContext()
   // Close on Escape key
   useEffect(() => {
     if (!isOpen) return
@@ -48,6 +47,9 @@ export function SuccessModal({
   }, [isOpen, onClose])
 
   if (!isOpen) return null
+
+  const referralLink = userAddress ? generateReferralLink(userAddress) : MINIAPP_URL
+  const impactShareText = formatImpactShareMessage(level ?? null, referralLink)
 
   const handleShare = () => {
     if (onShare) {
@@ -125,35 +127,25 @@ export function SuccessModal({
           
           {showShare && (
             <div className="flex flex-col gap-2">
-              {isInFarcaster && userAddress && (
-                <Button
-                  onClick={async () => {
-                    if (onShare) {
-                      onShare()
-                    } else {
-                      const referralLink = generateReferralLink(userAddress)
-                      const shareText = explorerUrl
-                        ? `${formatReferralMessage(referralLink)}\n\nView on ${explorerName}: ${explorerUrl}`
-                        : formatReferralMessage(referralLink)
-                      await shareCast(shareText, referralLink)
-                    }
-                  }}
-                  className="w-full gap-2 bg-purple-600 text-white hover:bg-purple-700"
-                >
-                  <Share2 className="h-4 w-4" />
-                  Share on Farcaster
-                </Button>
-              )}
+              <Button
+                onClick={async () => {
+                  if (onShare) {
+                    onShare()
+                  } else {
+                    await shareCast(impactShareText, referralLink)
+                  }
+                }}
+                className="w-full gap-2 bg-purple-600 text-white hover:bg-purple-700"
+              >
+                <Share2 className="h-4 w-4" />
+                Share on Farcaster
+              </Button>
               <Button
                 onClick={() => {
                   if (onShare) {
                     onShare()
-                  } else if (transactionHash && explorerUrl) {
-                    const referralLink = userAddress ? generateReferralLink(userAddress) : ''
-                    const shareText = referralLink
-                      ? `${formatReferralMessage(referralLink)}\n\nView on ${explorerName}: ${explorerUrl}`
-                      : `View on ${explorerName}: ${explorerUrl}`
-                    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
+                  } else {
+                    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(impactShareText)}`
                     window.open(twitterUrl, '_blank', 'noopener,noreferrer')
                   }
                 }}

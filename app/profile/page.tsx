@@ -1,11 +1,23 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useAccount, useChainId, useSwitchChain, useWalletClient } from 'wagmi'
+import { useAccount } from 'wagmi'
 import type { Address } from 'viem'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
-import { Award, TrendingUp, Leaf, Loader2, Flame, Clock, CheckCircle, RefreshCw, ExternalLink, Wallet, Share2 } from 'lucide-react'
+import {
+  Award,
+  TrendingUp,
+  Leaf,
+  Loader2,
+  Flame,
+  Clock,
+  CheckCircle,
+  RefreshCw,
+  ExternalLink,
+  Share2,
+  Copy,
+} from 'lucide-react'
 import Link from 'next/link'
 import {
   getDCUBalance,
@@ -21,8 +33,7 @@ import {
   CONTRACT_ADDRESSES,
 } from '@/lib/contracts'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
-import { shareCast, generateReferralLink, isFarcasterContext, formatReferralMessage } from '@/lib/farcaster'
-import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
+import { shareCast, generateReferralLink, formatImpactShareMessage } from '@/lib/farcaster'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   ? 'Basescan (Sepolia)'
@@ -62,9 +73,6 @@ function extractImpactStats(metadata: ImpactMetadata | null) {
 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount()
-  const { switchChain } = useSwitchChain()
-  const { data: walletClient } = useWalletClient()
-  const chainId = useChainId()
   const [hasMounted, setHasMounted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [profileData, setProfileData] = useState({
@@ -90,10 +98,8 @@ export default function ProfilePage() {
   } | null>(null)
   const [isClaiming, setIsClaiming] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [addingToWallet, setAddingToWallet] = useState(false)
   const [sharing, setSharing] = useState(false)
-  const { context: farcasterContext } = useFarcaster()
-  const isInFarcaster = isFarcasterContext()
+  const [copyingField, setCopyingField] = useState<string | null>(null)
 
   // Prevent hydration mismatch by ensuring we render only after mounting
   useEffect(() => {
@@ -444,104 +450,21 @@ export default function ProfilePage() {
     profileData.tokenId && CONTRACT_ADDRESSES.IMPACT_PRODUCT
       ? `${REQUIRED_BLOCK_EXPLORER_URL}/token/${CONTRACT_ADDRESSES.IMPACT_PRODUCT}?a=${profileData.tokenId.toString()}`
       : null
+  const impactContractUrl = CONTRACT_ADDRESSES.IMPACT_PRODUCT
+    ? `${REQUIRED_BLOCK_EXPLORER_URL}/address/${CONTRACT_ADDRESSES.IMPACT_PRODUCT}`
+    : null
 
-  const handleAddImpactProductToWallet = async () => {
-    if (!profileData.tokenId || !CONTRACT_ADDRESSES.IMPACT_PRODUCT) {
-      alert('Impact Product NFT not available yet. Complete a cleanup and claim your level first.')
-      return
-    }
-
-    if (!isConnected) {
-      alert('Please connect your wallet first.')
-      return
-    }
-
-    // Use Wagmi's wallet client instead of window.ethereum
-    // This handles different connector types (MetaMask, Coinbase, WalletConnect, etc.)
-    if (!walletClient) {
-      alert('Wallet client not initialized. Please try reconnecting your wallet.')
-      return
-    }
-
+  const handleManualCopy = async (value: string, label: string) => {
+    if (!value) return
     try {
-      setAddingToWallet(true)
-
-      // Get current chain ID - wallet_watchAsset needs to know which chain the NFT is on
-      const { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } = await import('@/lib/wagmi')
-
-      // Ensure we're on the correct chain before adding NFT
-      if (chainId !== REQUIRED_CHAIN_ID) {
-        alert(`Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet first, then try adding the NFT again.`)
-        setAddingToWallet(false)
-        return
-      }
-
-      // Construct the request
-      // Note: Some wallets are strict about the image URL format or size
-      const watchAssetParams = {
-        type: 'ERC721',
-        options: {
-          address: CONTRACT_ADDRESSES.IMPACT_PRODUCT,
-          symbol: 'DCIP',
-          tokenId: profileData.tokenId.toString(),
-          // Only include image if it's a valid URL (http/https/ipfs)
-          image: profileData.imageUrl && profileData.imageUrl.startsWith('http') ? profileData.imageUrl : undefined,
-        },
-      }
-
-      console.log('Adding asset to wallet:', watchAssetParams)
-
-      // Use the wallet client to make the request
-      await walletClient.request({
-        method: 'wallet_watchAsset',
-        params: watchAssetParams as any, // Type cast needed as viem types might be strict
-      })
-      alert('Impact Product added to your wallet! Check your wallet\'s NFT/Collectibles tab.')
-    } catch (error: any) {
-      console.error('Failed to add Impact Product to wallet:', error)
-
-      // Extract error message from various possible formats
-      let errorMessage = 'Unknown error'
-      if (error) {
-        if (typeof error === 'string') {
-          errorMessage = error
-        } else if (error?.message) {
-          errorMessage = error.message
-        } else if (error?.error?.message) {
-          errorMessage = error.error.message
-        } else if (error?.reason) {
-          errorMessage = error.reason
-        } else if (error?.shortMessage) {
-          errorMessage = error.shortMessage
-        } else if (typeof error === 'object' && Object.keys(error).length > 0) {
-          // Try to stringify the error object
-          try {
-            errorMessage = JSON.stringify(error)
-          } catch {
-            errorMessage = String(error)
-          }
-        } else {
-          errorMessage = String(error)
-        }
-      }
-
-      // Provide helpful error messages
-      const lowerMessage = errorMessage.toLowerCase()
-      if (lowerMessage.includes('chain') || lowerMessage.includes('network') || lowerMessage.includes('chainid')) {
-        alert(`Chain mismatch: Please ensure you're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet, then try again.`)
-      } else if (lowerMessage.includes('not supported') || lowerMessage.includes('standard') || lowerMessage.includes('erc721') || lowerMessage.includes('method not found')) {
-        alert(`Your wallet may not support adding ERC721 NFTs programmatically. Please try viewing it in your wallet's NFT tab manually.`)
-      } else if (lowerMessage.includes('rejected') || lowerMessage.includes('denied') || lowerMessage.includes('user')) {
-        // User rejected, no need to alert
-        console.log('User rejected add to wallet request')
-      } else if (errorMessage === '{}' || errorMessage === 'Unknown error' || errorMessage.trim() === '') {
-        // Empty error object - likely a silent rejection or unsupported wallet
-        alert(`Unable to add NFT to wallet automatically.\n\nPlease check your wallet's NFT tab - it might already be there!`)
-      } else {
-        alert(`Unable to add Impact Product to wallet: ${errorMessage}`)
-      }
+      setCopyingField(label)
+      await navigator.clipboard.writeText(value)
+      alert(`${label} copied to clipboard.`)
+    } catch (error) {
+      console.error(`Failed to copy ${label}:`, error)
+      alert(`${label}: ${value}`)
     } finally {
-      setAddingToWallet(false)
+      setCopyingField(null)
     }
   }
 
@@ -936,7 +859,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="mt-4 space-y-3">
                   <p className="text-xs font-medium text-gray-400">
-                    View your NFT on-chain and add it to your wallet:
+                    View your NFT on-chain and load it into any wallet:
                   </p>
                   <div className="flex flex-col gap-3 sm:flex-row">
                     {impactExplorerUrl && (
@@ -950,28 +873,71 @@ export default function ProfilePage() {
                         </Button>
                       </Link>
                     )}
-                    <Button
-                      variant="outline"
-                      onClick={handleAddImpactProductToWallet}
-                      disabled={!profileData.tokenId || addingToWallet}
-                      className="w-full gap-2 border-gray-700 bg-black text-white hover:bg-gray-800 sm:flex-1 disabled:cursor-not-allowed"
-                    >
-                      {addingToWallet ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span>Adding...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Wallet className="h-4 w-4" />
-                          Add to Wallet
-                        </>
-                      )}
-                    </Button>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    If your wallet doesn&apos;t support auto-adding ERC721s yet, open its NFT/Collectibles tab to view the Impact Product manually.
-                  </p>
+                  {profileData.tokenId && (
+                    <div className="space-y-3 rounded-lg border border-gray-800 bg-black/50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        Manual wallet import
+                      </p>
+                      <p className="text-sm text-gray-300">
+                        Wallets now require adding collectibles manually. Copy these details:
+                      </p>
+                      {CONTRACT_ADDRESSES.IMPACT_PRODUCT && (
+                        <div className="rounded-lg border border-gray-800 bg-gray-900/60 p-3">
+                          <div className="mb-1 flex items-center justify-between text-xs text-gray-400">
+                            <span>Contract Address</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleManualCopy(CONTRACT_ADDRESSES.IMPACT_PRODUCT, 'Contract address')
+                              }
+                              className="flex items-center gap-1 text-brand-green hover:text-brand-yellow"
+                              disabled={copyingField === 'Contract address'}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              {copyingField === 'Contract address' ? 'Copied' : 'Copy'}
+                            </button>
+                          </div>
+                          {impactContractUrl ? (
+                            <a
+                              href={impactContractUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="break-all font-mono text-xs text-white underline-offset-2 hover:underline"
+                            >
+                              {CONTRACT_ADDRESSES.IMPACT_PRODUCT}
+                            </a>
+                          ) : (
+                            <p className="break-all font-mono text-xs text-white">
+                              {CONTRACT_ADDRESSES.IMPACT_PRODUCT}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      <div className="rounded-lg border border-gray-800 bg-gray-900/60 p-3">
+                        <div className="mb-1 flex items-center justify-between text-xs text-gray-400">
+                          <span>Collectible ID</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleManualCopy(profileData.tokenId?.toString() || '', 'Collectible ID')
+                            }
+                            className="flex items-center gap-1 text-brand-green hover:text-brand-yellow"
+                            disabled={copyingField === 'Collectible ID'}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            {copyingField === 'Collectible ID' ? 'Copied' : 'Copy'}
+                          </button>
+                        </div>
+                        <p className="font-mono text-xs text-white">{profileData.tokenId?.toString()}</p>
+                      </div>
+                      <ol className="list-decimal space-y-1 pl-4 text-xs text-gray-400">
+                        <li>Open your wallet → NFTs / Collectibles → Import or Add manually.</li>
+                        <li>Paste the contract address above.</li>
+                        <li>Enter the collectible ID and confirm to view your Impact Product.</li>
+                      </ol>
+                    </div>
+                  )}
                   {/* Share buttons */}
                   {address && profileData.level > 0 && (
                     <div className="mt-3 space-y-2">
@@ -985,8 +951,8 @@ export default function ProfilePage() {
                             setSharing(true)
                             try {
                               const link = generateReferralLink(address)
-                            const text = formatReferralMessage(link)
-                            await shareCast(text, link)
+                              const text = formatImpactShareMessage(profileData.level, link)
+                              await shareCast(text, link)
                             } catch (error) {
                               console.error('Failed to share:', error)
                             } finally {
@@ -1012,7 +978,7 @@ export default function ProfilePage() {
                           onClick={() => {
                             if (!address) return
                             const link = generateReferralLink(address)
-                            const text = formatReferralMessage(link)
+                            const text = formatImpactShareMessage(profileData.level, link)
                             const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
                             window.open(xUrl, '_blank')
                           }}
@@ -1028,12 +994,12 @@ export default function ProfilePage() {
                           onClick={async () => {
                             if (!address) return
                             const link = generateReferralLink(address)
+                            const message = formatImpactShareMessage(profileData.level, link)
                             try {
-                              const copyMessage = formatReferralMessage(link)
-                              await navigator.clipboard.writeText(copyMessage)
-                              alert('Referral message copied to clipboard!')
+                              await navigator.clipboard.writeText(message)
+                              alert('Share message copied to clipboard!')
                             } catch (error) {
-                              alert(formatReferralMessage(link))
+                              alert(message)
                             }
                           }}
                           variant="outline"
