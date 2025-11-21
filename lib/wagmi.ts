@@ -77,7 +77,6 @@ const connectors = typeof window !== 'undefined'
       farcasterMiniApp(),
       coinbaseWallet({
         appName: APP_NAME,
-        chains: configuredChains,
       }),
     ]
   : []
