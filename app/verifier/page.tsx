@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, useSignMessage } from 'wagmi'
+import { useAccount, useSignMessage, useChainId, useSwitchChain } from 'wagmi'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
@@ -18,7 +18,7 @@ const {
 } = contractsLib
 import { Address } from 'viem'
 import { waitForTransactionReceipt } from 'wagmi/actions'
-import { config, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
+import { config, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUIRED_CHAIN_ID } from '@/lib/wagmi'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
 import { getIPFSUrl } from '@/lib/ipfs'
 
@@ -54,6 +54,8 @@ const VERIFIED_VERIFIER_KEY = 'decleanup_verified_verifier'
 
 export default function VerifierPage() {
   const { address, isConnected } = useAccount()
+  const chainId = useChainId()
+  const { switchChain } = useSwitchChain()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [isVerifier, setIsVerifier] = useState(false)
@@ -223,6 +225,26 @@ export default function VerifierPage() {
     setSigningAddress(address)
 
     try {
+      // Ensure wallet is on the correct chain before signing
+      // Some connectors (like WalletConnect) require the chain to be configured
+      if (chainId !== REQUIRED_CHAIN_ID) {
+        console.log(`Current chain: ${chainId}, required: ${REQUIRED_CHAIN_ID}, switching...`)
+        try {
+          await switchChain({ chainId: REQUIRED_CHAIN_ID })
+          // Wait a moment for the chain switch to complete
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        } catch (switchError: any) {
+          const switchMsg = switchError?.message || String(switchError)
+          if (switchMsg.includes('not configured') || switchMsg.includes('Chain not configured')) {
+            throw new Error(
+              `Your wallet doesn't have ${REQUIRED_CHAIN_NAME} configured. ` +
+              `Please add ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) to your wallet manually, then try again.`
+            )
+          }
+          throw new Error(`Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet and try again.`)
+        }
+      }
+
       // Request signature - if user can sign, they control the wallet
       // This is proof enough, no need to verify the signature
       console.log('Requesting signature...')
@@ -270,8 +292,15 @@ export default function VerifierPage() {
       
       const errorMessage = error?.message || error?.shortMessage || String(error || 'Unknown error')
       
-      // Handle user rejection
-      if (errorMessage?.toLowerCase().includes('rejected') || 
+      // Handle chain configuration errors
+      if (errorMessage?.toLowerCase().includes('chain not configured') || 
+          errorMessage?.toLowerCase().includes('not configured')) {
+        setError(
+          `Chain configuration error: ${errorMessage}\n\n` +
+          `Please ensure ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) is added to your wallet, ` +
+          `then switch to it and try signing again.`
+        )
+      } else if (errorMessage?.toLowerCase().includes('rejected') || 
           errorMessage?.toLowerCase().includes('denied') ||
           errorMessage?.toLowerCase().includes('user rejected') ||
           errorMessage?.toLowerCase().includes('user denied') ||
