@@ -8,13 +8,15 @@ const NATIVE_CURRENCY = { name: 'Ether', symbol: 'ETH', decimals: 18 }
  * Works with both injected wallets (MetaMask) and WalletConnect
  * @returns true if the wallet reports success, false otherwise
  */
-export async function tryAddRequiredChain(): Promise<boolean> {
+export async function tryAddRequiredChain(chainId?: number): Promise<boolean> {
+  // Use provided chainId or fall back to REQUIRED_CHAIN_ID
+  const targetChainId = chainId || REQUIRED_CHAIN_ID
   if (typeof window === 'undefined') {
     return false
   }
 
   const chainParams = {
-    chainId: `0x${REQUIRED_CHAIN_ID.toString(16)}`,
+    chainId: `0x${targetChainId.toString(16)}`,
     chainName: REQUIRED_CHAIN_NAME,
     nativeCurrency: NATIVE_CURRENCY,
     rpcUrls: [REQUIRED_RPC_URL],
@@ -52,7 +54,7 @@ export async function tryAddRequiredChain(): Promise<boolean> {
       if (connector.addChain) {
         try {
           await connector.addChain({
-            id: REQUIRED_CHAIN_ID,
+            id: targetChainId,
             name: REQUIRED_CHAIN_NAME,
             nativeCurrency: NATIVE_CURRENCY,
             rpcUrls: {

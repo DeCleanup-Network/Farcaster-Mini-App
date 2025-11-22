@@ -222,7 +222,7 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
         let added = false
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
-            added = await tryAddRequiredChain()
+            added = await tryAddRequiredChain(REQUIRED_CHAIN_ID)
             if (added) {
               // Wait longer for the chain to be added (especially for WalletConnect)
               await new Promise(resolve => setTimeout(resolve, 2000 + (attempt * 1000)))

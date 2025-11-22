@@ -631,16 +631,36 @@ export default function VerifierPage() {
         }
         try {
           setLoading(true)
-          const url = getIPFSUrl(impactReportHash)
-          if (!url) {
+          const { getIPFSUrl, getIPFSFallbackUrls } = await import('@/lib/ipfs')
+          const urls = [getIPFSUrl(impactReportHash), ...getIPFSFallbackUrls(impactReportHash)]
+          if (!urls[0]) {
             throw new Error('Failed to generate IPFS URL for impact report')
           }
-          setImpactDataUrl(url)
-          const response = await fetch(url)
-          if (!response.ok) {
-            throw new Error('Failed to fetch impact report data from IPFS')
+          setImpactDataUrl(urls[0])
+          
+          // Try each gateway until one works
+          let data: any = null
+          let lastError: Error | null = null
+          for (const url of urls) {
+            try {
+              const response = await fetch(url, { 
+                mode: 'cors',
+                cache: 'no-cache'
+              })
+              if (response.ok) {
+                data = await response.json()
+                break
+              }
+            } catch (err) {
+              lastError = err instanceof Error ? err : new Error(String(err))
+              continue
+            }
           }
-          const data = await response.json()
+          
+          if (!data) {
+            throw lastError || new Error('Failed to fetch impact report data from IPFS')
+          }
+          
           setImpactData(data)
           // Store in map for easy access by cleanup ID
           if (impactReportHash) {

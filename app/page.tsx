@@ -66,11 +66,19 @@ export default function Home() {
   const primaryConnector: Connector | undefined = isInFarcaster && farcasterConnector ? farcasterConnector : externalConnectors[0]
 
   const handleConnect = async (connector?: Connector) => {
-    if (!connector) return
+    if (!connector) {
+      console.warn('No connector provided to handleConnect')
+      return
+    }
     try {
+      console.log('Connecting with connector:', connector.name, connector.id)
       await connectAsync({ connector })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Wallet connect failed:', error)
+      // Don't show alert for user rejections
+      if (error?.code !== 4001 && !error?.message?.includes('rejected')) {
+        // Only log, don't alert - user can retry
+      }
     }
   }
 
@@ -538,7 +546,7 @@ export default function Home() {
                 <Button
                   onClick={async () => {
                     const { generateReferralLink, shareCast } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address)
+                    const referralLink = generateReferralLink(address, 'farcaster')
                     await shareCast(formatReferralMessage(referralLink), referralLink)
                   }}
                   className="flex-1 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
@@ -550,7 +558,7 @@ export default function Home() {
                 <Button
                   onClick={async () => {
                     const { generateReferralLink } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address)
+                    const referralLink = generateReferralLink(address, 'web')
                     const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(formatReferralMessage(referralLink))}`
                     window.open(xUrl, '_blank')
                   }}
@@ -566,7 +574,7 @@ export default function Home() {
                 <Button
                   onClick={async () => {
                     const { generateReferralLink } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address)
+                    const referralLink = generateReferralLink(address, 'copy')
                     try {
                       const copyText = formatReferralMessage(referralLink)
                       await navigator.clipboard.writeText(copyText)

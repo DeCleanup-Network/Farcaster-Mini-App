@@ -962,7 +962,7 @@ export default function ProfilePage() {
                             if (sharing || !address) return
                             setSharing(true)
                             try {
-                              const link = generateReferralLink(address)
+                              const link = generateReferralLink(address, 'farcaster')
                               const text = formatImpactShareMessage(profileData.level, link)
                               await shareCast(text, link)
                             } catch (error) {
@@ -989,7 +989,7 @@ export default function ProfilePage() {
                         <Button
                           onClick={() => {
                             if (!address) return
-                            const link = generateReferralLink(address)
+                            const link = generateReferralLink(address, 'web')
                             const text = formatImpactShareMessage(profileData.level, link)
                             const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
                             window.open(xUrl, '_blank')
@@ -1005,7 +1005,7 @@ export default function ProfilePage() {
                         <Button
                           onClick={async () => {
                             if (!address) return
-                            const link = generateReferralLink(address)
+                            const link = generateReferralLink(address, 'copy')
                             const message = formatImpactShareMessage(profileData.level, link)
                             try {
                               await navigator.clipboard.writeText(message)

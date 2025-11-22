@@ -138,9 +138,20 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
   }
 }
 
+// Farcaster miniapp link
+const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
+const WEB_APP_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
+
 // Generate referral link with wallet address
-export const generateReferralLink = (walletAddress: string, baseUrl?: string): string => {
-  const url = (baseUrl || MINIAPP_URL).replace(/\/$/, '')
+// type: 'farcaster' | 'web' | 'copy' - determines which URL to use
+export const generateReferralLink = (
+  walletAddress: string, 
+  type: 'farcaster' | 'web' | 'copy' = 'web'
+): string => {
+  const baseUrl = type === 'farcaster' 
+    ? FARCASTER_MINIAPP_URL 
+    : WEB_APP_URL
+  const url = baseUrl.replace(/\/$/, '')
   return `${url}/cleanup?ref=${walletAddress}`
 }
 

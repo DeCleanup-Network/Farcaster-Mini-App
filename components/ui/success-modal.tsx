@@ -132,9 +132,9 @@ export function SuccessModal({
                   if (onShare) {
                     onShare()
                   } else {
-                    // Include referral link in the share text
-                    const shareText = `${impactShareText} ${referralLink}`
-                    await shareCast(shareText, referralLink)
+                    // Include referral link in the share text for Farcaster
+                    const shareText = `${impactShareTextFarcaster} ${referralLinkFarcaster}`
+                    await shareCast(shareText, referralLinkFarcaster)
                   }
                 }}
                 className="w-full gap-2 bg-purple-600 text-white hover:bg-purple-700"
@@ -147,8 +147,8 @@ export function SuccessModal({
                   if (onShare) {
                     onShare()
                   } else {
-                    // Include referral link in the share text
-                    const shareText = `${impactShareText} ${referralLink}`
+                    // Include referral link in the share text for X
+                    const shareText = `${impactShareTextWeb} ${referralLinkWeb}`
                     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
                     window.open(twitterUrl, '_blank', 'noopener,noreferrer')
                   }

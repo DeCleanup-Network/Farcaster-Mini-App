@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
-import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle } from 'lucide-react'
+import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle, Users } from 'lucide-react'
 import { uploadToIPFS, uploadJSONToIPFS, getIPFSUrl } from '@/lib/ipfs'
 import { submitCleanup, getSubmissionFee, getCleanupStatus, CONTRACT_ADDRESSES } from '@/lib/contracts'
 import { clearPendingCleanupData, resetSubmissionCounting } from '@/lib/clear-cleanup-data'
@@ -85,25 +85,44 @@ function CleanupContent() {
   }, [])
   
   // Read referrer from URL params and persist it
+  const [showReferralNotification, setShowReferralNotification] = useState(false)
+  
   useEffect(() => {
     if (mounted && searchParams) {
       const ref = searchParams.get('ref')
       if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
         const referrerAddr = ref as Address
         setReferrerAddress(referrerAddr)
+        // Show notification to user that they were referred
+        setShowReferralNotification(true)
         // Persist referrer in localStorage so it's available when user submits
-        if (typeof window !== 'undefined' && address) {
-          const referrerKey = `referrer_${address.toLowerCase()}`
+        if (typeof window !== 'undefined') {
+          // Store referrer even before address is available
+          const referrerKey = `referrer_pending`
           localStorage.setItem(referrerKey, referrerAddr)
           console.log('Referrer address from URL saved:', referrerAddr)
+          
+          // If address is available, also store it scoped to address
+          if (address) {
+            const referrerKeyScoped = `referrer_${address.toLowerCase()}`
+            localStorage.setItem(referrerKeyScoped, referrerAddr)
+          }
         }
-      } else if (typeof window !== 'undefined' && address) {
+      } else if (typeof window !== 'undefined') {
         // If no ref in URL, check localStorage for saved referrer
-        const referrerKey = `referrer_${address.toLowerCase()}`
-        const savedReferrer = localStorage.getItem(referrerKey)
-        if (savedReferrer && /^0x[a-fA-F0-9]{40}$/.test(savedReferrer)) {
-          setReferrerAddress(savedReferrer as Address)
-          console.log('Referrer address from localStorage:', savedReferrer)
+        const referrerKeyPending = localStorage.getItem('referrer_pending')
+        if (referrerKeyPending && /^0x[a-fA-F0-9]{40}$/.test(referrerKeyPending)) {
+          setReferrerAddress(referrerKeyPending as Address)
+          console.log('Referrer address from localStorage (pending):', referrerKeyPending)
+        }
+        
+        if (address) {
+          const referrerKey = `referrer_${address.toLowerCase()}`
+          const savedReferrer = localStorage.getItem(referrerKey)
+          if (savedReferrer && /^0x[a-fA-F0-9]{40}$/.test(savedReferrer)) {
+            setReferrerAddress(savedReferrer as Address)
+            console.log('Referrer address from localStorage:', savedReferrer)
+          }
         }
       }
     }
@@ -559,8 +578,11 @@ function CleanupContent() {
           chainId // Pass chainId from useChainId hook to avoid detection bugs
         )
 
-        console.log('Cleanup submitted with ID:', cleanupId.toString())
-        console.log('Referrer address used in submission:', referrerAddress || 'none')
+        console.log('✅ Cleanup submitted with ID:', cleanupId.toString())
+        console.log('✅ Referrer address used in submission:', referrerAddress || 'none (no referrer)')
+        if (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') {
+          console.log('✅ Referral reward will be distributed when cleanup is verified!')
+        }
         setCleanupId(cleanupId)
         setStep('review')
         
@@ -831,6 +853,39 @@ function CleanupContent() {
       )
     }
     
+    // Referral Notification Component
+    const ReferralNotification = () => {
+      if (!showReferralNotification || !referrerAddress) return null
+      
+      return (
+        <div className="mb-6 rounded-lg border-2 border-brand-green bg-brand-green/10 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <Users className="h-5 w-5 text-brand-green" />
+            </div>
+            <div className="flex-1">
+              <h3 className="mb-1 text-sm font-bold uppercase text-brand-green">
+                🎉 You Were Invited!
+              </h3>
+              <p className="text-sm text-gray-300">
+                You've been referred to DeCleanup Rewards! When you submit your first cleanup and it gets verified, both you and your referrer will earn <strong className="text-white">3 $DCU</strong> each.
+              </p>
+              <p className="mt-2 text-xs text-gray-400">
+                Submit a cleanup below to get started and claim your referral reward!
+              </p>
+            </div>
+            <button
+              onClick={() => setShowReferralNotification(false)}
+              className="flex-shrink-0 text-gray-400 hover:text-white"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )
+    }
+    
     // Show cooldown warning if pending cleanup
     if (pendingCleanup && !pendingCleanup.verified) {
       const handleClearAndResubmit = async () => {
@@ -942,6 +997,7 @@ function CleanupContent() {
             <BackButton href="/" />
           </div>
           
+          <ReferralNotification />
           <CooldownBanner />
           
           <div className="mb-6 text-center">
@@ -1030,7 +1086,7 @@ function CleanupContent() {
                     className="text-xs text-gray-400 underline-offset-2 hover:text-gray-200"
                   >
                     Enter manually
-                  </button>
+                </button>
                 </div>
               </div>
             )}
@@ -1109,6 +1165,8 @@ function CleanupContent() {
           <div className="mb-6">
             <BackButton />
           </div>
+          
+          <ReferralNotification />
           
           <div className="mb-6 text-center">
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
@@ -1201,6 +1259,8 @@ function CleanupContent() {
           <div className="mb-6">
             <BackButton />
           </div>
+          
+          <ReferralNotification />
           
           <div className="mb-6 text-center">
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
