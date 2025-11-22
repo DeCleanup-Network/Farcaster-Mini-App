@@ -52,6 +52,8 @@ const baseSepoliaChain = defineChain({
 })
 
 const configuredChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet]
+// Default to Base Sepolia (84532) since contracts are deployed there
+// Change to baseMainnet.id (8453) after deploying contracts to mainnet
 const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || baseSepoliaChain.id)
 const requiredChain =
   configuredChains.find((chain) => chain.id === requiredChainId) ?? baseSepoliaChain
