@@ -15,14 +15,7 @@ export interface IPFSUploadResult {
  */
 export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
   try {
-    const pinataApiKey = process.env.NEXT_PUBLIC_PINATA_API_KEY
-    const pinataSecretKey = process.env.NEXT_PUBLIC_PINATA_SECRET_KEY
-
-    if (!pinataApiKey || !pinataSecretKey) {
-      throw new Error('Pinata API keys not configured. Please set NEXT_PUBLIC_PINATA_API_KEY and NEXT_PUBLIC_PINATA_SECRET_KEY in .env.local')
-    }
-
-    // Create FormData for Pinata
+    // Use API route to avoid CORS issues
     const formData = new FormData()
     formData.append('file', file)
 
@@ -34,41 +27,34 @@ export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
         timestamp: new Date().toISOString(),
       },
     })
-    formData.append('pinataMetadata', metadata)
+    formData.append('metadata', metadata)
 
     // Add options
     const options = JSON.stringify({
       cidVersion: 1,
       wrapWithDirectory: false,
     })
-    formData.append('pinataOptions', options)
+    formData.append('options', options)
 
-    // Upload to Pinata
-    const response = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+    // Upload via our API route (avoids CORS)
+    const response = await fetch('/api/ipfs/upload', {
       method: 'POST',
-      headers: {
-        pinata_api_key: pinataApiKey,
-        pinata_secret_api_key: pinataSecretKey,
-      },
       body: formData,
     })
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error('Pinata upload error:', errorData)
-      throw new Error(`Failed to upload to IPFS: ${errorData.error?.reason || response.statusText}`)
+      console.error('IPFS upload error:', errorData)
+      throw new Error(`Failed to upload to IPFS: ${errorData.error || response.statusText || 'Network error'}`)
     }
 
     const data = await response.json()
-    const ipfsHash = data.IpfsHash || data.hash || data.cid
+    const ipfsHash = data.hash
+    const ipfsUrl = data.url
 
     if (!ipfsHash) {
-      throw new Error('No IPFS hash returned from Pinata')
+      throw new Error('No IPFS hash returned from upload')
     }
-
-    // Construct IPFS URL
-    const gateway = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
-    const ipfsUrl = `${gateway}${ipfsHash}`
 
     return {
       hash: ipfsHash,
@@ -77,6 +63,10 @@ export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
   } catch (error) {
     console.error('IPFS upload error:', error)
     if (error instanceof Error) {
+      // Provide more helpful error messages
+      if (error.message.includes('Network') || error.message.includes('Failed to fetch')) {
+        throw new Error('Network error: Please check your internet connection and try again.')
+      }
       throw error
     }
     throw new Error('Failed to upload to IPFS')
@@ -101,69 +91,12 @@ export async function uploadMultipleToIPFS(files: File[]): Promise<IPFSUploadRes
  */
 export async function uploadJSONToIPFS(data: any, name: string = 'data'): Promise<IPFSUploadResult> {
   try {
-    const pinataApiKey = process.env.NEXT_PUBLIC_PINATA_API_KEY
-    const pinataSecretKey = process.env.NEXT_PUBLIC_PINATA_SECRET_KEY
-
-    if (!pinataApiKey || !pinataSecretKey) {
-      throw new Error('Pinata API keys not configured. Please set NEXT_PUBLIC_PINATA_API_KEY and NEXT_PUBLIC_PINATA_SECRET_KEY in .env.local')
-    }
-
     // Create JSON blob
     const jsonBlob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const jsonFile = new File([jsonBlob], `${name}.json`, { type: 'application/json' })
 
-    // Create FormData for Pinata
-    const formData = new FormData()
-    formData.append('file', jsonFile)
-
-    // Add metadata
-    const metadata = JSON.stringify({
-      name: `${name}.json`,
-      keyvalues: {
-        type: 'impact-report',
-        timestamp: new Date().toISOString(),
-      },
-    })
-    formData.append('pinataMetadata', metadata)
-
-    // Add options
-    const options = JSON.stringify({
-      cidVersion: 1,
-      wrapWithDirectory: false,
-    })
-    formData.append('pinataOptions', options)
-
-    // Upload to Pinata
-    const response = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
-      method: 'POST',
-      headers: {
-        pinata_api_key: pinataApiKey,
-        pinata_secret_api_key: pinataSecretKey,
-      },
-      body: formData,
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      console.error('Pinata upload error:', errorData)
-      throw new Error(`Failed to upload to IPFS: ${errorData.error?.reason || response.statusText}`)
-    }
-
-    const result = await response.json()
-    const ipfsHash = result.IpfsHash || result.hash || result.cid
-
-    if (!ipfsHash) {
-      throw new Error('No IPFS hash returned from Pinata')
-    }
-
-    // Construct IPFS URL
-    const gateway = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
-    const ipfsUrl = `${gateway}${ipfsHash}`
-
-    return {
-      hash: ipfsHash,
-      url: ipfsUrl,
-    }
+    // Use the same upload function (which uses API route)
+    return await uploadToIPFS(jsonFile)
   } catch (error) {
     console.error('IPFS JSON upload error:', error)
     if (error instanceof Error) {
@@ -174,12 +107,40 @@ export async function uploadJSONToIPFS(data: any, name: string = 'data'): Promis
 }
 
 /**
- * Get IPFS URL from hash
+ * Get IPFS URL from hash with fallback gateways
  * @param hash IPFS hash
- * @returns Full IPFS URL
+ * @returns Full IPFS URL (uses first gateway, fallbacks handled in image onError)
  */
 export function getIPFSUrl(hash: string): string {
+  if (!hash) return ''
+  
+  // Clean hash (remove any query params or fragments)
+  const cleanHash = hash.split('?')[0].split('#')[0]
+  
+  // Use configured gateway or default to ipfs.io (better CORS support)
   const gateway = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://ipfs.io/ipfs/'
-  return `${gateway}${hash}`
+  return `${gateway}${cleanHash}`
+}
+
+/**
+ * Get fallback IPFS gateways for a hash
+ * @param hash IPFS hash
+ * @returns Array of fallback gateway URLs
+ */
+export function getIPFSFallbackUrls(hash: string): string[] {
+  if (!hash) return []
+  
+  const cleanHash = hash.split('?')[0].split('#')[0]
+  
+  // List of IPFS gateways that support CORS
+  const gateways = [
+    'https://ipfs.io/ipfs/',
+    'https://dweb.link/ipfs/',
+    'https://gateway.ipfs.io/ipfs/',
+    'https://cloudflare-ipfs.com/ipfs/',
+    'https://gateway.pinata.cloud/ipfs/',
+  ]
+  
+  return gateways.map(gateway => `${gateway}${cleanHash}`)
 }
 

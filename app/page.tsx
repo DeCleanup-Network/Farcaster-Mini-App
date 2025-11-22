@@ -296,7 +296,8 @@ export default function Home() {
 
                     try {
                       setIsClaiming(true)
-                      const hash = await claimImpactProductFromVerification(cleanupStatus.cleanupId)
+                      // Pass chainId to avoid false chain detection
+                      const hash = await claimImpactProductFromVerification(cleanupStatus.cleanupId, chainId)
 
                       // Wait for transaction confirmation
                       const { waitForTransactionReceipt } = await import('wagmi/actions')

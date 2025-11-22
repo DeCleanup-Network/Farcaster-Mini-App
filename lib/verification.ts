@@ -108,6 +108,12 @@ export async function getLatestCleanupStatus(
             localStorage.removeItem(pendingKey)
             localStorage.removeItem(`pending_cleanup_location_${userAddress.toLowerCase()}`)
             // Fall through to on-chain search
+          } else if (status.rejected) {
+            // If cleanup is rejected, clear localStorage and don't return it
+            console.log('Cleanup is rejected, clearing localStorage to allow new submission')
+            localStorage.removeItem(pendingKey)
+            localStorage.removeItem(`pending_cleanup_location_${userAddress.toLowerCase()}`)
+            // Fall through to on-chain search (won't find anything, will return null)
           } else {
             // Found valid cleanup in localStorage
             return {

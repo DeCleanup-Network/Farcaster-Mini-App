@@ -81,8 +81,34 @@ export function WalletConnect() {
       
       await connectAsync({ connector })
       setShowOtherWallets(false)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Wallet connect failed:', error)
+      
+      // Handle WalletConnect-specific errors gracefully
+      const errorMessage = error?.message || String(error) || ''
+      const errorName = error?.name || ''
+      
+      // Check for connection reset or rejection errors
+      const isConnectionReset = errorMessage.includes('Connection request reset') ||
+        errorMessage.includes('request reset') ||
+        errorName === 'UserRejectedRequestError'
+      
+      const isUserRejected = errorMessage.includes('User rejected') ||
+        errorMessage.includes('rejected') ||
+        error?.code === 4001
+      
+      // For connection resets, this is usually expected behavior:
+      // - User closed the QR code modal
+      // - Connection timed out
+      // - User rejected in their wallet app
+      // We don't need to show an alert - the user can simply try again
+      if (isConnectionReset || isUserRejected) {
+        console.log('Connection was reset or rejected. User can try connecting again.')
+        // Silently handle - user can retry
+      } else {
+        // For unexpected errors, log them but don't spam the user
+        console.warn('Unexpected connection error:', errorMessage)
+      }
     }
   }
   
@@ -109,7 +135,9 @@ export function WalletConnect() {
 
   // Auto-switch to required chain after connection
   useEffect(() => {
-    if (isConnected && chainId !== REQUIRED_CHAIN_ID && !hasSwitchedNetwork) {
+    // Only auto-switch if chainId is actually different and not null/undefined
+    // Check if chainId is valid and different from required
+    if (isConnected && chainId && chainId !== REQUIRED_CHAIN_ID && !hasSwitchedNetwork) {
       const attemptSwitch = async () => {
         try {
           console.log(

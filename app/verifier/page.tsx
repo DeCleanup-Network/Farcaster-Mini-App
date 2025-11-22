@@ -20,7 +20,7 @@ import { Address } from 'viem'
 import { waitForTransactionReceipt } from 'wagmi/actions'
 import { config, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUIRED_CHAIN_ID } from '@/lib/wagmi'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
-import { getIPFSUrl } from '@/lib/ipfs'
+import { getIPFSUrl, getIPFSFallbackUrls } from '@/lib/ipfs'
 import { findCleanupsByWallet } from '@/lib/find-cleanup-by-wallet'
 
 const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
@@ -105,7 +105,7 @@ export default function VerifierPage() {
     const interval = setInterval(() => {
       // Only refresh if not currently loading
       if (!isLoadingCleanups) {
-        loadCleanups()
+      loadCleanups()
       }
     }, 30000)
     
@@ -330,7 +330,7 @@ export default function VerifierPage() {
       console.log('loadCleanups already in progress, skipping...')
       return
     }
-
+    
     try {
       setIsLoadingCleanups(true)
       setLoading(true)
@@ -442,8 +442,8 @@ export default function VerifierPage() {
         nextLevel = 1
       }
 
-      // Verify with automatically calculated level
-      const hash = await verifyCleanup(cleanupId, nextLevel)
+      // Verify with automatically calculated level - pass chainId to avoid false detection
+      const hash = await verifyCleanup(cleanupId, nextLevel, chainId)
       setActiveTx({ cleanupId, hash })
       console.log(`Verifying cleanup ${cleanupId.toString()} with level ${nextLevel}`)
       console.log(`Transaction hash: ${hash}`)
@@ -466,54 +466,54 @@ export default function VerifierPage() {
         await new Promise(resolve => setTimeout(resolve, 2000))
         
         // Check verification status
-        let pollCount = 0
+      let pollCount = 0
         const maxPolls = 30 // Poll for up to 1 minute after confirmation (30 * 2 seconds)
-        const pollInterval = setInterval(async () => {
-          pollCount++
-          setPollingStatus({ cleanupId, count: pollCount })
-          console.log(`Polling for verification status (attempt ${pollCount}/${maxPolls})...`)
-          try {
-            const status = await getCleanupStatus(cleanupId)
-            console.log(`Cleanup ${cleanupId.toString()} status check:`, { verified: status.verified, level: status.level })
-            if (status.verified) {
-              console.log('✅ Cleanup verified confirmed on-chain, reloading cleanups...')
-              clearInterval(pollInterval)
-              setPollingStatus(null)
-              await loadCleanups()
+      const pollInterval = setInterval(async () => {
+        pollCount++
+        setPollingStatus({ cleanupId, count: pollCount })
+        console.log(`Polling for verification status (attempt ${pollCount}/${maxPolls})...`)
+        try {
+          const status = await getCleanupStatus(cleanupId)
+          console.log(`Cleanup ${cleanupId.toString()} status check:`, { verified: status.verified, level: status.level })
+          if (status.verified) {
+            console.log('✅ Cleanup verified confirmed on-chain, reloading cleanups...')
+            clearInterval(pollInterval)
+            setPollingStatus(null)
+            await loadCleanups()
               setSelectedCleanup(null)
               alert(
                 `✅ Cleanup ${cleanupId.toString()} is now verified!\n\n` +
                 `View on ${BLOCK_EXPLORER_NAME}: ${explorerUrl}`
               )
-            } else if (pollCount >= maxPolls) {
+          } else if (pollCount >= maxPolls) {
               console.log('Max polls reached after confirmation, stopping check')
-              clearInterval(pollInterval)
-              setPollingStatus(null)
+            clearInterval(pollInterval)
+            setPollingStatus(null)
               await loadCleanups()
               setSelectedCleanup(null)
               alert(
                 `⚠️ Transaction confirmed but verification status not updated yet.\n\n` +
                 `This may be a temporary RPC issue. Check ${BLOCK_EXPLORER_NAME}:\n${explorerUrl}`
               )
-            }
-          } catch (checkError: any) {
-            const errorMsg = checkError?.message || String(checkError)
-            console.log(`Poll attempt ${pollCount} failed:`, errorMsg)
-            if (pollCount >= maxPolls) {
-              clearInterval(pollInterval)
-              setPollingStatus(null)
+          }
+        } catch (checkError: any) {
+          const errorMsg = checkError?.message || String(checkError)
+          console.log(`Poll attempt ${pollCount} failed:`, errorMsg)
+          if (pollCount >= maxPolls) {
+            clearInterval(pollInterval)
+            setPollingStatus(null)
               await loadCleanups()
               setSelectedCleanup(null)
-            }
           }
-        }, 2000) // Poll every 2 seconds
-        
+        }
+      }, 2000) // Poll every 2 seconds
+      
         // Cleanup interval after 1 minute
-        setTimeout(() => {
-          clearInterval(pollInterval)
-          if (pollingStatus?.cleanupId === cleanupId) {
-            setPollingStatus(null)
-          }
+      setTimeout(() => {
+        clearInterval(pollInterval)
+        if (pollingStatus?.cleanupId === cleanupId) {
+          setPollingStatus(null)
+        }
         }, 60000)
       } catch (receiptError: any) {
         // Transaction receipt wait failed (timeout or error)
@@ -561,7 +561,8 @@ export default function VerifierPage() {
     setError(null)
 
     try {
-      const hash = await rejectCleanup(cleanupId)
+      // Pass chainId to avoid false chain detection
+      const hash = await rejectCleanup(cleanupId, chainId)
       console.log(`Rejecting cleanup ${cleanupId.toString()}`)
       console.log(`Transaction hash: ${hash}`)
       
@@ -954,12 +955,12 @@ export default function VerifierPage() {
         
         <div className="mb-8 mt-6 flex items-start justify-between">
           <div>
-            <h1 className="mb-2 text-4xl font-bold uppercase tracking-wide text-white sm:text-5xl">
-              Verifier Dashboard
-            </h1>
-            <p className="text-sm text-gray-400">
-              Review and verify cleanup submissions. Assign levels (1-10) based on impact and quality.
-            </p>
+          <h1 className="mb-2 text-4xl font-bold uppercase tracking-wide text-white sm:text-5xl">
+            Verifier Dashboard
+          </h1>
+          <p className="text-sm text-gray-400">
+            Review and verify cleanup submissions. Assign levels (1-10) based on impact and quality.
+          </p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -1173,8 +1174,24 @@ export default function VerifierPage() {
                               src={getIPFSUrl(cleanup.beforePhotoHash)!}
                               alt="Before"
                               className="h-32 w-full object-cover"
+                              crossOrigin="anonymous"
+                              loading="lazy"
                               onError={(e) => {
-                                e.currentTarget.src = '/placeholder-image.png'
+                                const img = e.currentTarget
+                                const hash = cleanup.beforePhotoHash
+                                const fallbacks = getIPFSFallbackUrls(hash)
+                                const currentSrc = img.src
+                                const hashFromUrl = currentSrc.split('/ipfs/')[1]?.split('?')[0]
+                                const currentIndex = fallbacks.findIndex(url => url.includes(hashFromUrl || ''))
+                                
+                                if (currentIndex >= 0 && currentIndex < fallbacks.length - 1) {
+                                  // Try next fallback
+                                  img.src = fallbacks[currentIndex + 1]
+                                } else {
+                                  // All fallbacks exhausted, show placeholder
+                                  img.src = '/placeholder-image.png'
+                                  img.onerror = null // Prevent infinite loop
+                                }
                               }}
                             />
                             {(() => {
@@ -1227,8 +1244,24 @@ export default function VerifierPage() {
                               src={getIPFSUrl(cleanup.afterPhotoHash)!}
                               alt="After"
                               className="h-32 w-full object-cover"
+                              crossOrigin="anonymous"
+                              loading="lazy"
                               onError={(e) => {
-                                e.currentTarget.src = '/placeholder-image.png'
+                                const img = e.currentTarget
+                                const hash = cleanup.afterPhotoHash
+                                const fallbacks = getIPFSFallbackUrls(hash)
+                                const currentSrc = img.src
+                                const hashFromUrl = currentSrc.split('/ipfs/')[1]?.split('?')[0]
+                                const currentIndex = fallbacks.findIndex(url => url.includes(hashFromUrl || ''))
+                                
+                                if (currentIndex >= 0 && currentIndex < fallbacks.length - 1) {
+                                  // Try next fallback
+                                  img.src = fallbacks[currentIndex + 1]
+                                } else {
+                                  // All fallbacks exhausted, show placeholder
+                                  img.src = '/placeholder-image.png'
+                                  img.onerror = null // Prevent infinite loop
+                                }
                               }}
                             />
                             {(() => {
@@ -1324,7 +1357,7 @@ export default function VerifierPage() {
         </div>
 
         {/* Verified Cleanups */}
-        <div>
+        <div className="mb-8">
           <h2 className="mb-4 text-2xl font-bold uppercase text-white">Verified Cleanups</h2>
           {verifiedCleanups.length === 0 ? (
             <div className="rounded-lg border border-gray-800 bg-gray-900 p-8 text-center text-gray-400">
@@ -1346,6 +1379,9 @@ export default function VerifierPage() {
                       <div className="mt-2 text-sm text-gray-400">
                         Level {cleanup.level} ({getLevelName(cleanup.level)}) • {formatDate(cleanup.timestamp)}
                       </div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        User: <span className="font-mono">{cleanup.user.slice(0, 10)}...{cleanup.user.slice(-8)}</span>
+                      </div>
                     </div>
                     <div className="text-sm text-gray-400">
                       {cleanup.claimed ? (
@@ -1354,6 +1390,170 @@ export default function VerifierPage() {
                         <span className="text-yellow-400">Pending Claim</span>
                       )}
                     </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Rejected Cleanups */}
+        <div>
+          <h2 className="mb-4 text-2xl font-bold uppercase text-white">Rejected Cleanups</h2>
+          {rejectedCleanups.length === 0 ? (
+            <div className="rounded-lg border border-gray-800 bg-gray-900 p-8 text-center text-gray-400">
+              No rejected cleanups.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {rejectedCleanups.map((cleanup) => (
+                <div
+                  key={cleanup.id.toString()}
+                  className="rounded-lg border border-red-500/50 bg-red-500/10 p-6"
+                >
+                  <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <div className="mb-2 flex items-center gap-2">
+                        <XCircle className="h-5 w-5 text-red-400" />
+                        <span className="font-bold text-white">Cleanup #{cleanup.id.toString()}</span>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2 text-gray-400">
+                          <User className="h-4 w-4" />
+                          <span className="font-mono text-xs">{cleanup.user}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-400">
+                          <Calendar className="h-4 w-4" />
+                          <span>{formatDate(cleanup.timestamp)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-400">
+                          <MapPin className="h-4 w-4" />
+                          <span>{formatCoordinates(cleanup.latitude, cleanup.longitude)}</span>
+                        </div>
+                        {cleanup.hasImpactForm && (
+                          <div className="text-xs text-gray-500">
+                            Enhanced impact form submitted
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="mb-2 text-xs text-gray-400">Before Photo</div>
+                        {getIPFSUrl(cleanup.beforePhotoHash) ? (
+                          <a
+                            href={getIPFSUrl(cleanup.beforePhotoHash)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="relative block overflow-hidden rounded-lg border border-gray-700"
+                          >
+                            <img
+                              src={getIPFSUrl(cleanup.beforePhotoHash)!}
+                              alt="Before"
+                              className="h-32 w-full object-cover"
+                              crossOrigin="anonymous"
+                              loading="lazy"
+                              onError={(e) => {
+                                const img = e.currentTarget
+                                const hash = cleanup.beforePhotoHash
+                                const fallbacks = getIPFSFallbackUrls(hash)
+                                const currentSrc = img.src
+                                const hashFromUrl = currentSrc.split('/ipfs/')[1]?.split('?')[0]
+                                const currentIndex = fallbacks.findIndex(url => url.includes(hashFromUrl || ''))
+                                
+                                if (currentIndex >= 0 && currentIndex < fallbacks.length - 1) {
+                                  // Try next fallback
+                                  img.src = fallbacks[currentIndex + 1]
+                                } else {
+                                  // All fallbacks exhausted, show placeholder
+                                  img.src = '/placeholder-image.png'
+                                  img.onerror = null // Prevent infinite loop
+                                }
+                              }}
+                            />
+                          </a>
+                        ) : (
+                          <div className="flex h-32 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-xs text-gray-500">
+                            No photo
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <div className="mb-2 text-xs text-gray-400">After Photo</div>
+                        {getIPFSUrl(cleanup.afterPhotoHash) ? (
+                          <a
+                            href={getIPFSUrl(cleanup.afterPhotoHash)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="relative block overflow-hidden rounded-lg border border-gray-700"
+                          >
+                            <img
+                              src={getIPFSUrl(cleanup.afterPhotoHash)!}
+                              alt="After"
+                              className="h-32 w-full object-cover"
+                              crossOrigin="anonymous"
+                              loading="lazy"
+                              onError={(e) => {
+                                const img = e.currentTarget
+                                const hash = cleanup.afterPhotoHash
+                                const fallbacks = getIPFSFallbackUrls(hash)
+                                const currentSrc = img.src
+                                const hashFromUrl = currentSrc.split('/ipfs/')[1]?.split('?')[0]
+                                const currentIndex = fallbacks.findIndex(url => url.includes(hashFromUrl || ''))
+                                
+                                if (currentIndex >= 0 && currentIndex < fallbacks.length - 1) {
+                                  // Try next fallback
+                                  img.src = fallbacks[currentIndex + 1]
+                                } else {
+                                  // All fallbacks exhausted, show placeholder
+                                  img.src = '/placeholder-image.png'
+                                  img.onerror = null // Prevent infinite loop
+                                }
+                              }}
+                            />
+                          </a>
+                        ) : (
+                          <div className="flex h-32 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-xs text-gray-500">
+                            No photo
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {cleanup.hasImpactForm && (
+                    <div className="mt-4">
+                      <button
+                        onClick={() => {
+                          const formId = cleanup.id.toString()
+                          setExpandedForms(prev => {
+                            const newSet = new Set(prev)
+                            if (newSet.has(formId)) {
+                              newSet.delete(formId)
+                            } else {
+                              newSet.add(formId)
+                            }
+                            return newSet
+                          })
+                        }}
+                        className="text-sm text-gray-400 hover:text-gray-300"
+                      >
+                        {expandedForms.has(cleanup.id.toString()) ? '▼' : '▶'} View Impact Report
+                      </button>
+                      {expandedForms.has(cleanup.id.toString()) && (
+                        <div className="mt-2">
+                          <ImpactReportDetails impactReportHash={cleanup.impactReportHash} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+                    <div className="flex items-center gap-2 text-sm text-red-400">
+                      <XCircle className="h-4 w-4" />
+                      <span className="font-semibold">This cleanup was rejected</span>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-400">
+                      Rejected cleanups cannot be verified. The user will need to submit a new cleanup.
+                    </p>
                   </div>
                 </div>
               ))}

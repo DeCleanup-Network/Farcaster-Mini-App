@@ -9,7 +9,7 @@ import { BackButton } from '@/components/navigation/BackButton'
 import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle } from 'lucide-react'
 import { uploadToIPFS, uploadJSONToIPFS, getIPFSUrl } from '@/lib/ipfs'
 import { submitCleanup, getSubmissionFee, getCleanupStatus, CONTRACT_ADDRESSES } from '@/lib/contracts'
-import { clearPendingCleanupData } from '@/lib/clear-cleanup-data'
+import { clearPendingCleanupData, resetSubmissionCounting } from '@/lib/clear-cleanup-data'
 import type { Address } from 'viem'
 import { tryAddRequiredChain } from '@/lib/network'
 import {
@@ -212,7 +212,16 @@ function CleanupContent() {
                 return
               }
               
-              // Only set pending if it's actually pending (not verified)
+              // Check if cleanup is rejected - if so, clear localStorage and allow new submission
+              if (status.rejected) {
+                console.log('Cleanup is rejected, clearing localStorage to allow new submission')
+                localStorage.removeItem(pendingKey)
+                localStorage.removeItem(`pending_cleanup_location_${address.toLowerCase()}`)
+                setPendingCleanup(null)
+                return
+              }
+              
+              // Only set pending if it's actually pending (not verified and not rejected)
               if (!status.verified) {
                 setPendingCleanup({
                   id: BigInt(pendingCleanupId),
@@ -523,6 +532,7 @@ function CleanupContent() {
       })
       
       try {
+        // Pass chainId from hook to avoid false chain detection issues
         const cleanupId = await submitCleanup(
           beforeHash.hash,
           afterHash.hash,
@@ -531,7 +541,8 @@ function CleanupContent() {
           referrerAddress, // Use referrer from URL if available
           hasForm,
           impactFormDataHash || '',
-          feeValue // Include fee if required
+          feeValue, // Include fee if required
+          chainId // Pass chainId from useChainId hook to avoid detection bugs
         )
 
         console.log('Cleanup submitted with ID:', cleanupId.toString())
@@ -869,13 +880,29 @@ function CleanupContent() {
                 Check status in your profile
                 <ExternalLink className="h-3 w-3" />
               </Link>
-                <button
-                  onClick={handleClearAndResubmit}
-                  disabled={clearingPending}
-                  className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-300 underline disabled:opacity-50"
-                >
-                  {clearingPending ? 'Clearing...' : 'Clear & Resubmit (if glitched)'}
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={handleClearAndResubmit}
+                    disabled={clearingPending}
+                    className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-300 underline disabled:opacity-50"
+                  >
+                    {clearingPending ? 'Clearing...' : 'Clear & Resubmit (if glitched)'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!address) return
+                      if (confirm('Reset submission counting? This will clear all pending cleanup data and allow you to submit again immediately.')) {
+                        resetSubmissionCounting(address)
+                        setPendingCleanup(null)
+                        alert('Submission counting reset! You can now submit a new cleanup.')
+                      }
+                    }}
+                    disabled={clearingPending}
+                    className="inline-flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 underline disabled:opacity-50"
+                  >
+                    Reset Submission Counting
+                  </button>
+                </div>
               </div>
             </div>
           </div>

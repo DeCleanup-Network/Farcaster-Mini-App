@@ -66,3 +66,24 @@ export function getPendingCleanupId(userAddress: Address): string | null {
   return localStorage.getItem(pendingKey)
 }
 
+/**
+ * Reset submission counting for a wallet - clears all pending cleanup data
+ * This allows the wallet to submit again even if there's a pending cleanup
+ * Use with caution - only if you're sure the cleanup is glitched or doesn't exist
+ */
+export function resetSubmissionCounting(userAddress: Address): void {
+  if (typeof window === 'undefined') return
+
+  const addressLower = userAddress.toLowerCase()
+  
+  // Clear all pending cleanup data
+  clearPendingCleanupData(userAddress)
+  
+  // Also clear any last location data
+  localStorage.removeItem(`last_cleanup_location`)
+  localStorage.removeItem(`pending_cleanup_location_${addressLower}`)
+  
+  console.log('Submission counting reset for:', userAddress)
+  console.log('User can now submit a new cleanup')
+}
+

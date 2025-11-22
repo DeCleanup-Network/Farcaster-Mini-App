@@ -76,11 +76,11 @@ const APP_ICON_URL =
 // All wallet connectors require browser APIs and will fail during server-side rendering
 const connectors = typeof window !== 'undefined'
   ? [
-      farcasterMiniApp(),
+  farcasterMiniApp(),
       coinbaseWallet({
         appName: APP_NAME,
       }),
-    ]
+]
   : []
 
 // Only add WalletConnect if Project ID is configured and on client side

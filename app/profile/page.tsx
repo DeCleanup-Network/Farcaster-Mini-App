@@ -33,6 +33,7 @@ import {
   CONTRACT_ADDRESSES,
 } from '@/lib/contracts'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
+import { useChainId } from 'wagmi'
 import { shareCast, generateReferralLink, formatImpactShareMessage } from '@/lib/farcaster'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
@@ -73,6 +74,7 @@ function extractImpactStats(metadata: ImpactMetadata | null) {
 
 export default function ProfilePage() {
   const { address, isConnected } = useAccount()
+  const chainId = useChainId()
   const [hasMounted, setHasMounted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [profileData, setProfileData] = useState({
@@ -349,6 +351,15 @@ export default function ProfilePage() {
               // Verify this cleanup belongs to the current user
               if (status.user.toLowerCase() !== address.toLowerCase()) {
                 console.log('Cleanup belongs to different user, clearing localStorage')
+                localStorage.removeItem(pendingKey)
+                localStorage.removeItem(`pending_cleanup_location_${address.toLowerCase()}`)
+                setCleanupStatus(null)
+                return
+              }
+
+              // Check if cleanup is rejected - if so, clear localStorage and allow new submission
+              if (status.rejected) {
+                console.log('Cleanup is rejected, clearing localStorage to allow new submission')
                 localStorage.removeItem(pendingKey)
                 localStorage.removeItem(`pending_cleanup_location_${address.toLowerCase()}`)
                 setCleanupStatus(null)
@@ -633,7 +644,8 @@ export default function ProfilePage() {
 
                       try {
                         setIsClaiming(true)
-                        const hash = await claimImpactProductFromVerification(cleanupStatus.cleanupId)
+                        // Pass chainId to avoid false chain detection
+                        const hash = await claimImpactProductFromVerification(cleanupStatus.cleanupId, chainId)
                         alert(
                           `✅ Claim transaction submitted!\n\n` +
                           `Transaction Hash: ${hash}\n\n` +

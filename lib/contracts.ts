@@ -78,8 +78,16 @@ function getManualNetworkAddInstructions() {
   )
 }
 
-async function ensureWalletOnRequiredChain(context = 'transaction'): Promise<void> {
-  let currentChainId = await getCurrentChainId()
+async function ensureWalletOnRequiredChain(context = 'transaction', providedChainId?: number | null): Promise<void> {
+  // If providedChainId is valid and matches required, trust it and return early
+  // This fixes the issue where useChainId() shows correct chain but getCurrentChainId() returns null
+  if (providedChainId !== undefined && providedChainId !== null && providedChainId === REQUIRED_CHAIN_ID) {
+    console.log(`[${context}] ✅ Already on correct chain (from provided chainId: ${providedChainId})`)
+    return
+  }
+  
+  // Use provided chainId if available (from useChainId hook), otherwise try to get it
+  let currentChainId: number | null = providedChainId !== undefined ? providedChainId : await getCurrentChainId()
   console.log(`[${context}] Current chain ID: ${currentChainId}, required: ${REQUIRED_CHAIN_ID}`)
 
   // If we can't determine chain (e.g., WalletConnect), try to add the chain first
@@ -148,8 +156,29 @@ async function ensureWalletOnRequiredChain(context = 'transaction'): Promise<voi
 
   // Force switch if on wrong chain
   if (currentChainId !== REQUIRED_CHAIN_ID) {
-    console.log(`[${context}] Wrong chain (${currentChainId}), forcing switch to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})`)
+    console.log(`[${context}] Wrong chain (${currentChainId}), attempting to switch to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})`)
 
+    // For WalletConnect and similar connectors, try adding the chain FIRST before switching
+    // This prevents "Chain not configured" errors
+    try {
+      console.log(`[${context}] Attempting to add chain first (for WalletConnect compatibility)...`)
+      const added = await tryAddRequiredChain()
+      if (added) {
+        // Wait a moment for the chain to be added
+        await new Promise(resolve => setTimeout(resolve, 1500))
+        // Check if we're now on the correct chain
+        const checkChainId = await getCurrentChainId()
+        if (checkChainId === REQUIRED_CHAIN_ID) {
+          console.log(`[${context}] ✅ Chain added and automatically switched`)
+          return
+        }
+      }
+    } catch (addError) {
+      console.warn(`[${context}] Pre-add chain attempt failed (may not be needed):`, addError)
+      // Continue to try switching anyway
+    }
+
+    // Now try to switch
     try {
       await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
 
@@ -165,32 +194,85 @@ async function ensureWalletOnRequiredChain(context = 'transaction'): Promise<voi
         retries++
       }
 
+      // If polling didn't confirm the switch, check one more time
+      const finalCheck = await getCurrentChainId()
+      if (finalCheck === REQUIRED_CHAIN_ID) {
+        console.log(`[${context}] ✅ Chain switch confirmed`)
+        return
+      }
+
       throw new Error(`Failed to switch network. Please manually switch to ${REQUIRED_CHAIN_NAME} in your wallet.`)
     } catch (error: any) {
       console.error(`[${context}] Switch failed:`, error)
       const errorMessage = getErrorMessage(error)
 
       // If user rejected, throw specific error
-      if (error?.code === 4001 || errorMessage.includes('rejected')) {
+      if (error?.code === 4001 || errorMessage.includes('rejected') || errorMessage.includes('User rejected')) {
         throw new Error('Network switch rejected. Please switch manually to continue.')
       }
 
-      // Try adding the chain if it's missing
-      if (errorMessage.includes('Unrecognized chain') || errorMessage.includes('not configured')) {
-        try {
-          console.log(`[${context}] Chain missing, attempting to add...`)
-          const added = await tryAddRequiredChain()
-          if (added) {
-            // Wait and check again
-            await new Promise(resolve => setTimeout(resolve, 1000))
-            const newChainId = await getCurrentChainId()
-            if (newChainId === REQUIRED_CHAIN_ID) {
-              return
+      // Try adding the chain again if switch failed with "not configured"
+      if (errorMessage.includes('Unrecognized chain') || 
+          errorMessage.includes('not configured') || 
+          errorMessage.includes('Chain not configured') ||
+          error?.code === 4902) {
+        console.log(`[${context}] Chain missing, attempting to add after switch failure...`)
+        
+        // Try multiple times with increasing delays
+        let added = false
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            added = await tryAddRequiredChain()
+            if (added) {
+              // Wait longer for the chain to be added (especially for WalletConnect)
+              await new Promise(resolve => setTimeout(resolve, 2000 + (attempt * 1000)))
+              
+              // Try switching again
+              try {
+                await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
+                // Wait and check
+                await new Promise(resolve => setTimeout(resolve, 1500))
+                const newChainId = await getCurrentChainId()
+                if (newChainId === REQUIRED_CHAIN_ID) {
+                  console.log(`[${context}] ✅ Chain added and switched successfully`)
+                  return
+                }
+              } catch (retryError: any) {
+                console.warn(`[${context}] Retry switch after add failed (attempt ${attempt + 1}):`, retryError)
+                // If user rejected, don't retry
+                if (retryError?.code === 4001 || retryError?.message?.includes('rejected')) {
+                  throw new Error('Network switch rejected. Please switch manually to continue.')
+                }
+              }
             }
+          } catch (addError) {
+            console.warn(`[${context}] Add chain attempt ${attempt + 1} failed:`, addError)
           }
-        } catch (addError) {
-          console.error('Failed to add chain:', addError)
         }
+        
+        // If we still couldn't add/switch, provide helpful error message
+        // Check if we're using WalletConnect
+        const account = await getAccount(config)
+        const isWalletConnect = account.connector?.id?.includes('walletConnect') || 
+                                account.connector?.name?.toLowerCase().includes('walletconnect')
+        
+        const walletInstructions = isWalletConnect
+          ? `\n\nFor WalletConnect users:\n` +
+            `1. Open your wallet app (MetaMask, etc.)\n` +
+            `2. Go to Settings → Networks → Add Network\n` +
+            `3. Add ${REQUIRED_CHAIN_NAME} with the details below\n` +
+            `4. Return to this app and try again`
+          : `\n\nPlease add the network in your wallet and try again.`
+        
+        throw new Error(
+          `${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) is not configured in your wallet.${walletInstructions}\n\n` +
+          `Network Details:\n` +
+          `• Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+          `• RPC URL: ${REQUIRED_RPC_URL}\n` +
+          `• Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+          `• Currency Symbol: ETH\n` +
+          `• Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}`
+        )
       }
 
       throw new Error(`Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) to continue.`)
@@ -554,7 +636,8 @@ export async function submitCleanup(
   referrerAddress: Address | null,
   hasImpactForm: boolean,
   impactReportHash: string,
-  value?: bigint // Optional fee value
+  value?: bigint, // Optional fee value
+  providedChainId?: number | null // Optional chainId from useChainId hook to avoid detection issues
 ): Promise<bigint> {
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error(
@@ -562,7 +645,8 @@ export async function submitCleanup(
     )
   }
 
-  await ensureWalletOnRequiredChain('cleanup submission')
+  // Pass providedChainId to avoid false positives when wallet is already on correct chain
+  await ensureWalletOnRequiredChain('cleanup submission', providedChainId)
 
   // Scale coordinates by 1e6
   const latScaled = BigInt(Math.floor(latitude * 1e6))
@@ -746,12 +830,15 @@ export async function submitCleanup(
 /**
  * Claim Impact Product after verification
  */
-export async function claimImpactProductFromVerification(cleanupId: bigint): Promise<`0x${string}`> {
+export async function claimImpactProductFromVerification(
+  cleanupId: bigint,
+  providedChainId?: number | null
+): Promise<`0x${string}`> {
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
   }
 
-  await ensureWalletOnRequiredChain('claim impact product')
+  await ensureWalletOnRequiredChain('claim impact product', providedChainId)
 
   const targetChain = getRequiredChain()
   if (!targetChain) {
@@ -777,6 +864,7 @@ export async function getCleanupStatus(cleanupId: bigint): Promise<{
   user: `0x${string}`
   verified: boolean
   claimed: boolean
+  rejected: boolean
   level: number
 }> {
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
@@ -788,43 +876,21 @@ export async function getCleanupStatus(cleanupId: bigint): Promise<{
   }
 
   try {
-    const result = await readContract(config, {
-      address: CONTRACT_ADDRESSES.VERIFICATION,
-      abi: VERIFICATION_ABI,
-      functionName: 'getCleanupStatus',
-      args: [cleanupId],
-    })
-
-    // Handle tuple return type
-    let status: {
-      user: `0x${string}`
-      verified: boolean
-      claimed: boolean
-      level: number
-    }
-
-    if (Array.isArray(result)) {
-      status = {
-        user: result[0] as `0x${string}`,
-        verified: result[1] as boolean,
-        claimed: result[2] as boolean,
-        level: Number(result[3]),
-      }
-    } else {
-      status = result as unknown as {
-        user: `0x${string}`
-        verified: boolean
-        claimed: boolean
-        level: number
-      }
-    }
-
+    // Use getCleanupDetails to get full status including rejected flag
+    const details = await getCleanupDetails(cleanupId)
+    
     // Check if cleanup actually exists (zero address means it doesn't exist)
-    if (!status.user || status.user === '0x0000000000000000000000000000000000000000' || status.user === '0x') {
+    if (!details.user || details.user === '0x0000000000000000000000000000000000000000' || details.user === '0x') {
       throw new Error(`Cleanup ${cleanupId.toString()} does not exist`)
     }
-
-    return status
+    
+    return {
+      user: details.user,
+      verified: details.verified,
+      claimed: details.claimed,
+      rejected: details.rejected,
+      level: details.level,
+    }
   } catch (error: any) {
     const errorMessage = getErrorMessage(error)
     // If cleanup doesn't exist, throw a clear error
@@ -1069,7 +1135,11 @@ export async function getVerifierAddress(): Promise<Address> {
 /**
  * Verify cleanup (only verifier can call)
  */
-export async function verifyCleanup(cleanupId: bigint, level: number): Promise<`0x${string}`> {
+export async function verifyCleanup(
+  cleanupId: bigint,
+  level: number,
+  providedChainId?: number | null
+): Promise<`0x${string}`> {
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
   }
@@ -1079,7 +1149,7 @@ export async function verifyCleanup(cleanupId: bigint, level: number): Promise<`
   }
 
   // Ensure wallet is on the required chain - this handles switching and validation
-  await ensureWalletOnRequiredChain('verification')
+  await ensureWalletOnRequiredChain('verification', providedChainId)
 
   console.log(`[verification] Chain check passed, proceeding with transaction`)
 
@@ -1169,13 +1239,16 @@ export async function verifyCleanup(cleanupId: bigint, level: number): Promise<`
 /**
  * Reject a cleanup submission (only verifiers)
  */
-export async function rejectCleanup(cleanupId: bigint): Promise<`0x${string}`> {
+export async function rejectCleanup(
+  cleanupId: bigint,
+  providedChainId?: number | null
+): Promise<`0x${string}`> {
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
   }
 
   // Ensure wallet is on the required chain - this handles switching and validation
-  await ensureWalletOnRequiredChain('rejection')
+  await ensureWalletOnRequiredChain('rejection', providedChainId)
 
   console.log(`[rejection] Chain check passed, proceeding with transaction`)
 
