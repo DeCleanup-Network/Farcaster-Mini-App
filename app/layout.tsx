@@ -21,10 +21,11 @@ const bebasNeue = Bebas_Neue({
   subsets: ["latin"],
 });
 
-// Base Build embed metadata configuration
-// Required for Base Build embeds & previews - must match homeUrl in manifest
+// Farcaster Mini App embed metadata configuration
+// Required for Farcaster embeds & previews - must match homeUrl in manifest
+// Per Farcaster docs: version must be "1" (not "next"), and we should only use fc:miniapp (not fc:frame)
 const EMBED_METADATA = {
-  version: "next",
+  version: "1", // Must be "1" per Farcaster docs, not "next"
   imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png",
   button: {
     title: "Open DeCleanup Rewards",
@@ -51,7 +52,8 @@ export const metadata: Metadata = {
   },
   other: {
     "fc:miniapp": JSON.stringify(EMBED_METADATA),
-    "fc:frame": "vNext",
+    // Removed "fc:frame" - per Farcaster docs: "DO NOT use fc:frame meta tag for new implementations"
+    // Only use fc:miniapp for new Mini Apps
   },
 };
 
