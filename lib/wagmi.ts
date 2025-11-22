@@ -84,18 +84,24 @@ const connectors = typeof window !== 'undefined'
   : []
 
 // Only add WalletConnect if Project ID is configured and on client side
+// Use dynamic URL to avoid metadata mismatch warnings (localhost vs production)
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 if (typeof window !== 'undefined' && walletConnectProjectId && walletConnectProjectId.trim() !== '') {
   try {
+    // Get current URL dynamically to match the actual page URL
+    // This fixes the "metadata.url differs from actual page url" warning
+    const currentUrl = window.location.origin
+    
     connectors.push(
       walletConnect({
         projectId: walletConnectProjectId,
         metadata: {
           name: APP_NAME,
           description: APP_DESCRIPTION,
-          url: MINIAPP_URL,
+          url: currentUrl, // Use current URL (localhost in dev, production in prod)
           icons: [APP_ICON_URL],
         },
+        showQrModal: true, // Show QR code for mobile wallet connections
       }) as any // Type assertion needed due to WalletConnect type incompatibility
     )
   } catch (error) {

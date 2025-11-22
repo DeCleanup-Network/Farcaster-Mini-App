@@ -9,6 +9,7 @@ import { BackButton } from '@/components/navigation/BackButton'
 import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle } from 'lucide-react'
 import { uploadToIPFS, uploadJSONToIPFS, getIPFSUrl } from '@/lib/ipfs'
 import { submitCleanup, getSubmissionFee, getCleanupStatus, CONTRACT_ADDRESSES } from '@/lib/contracts'
+import { clearPendingCleanupData } from '@/lib/clear-cleanup-data'
 import type { Address } from 'viem'
 import { tryAddRequiredChain } from '@/lib/network'
 import {
@@ -73,6 +74,7 @@ function CleanupContent() {
     claimed: boolean
   } | null>(null)
   const [checkingPending, setCheckingPending] = useState(true)
+  const [clearingPending, setClearingPending] = useState(false)
   
   // Fix hydration error by only rendering after mount
   useEffect(() => {
@@ -800,6 +802,53 @@ function CleanupContent() {
     
     // Show cooldown warning if pending cleanup
     if (pendingCleanup && !pendingCleanup.verified) {
+      const handleClearAndResubmit = async () => {
+        if (!address) return
+        
+        setClearingPending(true)
+        try {
+          // First, check if cleanup actually exists on-chain
+          try {
+            const status = await getCleanupStatus(pendingCleanup.id)
+            console.log('Cleanup status on-chain:', status)
+            
+            // If cleanup exists and is verified, just clear localStorage
+            if (status.verified) {
+              clearPendingCleanupData(address)
+              setPendingCleanup(null)
+              alert('Cleanup is already verified! Clearing local data. You can now claim it from your profile.')
+              return
+            }
+            
+            // If cleanup exists but not verified, ask for confirmation
+            const confirmed = confirm(
+              `Cleanup #${pendingCleanup.id.toString()} exists on-chain and is pending verification.\n\n` +
+              `Are you sure you want to clear it? This won't delete it from the blockchain, ` +
+              `but will allow you to submit a new cleanup.\n\n` +
+              `Note: The old cleanup will still be in the verifier dashboard.`
+            )
+            
+            if (!confirmed) {
+              setClearingPending(false)
+              return
+            }
+          } catch (error: any) {
+            // Cleanup doesn't exist on-chain - safe to clear
+            console.log('Cleanup does not exist on-chain, clearing localStorage:', error?.message)
+          }
+          
+          // Clear localStorage
+          clearPendingCleanupData(address)
+          setPendingCleanup(null)
+          alert('Pending cleanup data cleared! You can now submit a new cleanup.')
+        } catch (error) {
+          console.error('Error clearing cleanup data:', error)
+          alert('Failed to clear cleanup data. Please try refreshing the page.')
+        } finally {
+          setClearingPending(false)
+        }
+      }
+      
       return (
         <div className="mb-6 rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
           <div className="flex items-start gap-3">
@@ -812,13 +861,22 @@ function CleanupContent() {
                 You have a cleanup submission (ID: {pendingCleanup.id.toString()}) pending verification. 
                 Please wait until it's verified before submitting a new cleanup.
               </p>
+              <div className="mt-3 flex flex-wrap gap-2">
               <Link 
                 href="/profile" 
-                className="mt-2 inline-flex items-center gap-1 text-xs text-yellow-400 hover:text-yellow-300 underline"
+                  className="inline-flex items-center gap-1 text-xs text-yellow-400 hover:text-yellow-300 underline"
               >
                 Check status in your profile
                 <ExternalLink className="h-3 w-3" />
               </Link>
+                <button
+                  onClick={handleClearAndResubmit}
+                  disabled={clearingPending}
+                  className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-300 underline disabled:opacity-50"
+                >
+                  {clearingPending ? 'Clearing...' : 'Clear & Resubmit (if glitched)'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -914,12 +972,12 @@ function CleanupContent() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-sm text-gray-400">Location not captured</span>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                  <button
-                    onClick={getLocation}
-                    className="text-sm text-brand-green hover:text-[#4a9a26]"
-                  >
-                    Get Location
-                  </button>
+                <button
+                  onClick={getLocation}
+                  className="text-sm text-brand-green hover:text-[#4a9a26]"
+                >
+                  Get Location
+                </button>
                   <button
                     onClick={() => setManualLocationMode(true)}
                     className="text-xs text-gray-400 underline-offset-2 hover:text-gray-200"

@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from 'wagmi'
 import type { Connector } from 'wagmi'
 import { Button } from '@/components/ui/button'
-import { Wallet, LogOut, ChevronDown } from 'lucide-react'
-import { isFarcasterContext } from '@/lib/farcaster'
+import { Wallet, LogOut, ChevronDown, QrCode, X } from 'lucide-react'
+import { isFarcasterContext, MINIAPP_URL } from '@/lib/farcaster'
 import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { tryAddRequiredChain } from '@/lib/network'
 
@@ -19,6 +19,7 @@ export function WalletConnect() {
   const [isInFarcaster, setIsInFarcaster] = useState(false)
   const [showOtherWallets, setShowOtherWallets] = useState(false)
   const [hasSwitchedNetwork, setHasSwitchedNetwork] = useState(false)
+  const [showFarcasterQR, setShowFarcasterQR] = useState(false)
 
   // Get Farcaster connector and external wallet connectors
   // The farcasterMiniApp connector might have different names, so we check by ID or type
@@ -67,11 +68,37 @@ export function WalletConnect() {
 
   const handleConnect = async (connector: Connector) => {
     try {
+      // If trying to connect Farcaster wallet outside of Farcaster context, show QR code
+      const isFarcasterConnector = connector.name?.toLowerCase().includes('farcaster') ||
+        connector.id?.toLowerCase().includes('farcaster') ||
+        connector.name?.toLowerCase().includes('frame') ||
+        connector.name?.toLowerCase().includes('miniapp')
+      
+      if (isFarcasterConnector && !isInFarcaster) {
+        setShowFarcasterQR(true)
+        return
+      }
+      
       await connectAsync({ connector })
       setShowOtherWallets(false)
     } catch (error) {
       console.error('Wallet connect failed:', error)
     }
+  }
+  
+  // Generate Farcaster deep link
+  const getFarcasterDeepLink = () => {
+    // Try Warpcast first, then fallback to Farcaster protocol
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : MINIAPP_URL
+    // Warpcast deep link format
+    return `warpcast://deeplink?url=${encodeURIComponent(currentUrl)}`
+  }
+  
+  // Generate QR code data URL (simple implementation)
+  const generateQRCode = (text: string) => {
+    // For now, we'll use a QR code API service
+    // In production, you might want to use a library like qrcode.react
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(text)}`
   }
 
   // Fix hydration error by only showing wallet state after mount
@@ -212,7 +239,7 @@ export function WalletConnect() {
     <div className="relative">
       <div className="flex items-center gap-2">
         {/* Primary: Farcaster wallet if in Farcaster context, otherwise first external */}
-        {isInFarcaster && farcasterConnector ? (
+        {farcasterConnector ? (
           <Button
             size="sm"
             onClick={() => handleConnect(farcasterConnector)}
@@ -221,10 +248,10 @@ export function WalletConnect() {
           >
             <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">
-              {isPending ? 'Connecting...' : 'Connect Farcaster Wallet'}
+              {isPending ? 'Connecting...' : isInFarcaster ? 'Connect Farcaster Wallet' : 'Open in Farcaster'}
             </span>
             <span className="sm:hidden">
-              {isPending ? '...' : 'Farcaster'}
+              {isPending ? '...' : isInFarcaster ? 'Farcaster' : 'Farcaster'}
             </span>
           </Button>
         ) : externalConnectors.length > 0 ? (
@@ -291,6 +318,71 @@ export function WalletConnect() {
               {connector.name === 'Injected' ? 'Browser Wallet' : connector.name}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Farcaster QR Code Modal */}
+      {showFarcasterQR && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="relative w-full max-w-md rounded-lg border border-gray-700 bg-gray-900 p-6">
+            <button
+              onClick={() => setShowFarcasterQR(false)}
+              className="absolute right-4 top-4 text-gray-400 hover:text-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            
+            <div className="text-center">
+              <QrCode className="mx-auto mb-4 h-12 w-12 text-brand-green" />
+              <h3 className="mb-2 text-xl font-bold text-white">Open in Farcaster</h3>
+              <p className="mb-6 text-sm text-gray-400">
+                Scan this QR code with your Farcaster app (Warpcast) to connect your wallet
+              </p>
+              
+              <div className="mb-6 flex justify-center">
+                <img
+                  src={generateQRCode(MINIAPP_URL)}
+                  alt="Farcaster QR Code"
+                  className="rounded-lg border-2 border-gray-700"
+                />
+              </div>
+              
+              <div className="space-y-3">
+                <Button
+                  onClick={() => {
+                    const deepLink = getFarcasterDeepLink()
+                    window.location.href = deepLink
+                  }}
+                  className="w-full bg-brand-green text-black hover:bg-brand-green/90"
+                >
+                  Open in Warpcast
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(MINIAPP_URL)
+                    alert('Link copied! Paste it in Warpcast to open the app.')
+                  }}
+                  className="w-full border-gray-700 text-white hover:bg-gray-800"
+                >
+                  Copy Link
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFarcasterQR(false)}
+                  className="w-full border-gray-700 text-gray-400 hover:bg-gray-800"
+                >
+                  Cancel
+                </Button>
+              </div>
+              
+              <p className="mt-4 text-xs text-gray-500">
+                Or use another wallet option below
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>

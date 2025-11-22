@@ -21,6 +21,7 @@ import { waitForTransactionReceipt } from 'wagmi/actions'
 import { config, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUIRED_CHAIN_ID } from '@/lib/wagmi'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
 import { getIPFSUrl } from '@/lib/ipfs'
+import { findCleanupsByWallet } from '@/lib/find-cleanup-by-wallet'
 
 const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
@@ -72,6 +73,10 @@ export default function VerifierPage() {
   const [expandedForms, setExpandedForms] = useState<Set<string>>(new Set())
   const [impactDataMap, setImpactDataMap] = useState<Map<string, any>>(new Map())
   const [activeTx, setActiveTx] = useState<{ cleanupId: bigint; hash: `0x${string}` } | null>(null)
+  const [searchWallet, setSearchWallet] = useState<string>('')
+  const [searching, setSearching] = useState(false)
+  const [searchResults, setSearchResults] = useState<Array<{ cleanupId: bigint; verified: boolean; claimed: boolean; level: number; user: Address }>>([])
+  const [isLoadingCleanups, setIsLoadingCleanups] = useState(false)
 
   const { signMessageAsync, isPending: isSigning } = useSignMessage()
 
@@ -98,7 +103,10 @@ export default function VerifierPage() {
     
     // Refresh cleanups every 30 seconds
     const interval = setInterval(() => {
-      loadCleanups()
+      // Only refresh if not currently loading
+      if (!isLoadingCleanups) {
+        loadCleanups()
+      }
     }, 30000)
     
     return () => clearInterval(interval)
@@ -317,7 +325,14 @@ export default function VerifierPage() {
   }
 
   async function loadCleanups() {
+    // Prevent concurrent calls
+    if (isLoadingCleanups) {
+      console.log('loadCleanups already in progress, skipping...')
+      return
+    }
+
     try {
+      setIsLoadingCleanups(true)
       setLoading(true)
       const counter = await getCleanupCounter()
       console.log('Cleanup counter:', counter.toString())
@@ -335,35 +350,31 @@ export default function VerifierPage() {
       // Start from 1, go up to counter-1, but also try a few more in case counter is off
       const startId = 1
       // Load up to counter-1, but also try a few more IDs in case counter is slightly off
+      // Use counter-1 as primary, but extend to at least 20 to catch any missed cleanups
       const endId = Math.max(maxCleanupId, 20) // Try at least up to ID 20, or counter-1 if higher
       
       console.log(`Attempting to load cleanups from ${startId} to ${endId}...`)
       
       for (let i = startId; i <= endId; i++) {
         try {
-          console.log(`Loading cleanup ${i}...`)
           const details = await getCleanupDetails(BigInt(i))
           
           // Filter out empty/invalid cleanups (zero address means cleanup doesn't exist)
           if (details.user === '0x0000000000000000000000000000000000000000' || 
               !details.user || 
               details.user === '0x') {
-            console.log(`Cleanup ${i} is empty (zero address), skipping...`)
-            // If we've checked many empty IDs in a row, we might be past the end
-            // But don't stop too early - continue checking
+            // Skip empty cleanups silently
             continue
           }
           
-          console.log(`Cleanup ${i} details:`, {
-            id: i,
+          // Only log found cleanups, not every attempt
+          console.log(`Found cleanup ${i}:`, {
             user: details.user,
             verified: details.verified,
             claimed: details.claimed,
             level: details.level,
-            timestamp: details.timestamp.toString(),
-            beforeHash: details.beforePhotoHash,
-            afterHash: details.afterPhotoHash,
           })
+          
           cleanupList.push({
             id: BigInt(i),
             ...details,
@@ -392,7 +403,7 @@ export default function VerifierPage() {
       }
 
       console.log(`Loaded ${cleanupList.length} cleanup(s) total`)
-      console.log('Pending cleanups:', cleanupList.filter(c => !c.verified).length)
+      console.log('Pending cleanups:', cleanupList.filter(c => !c.verified && !c.rejected).length)
       console.log('Verified cleanups:', cleanupList.filter(c => c.verified).length)
 
       // Sort by timestamp (newest first)
@@ -403,6 +414,7 @@ export default function VerifierPage() {
       setError('Failed to load cleanups')
     } finally {
       setLoading(false)
+      setIsLoadingCleanups(false)
     }
   }
 
@@ -949,27 +961,96 @@ export default function VerifierPage() {
               Review and verify cleanup submissions. Assign levels (1-10) based on impact and quality.
             </p>
           </div>
-          <Button
-            onClick={() => {
-              setLoading(true)
-              loadCleanups()
-            }}
-            disabled={loading}
-            variant="outline"
-            className="gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </>
-            )}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => {
+                setLoading(true)
+                loadCleanups()
+              }}
+              disabled={loading}
+              variant="outline"
+              className="gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* Search by Wallet Address */}
+        <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900 p-4">
+          <h3 className="mb-3 text-sm font-semibold uppercase text-gray-400">Search Cleanups by Wallet</h3>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Enter wallet address (e.g., ...2493)"
+              value={searchWallet}
+              onChange={(e) => setSearchWallet(e.target.value)}
+              className="flex-1 rounded-lg border border-gray-700 bg-black px-4 py-2 text-sm text-white placeholder-gray-500 focus:border-brand-green focus:outline-none"
+            />
+            <Button
+              onClick={async () => {
+                if (!searchWallet.trim()) return
+                setSearching(true)
+                setSearchResults([])
+                setError(null)
+                try {
+                  // Search for cleanups by wallet (supports partial addresses like "2493")
+                  const results = await findCleanupsByWallet(searchWallet.trim(), 100)
+                  setSearchResults(results)
+                  if (results.length > 0) {
+                    // Reload cleanups to include the found ones
+                    await loadCleanups()
+                  } else {
+                    setError(`No cleanups found for wallet ending in "${searchWallet.trim()}"`)
+                  }
+                } catch (error: any) {
+                  setError(`Search failed: ${error?.message || String(error)}`)
+                } finally {
+                  setSearching(false)
+                }
+              }}
+              disabled={searching || !searchWallet.trim()}
+              variant="outline"
+              className="border-brand-green text-brand-green hover:bg-brand-green/10"
+            >
+              {searching ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Searching...
+                </>
+              ) : (
+                'Search'
+              )}
+            </Button>
+          </div>
+          {searchResults.length > 0 && (
+            <div className="mt-3 rounded-lg border border-green-500/50 bg-green-500/10 p-3">
+              <p className="text-sm font-semibold text-green-400">Found {searchResults.length} cleanup(s):</p>
+              <ul className="mt-2 space-y-2 text-xs">
+                {searchResults.map((result) => (
+                  <li key={result.cleanupId.toString()} className="rounded border border-gray-700 bg-gray-800 p-2">
+                    <div className="font-mono text-white">Cleanup #{result.cleanupId.toString()}</div>
+                    <div className="mt-1 text-gray-400">
+                      Wallet: {result.user}
+                    </div>
+                    <div className="mt-1">
+                      Status: {result.verified ? '✓ Verified' : '⏳ Pending'} | Level: {result.level} | {result.claimed ? 'Claimed' : 'Not Claimed'}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         {error && (
