@@ -19,7 +19,9 @@ export function NetworkChecker() {
   const [showWarning, setShowWarning] = useState(false)
 
   useEffect(() => {
-    if (isConnected && chainId !== REQUIRED_CHAIN_ID) {
+    // Only show warning if chainId is valid and different from required
+    // Don't show warning if chainId is 0, null, or undefined (still loading)
+    if (isConnected && chainId && chainId !== REQUIRED_CHAIN_ID) {
       setShowWarning(true)
     } else {
       setShowWarning(false)

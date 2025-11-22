@@ -303,12 +303,12 @@ async function getCurrentChainId(): Promise<number | null> {
       suppressedError = new Error(event.message)
     }
   }
-
+  
   // Add error listener temporarily
   if (typeof window !== 'undefined') {
     window.addEventListener('error', errorHandler)
   }
-
+  
   try {
     // Try the standard getChainId first
     // This will throw if the connector doesn't support it
@@ -321,20 +321,20 @@ async function getCurrentChainId(): Promise<number | null> {
     if (typeof window !== 'undefined') {
       window.removeEventListener('error', errorHandler)
     }
-
+    
     // Check if it's the specific connector.getChainId error
     const errorMessage = getErrorMessage(error)
-    const isConnectorError = errorMessage.includes('getChainId') ||
-      errorMessage.includes('connector') ||
-      errorMessage.includes('is not a function') ||
-      suppressedError !== null
-
+    const isConnectorError = errorMessage.includes('getChainId') || 
+                            errorMessage.includes('connector') ||
+                            errorMessage.includes('is not a function') ||
+                            suppressedError !== null
+    
     if (isConnectorError) {
       // Silently skip chain verification for unsupported connectors
       // The wallet will validate the network when the transaction is sent
       return null
     }
-
+    
     // For other errors, try getting from account as fallback
     try {
       const account = await getAccount(config)
@@ -344,7 +344,7 @@ async function getCurrentChainId(): Promise<number | null> {
     } catch (accountError: any) {
       // getAccount might also fail with the same error, so just return null
     }
-
+    
     // If both fail, return null to indicate we couldn't determine the chain
     // The transaction will proceed and the wallet will reject if on wrong network
     return null
@@ -616,11 +616,11 @@ export async function getSubmissionFee(): Promise<{ fee: bigint; enabled: boolea
   } catch (error: any) {
     // If function doesn't exist (old contract), return defaults silently
     // Suppress warnings for expected cases (old contracts without this function)
-    const isExpectedError =
-      error?.message?.includes('revert') ||
-      error?.message?.includes('function') ||
+    const isExpectedError = 
+      error?.message?.includes('revert') || 
+      error?.message?.includes('function') || 
       error?.name === 'ContractFunctionExecutionError'
-
+    
     if (!isExpectedError) {
       console.error('Error getting submission fee:', error)
     }
@@ -652,47 +652,56 @@ export async function submitCleanup(
   const latScaled = BigInt(Math.floor(latitude * 1e6))
   const lngScaled = BigInt(Math.floor(longitude * 1e6))
 
-  // Double-check we're on the right chain before submitting
-  const finalChainId = await getCurrentChainId()
-  
-  // For WalletConnect, chainId might be null even after adding chain
-  // In that case, proceed and let the wallet validate on transaction
-  if (finalChainId === null) {
-    console.warn('[cleanup submission] Could not verify final chain ID, but proceeding - wallet will validate on transaction')
-    // Don't throw error - let the transaction proceed and wallet will handle validation
-    // This helps WalletConnect-MetaMask users
+  // Trust providedChainId if it was provided and matches required chain
+  // Only do additional checks if providedChainId is not available
+  // This prevents false positives where getCurrentChainId() returns null/wrong value
+  // even though useChainId() hook shows the correct chain
+  if (providedChainId !== undefined && providedChainId !== null && providedChainId === REQUIRED_CHAIN_ID) {
+    console.log('[cleanup submission] ✅ Chain validated via providedChainId, proceeding with submission')
+    // Skip redundant checks - ensureWalletOnRequiredChain already validated
   } else {
-    // CRITICAL: Explicitly block Celo Sepolia - this is a common mistake
-    if (finalChainId === 44787) {
-    throw new Error(
-      `❌ CELO SEPOLIA DETECTED!\n\n` +
-      `You are on Celo Sepolia Testnet (Chain ID: 44787), but this app requires ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
-      `Please switch to ${REQUIRED_CHAIN_NAME} in your wallet before submitting.\n\n` +
-      `To add ${REQUIRED_CHAIN_NAME}:\n` +
-      `1. Open your wallet settings\n` +
-      `2. Go to Networks → Add Network\n` +
-      `3. Enter:\n` +
-      `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
-      `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
-      `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
-      `   • Currency Symbol: ETH\n` +
-      `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
-      `4. Switch to ${REQUIRED_CHAIN_NAME} and try again.`
-    )
-    }
+    // Fallback: only check if providedChainId wasn't available
+  const finalChainId = await getCurrentChainId()
     
-    if (finalChainId !== REQUIRED_CHAIN_ID) {
-      throw new Error(
-        `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet. ` +
-        `Current network: ${finalChainId}. ` +
-        getNetworkSetupMessage()
-      )
+    // For WalletConnect, chainId might be null even after adding chain
+    // In that case, proceed and let the wallet validate on transaction
+  if (finalChainId === null) {
+      console.warn('[cleanup submission] Could not verify final chain ID, but proceeding - wallet will validate on transaction')
+      // Don't throw error - let the transaction proceed and wallet will handle validation
+      // This helps WalletConnect-MetaMask users
+    } else {
+      // CRITICAL: Explicitly block Celo Sepolia - this is a common mistake
+      if (finalChainId === 44787) {
+    throw new Error(
+          `❌ CELO SEPOLIA DETECTED!\n\n` +
+          `You are on Celo Sepolia Testnet (Chain ID: 44787), but this app requires ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
+          `Please switch to ${REQUIRED_CHAIN_NAME} in your wallet before submitting.\n\n` +
+          `To add ${REQUIRED_CHAIN_NAME}:\n` +
+          `1. Open your wallet settings\n` +
+          `2. Go to Networks → Add Network\n` +
+          `3. Enter:\n` +
+          `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+          `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
+          `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+          `   • Currency Symbol: ETH\n` +
+          `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
+          `4. Switch to ${REQUIRED_CHAIN_NAME} and try again.`
+        )
+      }
+      
+      if (finalChainId !== REQUIRED_CHAIN_ID) {
+        throw new Error(
+          `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet. ` +
+      `Current network: ${finalChainId}. ` +
+          getNetworkSetupMessage()
+        )
+      }
     }
   }
 
   // Submit cleanup and get the return value (cleanup ID)
   let simulatedCleanupId: bigint | undefined
-
+  
   try {
     // Use simulateContract to get the return value before submitting (for fallback)
     const { result } = await simulateContract(config, {
@@ -710,7 +719,7 @@ export async function submitCleanup(
       ],
       value: value || BigInt(0),
     })
-
+    
     // The result is the cleanup ID that will be returned
     simulatedCleanupId = result as bigint
     console.log('Simulated cleanup ID:', simulatedCleanupId.toString())
@@ -726,19 +735,28 @@ export async function submitCleanup(
     throw new Error(`${REQUIRED_CHAIN_NAME} chain is not configured.`)
   }
 
-  // FINAL CHECK: Verify chain one more time right before transaction
-  const preTxChainId = await getCurrentChainId()
-  if (preTxChainId === 44787) {
-    throw new Error(
-      `❌ STOP! You are on Celo Sepolia (Chain ID: 44787). ` +
-      `This transaction would fail. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) first.`
-    )
-  }
-  if (preTxChainId !== REQUIRED_CHAIN_ID) {
-    throw new Error(
-      `Wrong network detected right before transaction. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}). ` +
-      `Current: ${preTxChainId}`
-    )
+  // FINAL CHECK: Only verify chain if providedChainId wasn't available
+  // If providedChainId was provided and matches, trust it (already validated by ensureWalletOnRequiredChain)
+  if (providedChainId === undefined || providedChainId === null || providedChainId !== REQUIRED_CHAIN_ID) {
+    const preTxChainId = await getCurrentChainId()
+    // Only check if we got a valid chain ID (not null)
+    if (preTxChainId !== null) {
+      if (preTxChainId === 44787) {
+        throw new Error(
+          `❌ STOP! You are on Celo Sepolia (Chain ID: 44787). ` +
+          `This transaction would fail. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) first.`
+        )
+      }
+      if (preTxChainId !== REQUIRED_CHAIN_ID) {
+        throw new Error(
+          `Wrong network detected right before transaction. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}). ` +
+          `Current: ${preTxChainId}`
+        )
+      }
+    }
+    // If preTxChainId is null, proceed - wallet will validate on transaction
+  } else {
+    console.log('[cleanup submission] ✅ Chain validated via providedChainId, skipping pre-tx check')
   }
 
   const hash = await writeContract(config as any, {
@@ -761,23 +779,23 @@ export async function submitCleanup(
   // Wait for transaction receipt
   const receipt = await waitForTransactionReceipt(config, { hash })
   console.log('Transaction confirmed in block:', receipt.blockNumber)
-
+  
   // Get cleanup ID from counter (counter - 1, since counter increments after submission)
   let cleanupId: bigint
   try {
     // Wait a bit for the state to update
     await new Promise(resolve => setTimeout(resolve, 1000))
-
+    
     const cleanupCounter = await readContract(config, {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'cleanupCounter',
     })
-
+    
     // The cleanup ID is counter - 1 (since counter was incremented after submission)
     cleanupId = cleanupCounter - BigInt(1)
     console.log('Cleanup submitted successfully. ID:', cleanupId.toString(), 'Counter:', cleanupCounter.toString())
-
+    
     // Validate the cleanup ID
     if (cleanupId < BigInt(1)) {
       // If counter is 1, it means counter didn't increment (transaction may have failed)
@@ -786,18 +804,18 @@ export async function submitCleanup(
       }
       throw new Error(`Invalid cleanup ID: ${cleanupId.toString()}. Counter: ${cleanupCounter.toString()}`)
     }
-
+    
     return cleanupId
   } catch (error: any) {
     const errorMessage = getErrorMessage(error)
     console.error('Error getting cleanup ID:', errorMessage)
-
+    
     // If we have a simulated ID, use it as fallback
     if (simulatedCleanupId && simulatedCleanupId >= BigInt(1)) {
       console.warn('Using simulated cleanup ID as fallback:', simulatedCleanupId.toString())
       return simulatedCleanupId
     }
-
+    
     // Last resort: try to get counter one more time with longer wait
     try {
       console.log('Retrying cleanup counter check after 2 seconds...')
@@ -816,7 +834,7 @@ export async function submitCleanup(
     } catch (retryError: any) {
       console.error('Retry also failed:', getErrorMessage(retryError))
     }
-
+    
     // If all else fails, throw error but include transaction hash
     throw new Error(
       `Cleanup transaction submitted (hash: ${hash}) but could not retrieve ID. ` +
@@ -996,7 +1014,7 @@ export async function isVerifier(address: Address): Promise<boolean> {
   // Debug: Log ABI to verify it includes isVerifier
   console.log('isVerifier - Contract address:', CONTRACT_ADDRESSES.VERIFICATION)
   console.log('isVerifier - Checking address:', address)
-
+  
   // Check if ABI is properly parsed
   const abiHasFunction = Array.isArray(VERIFICATION_ABI) && VERIFICATION_ABI.some((item: any) => {
     if (typeof item === 'object' && item !== null) {
@@ -1007,7 +1025,7 @@ export async function isVerifier(address: Address): Promise<boolean> {
   console.log('isVerifier - ABI type:', typeof VERIFICATION_ABI, 'isArray:', Array.isArray(VERIFICATION_ABI))
   console.log('isVerifier - ABI includes isVerifier:', abiHasFunction)
   if (Array.isArray(VERIFICATION_ABI)) {
-    console.log('isVerifier - ABI functions:', VERIFICATION_ABI.filter((item: any) =>
+    console.log('isVerifier - ABI functions:', VERIFICATION_ABI.filter((item: any) => 
       typeof item === 'object' && item?.type === 'function'
     ).map((item: any) => item.name))
   }
@@ -1041,7 +1059,7 @@ export async function isVerifier(address: Address): Promise<boolean> {
     const errorMessage = getErrorMessage(error)
     const errorName = error?.name || error?.error?.name || 'UnknownError'
     const errorCode = error?.code || error?.error?.code
-
+    
     console.error('isVerifier - Error caught:', {
       error,
       message: errorMessage,
@@ -1051,19 +1069,19 @@ export async function isVerifier(address: Address): Promise<boolean> {
       hasError: !!error,
       hasErrorError: !!error?.error,
     })
-
+    
     // Check if this is the specific "is not a function" error from viem
-    const isViemFunctionError =
-      errorMessage?.includes('is not a function') ||
+    const isViemFunctionError = 
+      errorMessage?.includes('is not a function') || 
       errorMessage?.includes('does not have the function') ||
       (errorMessage?.includes('isVerifier') && errorMessage?.includes('false'))
-
+    
     // Check if the function doesn't exist (old contract) or viem parsing issue
-    if (isViemFunctionError ||
-      errorName === 'ContractFunctionExecutionError' ||
-      errorMessage?.includes('revert') ||
-      errorMessage?.includes('InternalError')) {
-
+    if (isViemFunctionError || 
+        errorName === 'ContractFunctionExecutionError' ||
+        errorMessage?.includes('revert') ||
+        errorMessage?.includes('InternalError')) {
+      
       // If it's a viem parsing error, try using encodeFunctionData as workaround
       if (isViemFunctionError) {
         console.warn('isVerifier - Viem ABI parsing issue detected. Trying alternative approach...')
@@ -1074,7 +1092,7 @@ export async function isVerifier(address: Address): Promise<boolean> {
             functionName: 'isVerifier',
             args: [address],
           })
-
+          
           // This is a workaround - we'd need to use a different method to call
           // For now, let's try the fallback to old verifier() function
           console.log('isVerifier - Function data encoded successfully, but need alternative call method')
@@ -1082,9 +1100,9 @@ export async function isVerifier(address: Address): Promise<boolean> {
           console.error('isVerifier - Failed to encode function data:', encodeError?.message || encodeError)
         }
       }
-
+      
       console.error('isVerifier function not found on contract or ABI parsing issue. The contract may be outdated or there is a viem parsing issue.', errorMessage)
-
+      
       // Try the old deprecated verifier() function as fallback
       try {
         console.log('isVerifier - Trying fallback to verifier() function...')
@@ -1104,7 +1122,7 @@ export async function isVerifier(address: Address): Promise<boolean> {
         const fallbackMessage = fallbackError?.message || fallbackError?.error?.message || String(fallbackError || 'Unknown error')
         console.error('Fallback verifier() check also failed:', fallbackMessage)
       }
-
+      
       // Since the test script confirmed the function exists, this is likely a frontend issue
       // Return false but log that it's likely a parsing issue
       console.warn('isVerifier - Contract has function (confirmed by test), but frontend cannot call it. This may be a viem/wagmi parsing issue. Try clearing browser cache and restarting dev server.')
@@ -1216,7 +1234,7 @@ export async function verifyCleanup(
         `Current network: ${currentChainId || 'unknown'}\n${getNetworkSetupMessage()}`
       )
     }
-
+    
     // Provide more specific error messages
     if (errorMessage.includes('Not authorized') || errorMessage.includes('not authorized')) {
       throw new Error(
@@ -1230,7 +1248,7 @@ export async function verifyCleanup(
     if (errorMessage.includes('already verified')) {
       throw new Error(`Cleanup ${cleanupId.toString()} is already verified`)
     }
-
+    
     // Re-throw with original message
     throw new Error(`Failed to verify cleanup: ${errorMessage}`)
   }
@@ -1309,7 +1327,7 @@ export async function rejectCleanup(
         `Current network: ${currentChainId || 'unknown'}\n${getNetworkSetupMessage()}`
       )
     }
-
+    
     // Provide more specific error messages
     if (errorMessage.includes('Not authorized') || errorMessage.includes('not authorized')) {
       throw new Error(
@@ -1326,7 +1344,7 @@ export async function rejectCleanup(
     if (errorMessage.includes('already rejected')) {
       throw new Error(`Cleanup ${cleanupId.toString()} is already rejected`)
     }
-
+    
     // Re-throw with original message
     throw new Error(`Failed to reject cleanup: ${errorMessage}`)
   }
