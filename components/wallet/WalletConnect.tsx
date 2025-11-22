@@ -38,21 +38,31 @@ export function WalletConnect() {
 
   // Detect if we're in an in-app browser (no window.ethereum)
   const isInAppBrowser = typeof window !== 'undefined' && !(window as any)?.ethereum
+  
+  // Detect if we're on mobile
+  const isMobile = typeof window !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 
   // Prioritize WalletConnect for in-app browsers (mobile webviews, etc.)
+  // On mobile, hide injected/browser wallet. On desktop, show it.
   const externalConnectors = connectors
     .filter(
       c => {
         const name = c.name.toLowerCase()
         const id = c.id?.toLowerCase() || ''
-        return !name.includes('farcaster') &&
-          !name.includes('frame') &&
-          !name.includes('miniapp') &&
-          !id.includes('farcaster') &&
-          !id.includes('frame') &&
-          !id.includes('miniapp') &&
-          !name.includes('metamask') &&
-          !id.includes('metamask')
+        const isInjected = name === 'injected' || id === 'injected' || name.includes('browser') || id.includes('browser')
+        
+        // Filter out Farcaster connectors
+        if (name.includes('farcaster') || name.includes('frame') || name.includes('miniapp') ||
+            id.includes('farcaster') || id.includes('frame') || id.includes('miniapp')) {
+          return false
+        }
+        
+        // On mobile, hide injected/browser wallet. On desktop, show it.
+        if (isMobile && isInjected) {
+          return false
+        }
+        
+        return true
       }
     )
     .sort((a, b) => {
@@ -81,6 +91,11 @@ export function WalletConnect() {
       
       await connectAsync({ connector })
       setShowOtherWallets(false)
+      
+      // Mark as connected in this session
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('wallet_connected_this_session', 'true')
+      }
     } catch (error: any) {
       console.error('Wallet connect failed:', error)
       
@@ -130,8 +145,38 @@ export function WalletConnect() {
   // Fix hydration error by only showing wallet state after mount
   useEffect(() => {
     setMounted(true)
-    setIsInFarcaster(isFarcasterContext())
+    const inFarcaster = isFarcasterContext()
+    setIsInFarcaster(inFarcaster)
   }, [])
+  
+  // Disable auto-connect: disconnect on mount if Farcaster wallet auto-connected
+  // This ensures users always get to choose their wallet
+  useEffect(() => {
+    if (!mounted) return
+    
+    if (typeof window !== 'undefined' && isConnected) {
+      const sessionKey = 'wallet_connected_this_session'
+      const wasConnectedThisSession = sessionStorage.getItem(sessionKey)
+      
+      // If connected but not in this session, check if it's Farcaster auto-connect
+      if (!wasConnectedThisSession) {
+        const inFarcaster = isFarcasterContext()
+        const isFarcasterAutoConnect = inFarcaster && 
+          connector?.name?.toLowerCase().includes('farcaster')
+        
+        if (isFarcasterAutoConnect) {
+          console.log('Disconnecting auto-connected Farcaster wallet to allow wallet selection')
+          disconnect()
+        } else {
+          // Mark as connected in this session for non-Farcaster wallets
+          sessionStorage.setItem(sessionKey, 'true')
+        }
+      } else {
+        // Already connected in this session, keep it
+        sessionStorage.setItem(sessionKey, 'true')
+      }
+    }
+  }, [mounted, isConnected, connector, disconnect])
 
   // Auto-switch to required chain after connection
   useEffect(() => {

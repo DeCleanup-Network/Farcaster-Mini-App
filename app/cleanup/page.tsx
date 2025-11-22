@@ -84,16 +84,30 @@ function CleanupContent() {
     }
   }, [])
   
-  // Read referrer from URL params
+  // Read referrer from URL params and persist it
   useEffect(() => {
     if (mounted && searchParams) {
       const ref = searchParams.get('ref')
       if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
-        setReferrerAddress(ref as Address)
-        console.log('Referrer address from URL:', ref)
+        const referrerAddr = ref as Address
+        setReferrerAddress(referrerAddr)
+        // Persist referrer in localStorage so it's available when user submits
+        if (typeof window !== 'undefined' && address) {
+          const referrerKey = `referrer_${address.toLowerCase()}`
+          localStorage.setItem(referrerKey, referrerAddr)
+          console.log('Referrer address from URL saved:', referrerAddr)
+        }
+      } else if (typeof window !== 'undefined' && address) {
+        // If no ref in URL, check localStorage for saved referrer
+        const referrerKey = `referrer_${address.toLowerCase()}`
+        const savedReferrer = localStorage.getItem(referrerKey)
+        if (savedReferrer && /^0x[a-fA-F0-9]{40}$/.test(savedReferrer)) {
+          setReferrerAddress(savedReferrer as Address)
+          console.log('Referrer address from localStorage:', savedReferrer)
+        }
       }
     }
-  }, [mounted, searchParams])
+  }, [mounted, searchParams, address])
 
   // Impact Report form data
   const [enhancedData, setEnhancedData] = useState({
@@ -546,6 +560,7 @@ function CleanupContent() {
         )
 
         console.log('Cleanup submitted with ID:', cleanupId.toString())
+        console.log('Referrer address used in submission:', referrerAddress || 'none')
         setCleanupId(cleanupId)
         setStep('review')
         
@@ -555,6 +570,11 @@ function CleanupContent() {
           const locationKey = `pending_cleanup_location_${address.toLowerCase()}`
           localStorage.setItem(pendingKey, cleanupId.toString())
           localStorage.setItem(locationKey, JSON.stringify(location))
+          
+          // Clear referrer from localStorage after successful submission
+          // The referrer is now stored on-chain, so we don't need to keep it locally
+          const referrerKey = `referrer_${address.toLowerCase()}`
+          localStorage.removeItem(referrerKey)
           
           // Also clear old global keys if they exist
           localStorage.removeItem('pending_cleanup_id')

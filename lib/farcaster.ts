@@ -13,7 +13,7 @@ export const formatImpactShareMessage = (level: number | null | undefined, link?
   const normalizedLink = (link && link.trim().length > 0 ? link : MINIAPP_URL).trim()
   const levelLabel =
     typeof level === 'number' && level > 0 ? `Level ${level} Impact Product` : 'an Impact Product NFT'
-  return `🌱 I've just minted ${levelLabel} for my recent cleanup—join DeCleanup Rewards to make a difference and tokenize your impact: ${normalizedLink}`
+  return `🌱 I've just minted ${levelLabel} for my recent cleanup join DeCleanup Rewards to make a difference and tokenize your impact: ${normalizedLink}`
 }
 
 // EIP-1193 Provider type (for wallet integration)

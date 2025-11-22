@@ -9,7 +9,7 @@ import { SuccessModal } from '@/components/ui/success-modal'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
 import type { Connector } from 'wagmi'
-import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, ShieldCheck } from 'lucide-react'
+import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, ShieldCheck, X } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
 import { claimImpactProductFromVerification, isVerifier as checkIsVerifier } from '@/lib/contracts'
 import { isFarcasterContext, formatReferralMessage } from '@/lib/farcaster'
@@ -36,7 +36,9 @@ export default function Home() {
     verified?: boolean
     claimed?: boolean
     level?: number
+    rejected?: boolean
   } | null>(null)
+  const [showRejectionAlert, setShowRejectionAlert] = useState(false)
   const [isClaiming, setIsClaiming] = useState(false)
   const [isInFarcaster, setIsInFarcaster] = useState(false)
   const [hasSwitchedNetwork, setHasSwitchedNetwork] = useState(false)
@@ -133,6 +135,11 @@ export default function Home() {
         const status = await getUserCleanupStatus(address)
         if (isMounted) {
           setCleanupStatus(status)
+          
+          // Show rejection alert if cleanup was rejected
+          if (status.rejected) {
+            setShowRejectionAlert(true)
+          }
 
           // Only poll if there's something pending (pending cleanup or ready to claim)
           // Stop polling if already claimed or no cleanup exists
@@ -190,6 +197,34 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {/* Rejection Alert */}
+      {showRejectionAlert && (
+        <div className="container mx-auto px-4 pt-4 sm:px-6">
+          <div className="mx-auto max-w-2xl rounded-lg border-2 border-red-500 bg-red-500/10 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <X className="h-5 w-5 text-red-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="mb-1 text-sm font-bold uppercase text-red-500">
+                  Cleanup Rejected
+                </h3>
+                <p className="text-sm text-gray-300">
+                  Your latest cleanup submission was rejected. Please review the requirements and submit a new cleanup.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowRejectionAlert(false)}
+                className="flex-shrink-0 text-gray-400 hover:text-white"
+                aria-label="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 sm:px-6 sm:py-8">

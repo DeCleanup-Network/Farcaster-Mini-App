@@ -166,19 +166,38 @@ export async function getUserCleanupStatus(
   verified?: boolean
   claimed?: boolean
   level?: number
+  rejected?: boolean
 }> {
   try {
     const latest = await getLatestCleanupStatus(userAddress)
     
     if (!latest) {
-      // Clear any stale localStorage data when no cleanup is found
+      // Check if there's a rejected cleanup that was recently cleared
+      // We'll check on-chain for the most recent cleanup to see if it was rejected
       if (typeof window !== 'undefined' && userAddress) {
         const pendingKey = `pending_cleanup_id_${userAddress.toLowerCase()}`
         const oldPendingId = localStorage.getItem(pendingKey)
         if (oldPendingId) {
-          console.log('Clearing stale localStorage cleanup data')
-          localStorage.removeItem(pendingKey)
-          localStorage.removeItem(`pending_cleanup_location_${userAddress.toLowerCase()}`)
+          try {
+            const { getCleanupStatus } = await import('./contracts')
+            const status = await getCleanupStatus(BigInt(oldPendingId))
+            if (status.rejected && status.user.toLowerCase() === userAddress.toLowerCase()) {
+              // Cleanup was rejected - clear localStorage and return rejection status
+              localStorage.removeItem(pendingKey)
+              localStorage.removeItem(`pending_cleanup_location_${userAddress.toLowerCase()}`)
+              return {
+                hasPendingCleanup: false,
+                canClaim: false,
+                rejected: true,
+                reason: 'Your latest cleanup submission was rejected. Please submit a new cleanup.',
+              }
+            }
+          } catch (error) {
+            // Cleanup doesn't exist or error - clear localStorage
+            console.log('Clearing stale localStorage cleanup data')
+            localStorage.removeItem(pendingKey)
+            localStorage.removeItem(`pending_cleanup_location_${userAddress.toLowerCase()}`)
+          }
         }
         // Also clear old global keys
         localStorage.removeItem('pending_cleanup_id')
@@ -195,6 +214,26 @@ export async function getUserCleanupStatus(
     const hasPending = !latest.verified
     const canClaim = latest.verified && !latest.claimed
     
+    // Check if this cleanup was rejected
+    const { getCleanupStatus } = await import('./contracts')
+    const status = await getCleanupStatus(latest.cleanupId)
+    const isRejected = status.rejected
+    
+    if (isRejected) {
+      // Clear localStorage for rejected cleanup
+      if (typeof window !== 'undefined' && userAddress) {
+        const pendingKey = `pending_cleanup_id_${userAddress.toLowerCase()}`
+        localStorage.removeItem(pendingKey)
+        localStorage.removeItem(`pending_cleanup_location_${userAddress.toLowerCase()}`)
+      }
+      return {
+        hasPendingCleanup: false,
+        canClaim: false,
+        rejected: true,
+        reason: 'Your latest cleanup submission was rejected. Please submit a new cleanup.',
+      }
+    }
+    
     return {
       hasPendingCleanup: hasPending,
       canClaim,
@@ -202,6 +241,7 @@ export async function getUserCleanupStatus(
       verified: latest.verified,
       claimed: latest.claimed,
       level: latest.level,
+      rejected: false,
       reason: hasPending
         ? 'Your cleanup is still under review. Please wait for verification.'
         : latest.claimed

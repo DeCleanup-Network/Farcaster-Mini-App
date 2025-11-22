@@ -639,6 +639,12 @@ export async function submitCleanup(
   value?: bigint, // Optional fee value
   providedChainId?: number | null // Optional chainId from useChainId hook to avoid detection issues
 ): Promise<bigint> {
+  // Log referrer for debugging
+  if (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') {
+    console.log('[submitCleanup] Referrer address provided:', referrerAddress)
+  } else {
+    console.log('[submitCleanup] No referrer address provided')
+  }
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error(
       'Verification contract address not set. Please set NEXT_PUBLIC_VERIFICATION_CONTRACT in your .env.local file.'

@@ -39,6 +39,9 @@ const EMBED_METADATA = {
   },
 };
 
+const OG_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png"
+const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://farcaster-mini-app-umber.vercel.app"
+
 export const metadata: Metadata = {
   title: "DeCleanup Rewards - Tokenize Your Environmental Impact",
   description: "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
@@ -49,6 +52,28 @@ export const metadata: Metadata = {
   },
   formatDetection: {
     telephone: false,
+  },
+  openGraph: {
+    title: "DeCleanup Rewards - Tokenize Your Environmental Impact",
+    description: "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
+    url: SITE_URL,
+    siteName: "DeCleanup Rewards",
+    images: [
+      {
+        url: OG_IMAGE_URL,
+        width: 1200,
+        height: 630,
+        alt: "DeCleanup Rewards - Tokenize Your Environmental Impact",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DeCleanup Rewards - Tokenize Your Environmental Impact",
+    description: "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
+    images: [OG_IMAGE_URL],
   },
   other: {
     "fc:miniapp": JSON.stringify(EMBED_METADATA),

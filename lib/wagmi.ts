@@ -1,6 +1,6 @@
 import { base, baseSepolia } from 'wagmi/chains'
 import { createConfig, http } from 'wagmi'
-import { walletConnect, coinbaseWallet } from 'wagmi/connectors'
+import { walletConnect, coinbaseWallet, injected } from 'wagmi/connectors'
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector'
 import { defineChain, type Chain } from 'viem'
 
@@ -79,6 +79,11 @@ const connectors = typeof window !== 'undefined'
   farcasterMiniApp(),
       coinbaseWallet({
         appName: APP_NAME,
+      }),
+      // Add injected connector (Browser wallet/MetaMask) for desktop users
+      // This will be filtered out on mobile in WalletConnect component
+      injected({
+        shimDisconnect: true, // Keep connection state after disconnect
       }),
 ]
   : []
