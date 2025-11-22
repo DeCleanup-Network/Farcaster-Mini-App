@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/lib/providers";
 import { FarcasterProvider } from "@/components/farcaster/FarcasterProvider";
 import { NetworkChecker } from "@/components/network/NetworkChecker";
+import { BottomNav } from "@/components/navigation/BottomNav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -97,14 +98,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${bebasNeue.variable} antialiased`}
       >
         <Providers>
           <FarcasterProvider>
             <NetworkChecker />
-            {children}
+            <div className="pb-16">
+              {children}
+            </div>
+            <BottomNav />
           </FarcasterProvider>
         </Providers>
       </body>

@@ -820,7 +820,7 @@ export default function VerifierPage() {
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-black px-4 py-8">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20">
         <div className="mx-auto max-w-4xl">
           <BackButton href="/" />
           <div className="mt-8 flex items-center justify-center p-8">
@@ -833,7 +833,7 @@ export default function VerifierPage() {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-black px-4 py-8">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20">
         <div className="mx-auto max-w-4xl">
           <BackButton href="/" />
           <div className="mt-8 rounded-lg border border-gray-800 bg-gray-900 p-6 text-center">
@@ -853,7 +853,7 @@ export default function VerifierPage() {
   // Show signature request screen
   if (needsSignature && !isVerifier) {
     return (
-      <div className="min-h-screen bg-black px-4 py-8">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20">
         <div className="mx-auto max-w-4xl">
           <BackButton href="/" />
           <div className="mt-8 rounded-lg border border-gray-800 bg-gray-900 p-6 text-center">
@@ -910,7 +910,7 @@ export default function VerifierPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black px-4 py-8">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20">
         <div className="mx-auto max-w-4xl">
           <BackButton href="/" />
           <div className="mt-8 flex items-center justify-center p-8">
@@ -924,7 +924,7 @@ export default function VerifierPage() {
   if (!isVerifier) {
     const contractAddress = CONTRACT_ADDRESSES.VERIFICATION
     return (
-      <div className="min-h-screen bg-black px-4 py-8">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20">
         <div className="mx-auto max-w-4xl">
           <BackButton href="/" />
           <div className="mt-8 rounded-lg border border-red-500/50 bg-red-500/10 p-6 text-center">
@@ -969,7 +969,7 @@ export default function VerifierPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
+      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20">
       <div className="mx-auto max-w-6xl">
         <BackButton href="/" />
         

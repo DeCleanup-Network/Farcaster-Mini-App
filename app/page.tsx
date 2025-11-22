@@ -2,16 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
 import { SuccessModal } from '@/components/ui/success-modal'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
 import type { Connector } from 'wagmi'
-import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, ShieldCheck, X } from 'lucide-react'
+import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, X } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
-import { claimImpactProductFromVerification, isVerifier as checkIsVerifier } from '@/lib/contracts'
+import { claimImpactProductFromVerification } from '@/lib/contracts'
 import { isFarcasterContext, formatReferralMessage } from '@/lib/farcaster'
 import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
 
@@ -21,7 +20,6 @@ const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
 const getExplorerTxUrl = (hash: `0x${string}`) => `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${hash}`
 
 export default function Home() {
-  const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const { context, isLoading } = useFarcaster()
   const { address, isConnected } = useAccount()
@@ -48,9 +46,6 @@ export default function Home() {
     message: string
     transactionHash?: string
   } | null>(null)
-  const [isVerifierWallet, setIsVerifierWallet] = useState(false)
-  const [isCheckingVerifier, setIsCheckingVerifier] = useState(false)
-
   const farcasterConnector = connectors.find((c) => {
     const name = c.name.toLowerCase()
     const id = c.id?.toLowerCase() || ''
@@ -87,42 +82,6 @@ export default function Home() {
     setMounted(true)
     setIsInFarcaster(isFarcasterContext())
   }, [])
-
-  useEffect(() => {
-    if (!mounted) return
-
-    if (!address || !isConnected) {
-      setIsVerifierWallet(false)
-      setIsCheckingVerifier(false)
-      return
-    }
-
-    let cancelled = false
-    async function checkVerifierStatus() {
-      setIsCheckingVerifier(true)
-      try {
-        const allowed = await checkIsVerifier(address as `0x${string}`)
-        if (!cancelled) {
-          setIsVerifierWallet(Boolean(allowed))
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.warn('Failed to fetch verifier status:', error)
-          setIsVerifierWallet(false)
-        }
-      } finally {
-        if (!cancelled) {
-          setIsCheckingVerifier(false)
-        }
-      }
-    }
-
-    checkVerifierStatus()
-
-    return () => {
-      cancelled = true
-    }
-  }, [mounted, address, isConnected])
 
   // Note: Chain switching is handled by ensureWalletOnRequiredChain() in contract functions
   // No need for auto-switch here - it will be handled when user tries to interact (claim, etc.)
@@ -183,19 +142,19 @@ export default function Home() {
   }, [mounted, isConnected, address])
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-gray-800 bg-black/95 backdrop-blur-sm">
+      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="container mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:flex-nowrap sm:px-6 sm:py-0">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-green">
               <Leaf className="h-5 w-5 text-black" />
             </div>
             <div className="flex flex-col">
-              <h1 className="text-base font-bold uppercase tracking-tight text-white sm:text-lg">
+              <h1 className="text-base font-bold uppercase tracking-tight text-foreground sm:text-lg">
                 DECLEANUP REWARDS
               </h1>
-              <p className="hidden text-[10px] font-medium text-gray-400 sm:block sm:text-xs">
+              <p className="hidden text-[10px] font-medium text-muted-foreground sm:block sm:text-xs">
                 TOKENIZE CLEANUPS ON BASE
               </p>
             </div>
@@ -224,7 +183,7 @@ export default function Home() {
               </div>
               <button
                 onClick={() => setShowRejectionAlert(false)}
-                className="flex-shrink-0 text-gray-400 hover:text-white"
+                className="flex-shrink-0 text-muted-foreground hover:text-foreground"
                 aria-label="Dismiss"
               >
                 <X className="h-4 w-4" />
@@ -235,14 +194,14 @@ export default function Home() {
       )}
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6 sm:px-6 sm:py-8">
+      <main className="container mx-auto px-4 py-6 pb-20 sm:px-6 sm:py-8">
         {/* Hero Section */}
-        <section className="mb-8 text-center sm:mb-12">
-          <div className="mx-auto mb-6 max-w-3xl">
-            <h2 className="mb-3 text-3xl font-bold uppercase leading-tight tracking-wide text-white sm:text-4xl md:text-5xl">
+        <section className="mb-6 text-center sm:mb-8">
+          <div className="mx-auto mb-4 max-w-3xl">
+            <h2 className="mb-2 text-3xl font-bold uppercase leading-tight tracking-wide text-foreground sm:text-4xl md:text-5xl">
               DECLEANUP REWARDS
             </h2>
-            <p className="mx-auto mb-6 text-sm leading-relaxed text-gray-400 sm:text-base md:text-lg">
+            <p className="mx-auto mb-4 text-sm leading-relaxed text-muted-foreground sm:text-base md:text-lg">
               DeCleanup Rewards turns real-world cleanups into tokenized proof. Submit evidence, level up Impact Product NFTs, and stack $DCU rewards ahead of token launch.
             </p>
           </div>
@@ -257,7 +216,7 @@ export default function Home() {
               >
                 LOG IN
               </Button>
-              <p className="mt-4 text-xs text-gray-500">
+              <p className="mt-4 text-xs text-muted-foreground">
                 Connect your wallet to get started
               </p>
             </div>
@@ -269,7 +228,7 @@ export default function Home() {
                   ? 'border-brand-yellow bg-brand-yellow/10'
                   : cleanupStatus.hasPendingCleanup
                     ? 'border-brand-green bg-brand-green/10'
-                    : 'border-gray-800 bg-gray-900'
+                    : 'border-border bg-card'
                   }`}>
                   <div className="flex items-start gap-3">
                     {cleanupStatus.canClaim ? (
@@ -298,7 +257,7 @@ export default function Home() {
                       </>
                     ) : cleanupStatus.reason ? (
                       <>
-                        <AlertCircle className="h-5 w-5 flex-shrink-0 text-gray-400" />
+                        <AlertCircle className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
                         <div className="flex-1">
                           <p className="text-sm font-medium text-gray-300">
                             {cleanupStatus.reason}
@@ -316,7 +275,7 @@ export default function Home() {
                     size="lg"
                     disabled={cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim || false}
                     className={`w-full gap-2 sm:w-auto ${cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim
-                      ? 'border-gray-700 bg-gray-900 text-gray-500 cursor-not-allowed'
+                      ? 'border-muted bg-muted text-muted-foreground cursor-not-allowed'
                       : 'bg-brand-yellow text-black hover:bg-[#e6e600]'
                       }`}
                     title={
@@ -421,7 +380,7 @@ export default function Home() {
                   }}
                   className={`w-full gap-2 border-2 font-semibold uppercase sm:w-auto ${cleanupStatus?.canClaim
                     ? 'bg-brand-yellow text-black hover:bg-[#e6e600] border-brand-yellow'
-                    : 'border-gray-700 bg-gray-900 text-gray-500 cursor-not-allowed'
+                    : 'border-muted bg-muted text-muted-foreground cursor-not-allowed'
                     }`}
                   title={cleanupStatus?.reason}
                 >
@@ -442,7 +401,7 @@ export default function Home() {
           ) : (
             <div className="mx-auto max-w-md space-y-4">
               <div>
-                <p className="mb-3 text-xs text-gray-400">
+                <p className="mb-3 text-xs text-muted-foreground">
                   {isInFarcaster
                     ? 'Your Farcaster wallet should connect automatically. Tap below if it does not.'
                     : 'Connect your wallet to get started.'}
@@ -464,81 +423,26 @@ export default function Home() {
           )}
         </section>
 
-        {/* Features Grid */}
-        <section className="mb-8 grid gap-4 sm:mb-12 sm:grid-cols-2 sm:gap-6">
-          <Link href="/profile" className="rounded-lg border border-gray-800 bg-gray-900 p-4 transition-colors hover:border-brand-yellow sm:p-6">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-brand-yellow/20">
-              <Award className="h-6 w-6 text-brand-yellow" />
-            </div>
-            <h3 className="mb-2 text-lg font-bold uppercase tracking-wide text-white sm:text-xl">
-              My Profile
-            </h3>
-            <p className="text-sm leading-relaxed text-gray-400 sm:text-base">
-              View your Impact Products, track your progress, and see your environmental contributions.
-            </p>
-          </Link>
-
-          <div className={`rounded-lg border p-4 sm:p-6 ${isVerifierWallet ? 'border-brand-green/70 bg-brand-green/10' : 'border-dashed border-gray-800 bg-gray-900'} transition-colors`}>
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-brand-green/20">
-              <ShieldCheck className={`h-6 w-6 ${isVerifierWallet ? 'text-brand-green' : 'text-gray-500'}`} />
-            </div>
-            <h3 className="mb-2 text-lg font-bold uppercase tracking-wide text-white sm:text-xl">
-              Verify Cleanups
-            </h3>
-            <p className="text-sm leading-relaxed text-gray-400 sm:text-base">
-              Reserved for registered verifiers while $DCU staking is finalized. Once staked, you&apos;ll unlock review rights and reward multipliers.
-            </p>
-            <Button
-              size="lg"
-              disabled={!isVerifierWallet || isCheckingVerifier}
-              onClick={() => {
-                if (isVerifierWallet) {
-                  router.push('/verifier')
-                }
-              }}
-              className={`mt-4 w-full gap-2 ${isVerifierWallet
-                ? 'bg-brand-green text-black hover:bg-[#4a9a26]'
-                : 'cursor-not-allowed border border-gray-700 bg-gray-900 text-gray-500'} ${isCheckingVerifier ? 'cursor-wait' : ''}`}
-            >
-              {isCheckingVerifier ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Checking Access...
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="h-5 w-5" />
-                  {isVerifierWallet ? 'Open Verifier' : 'Reserved Access'}
-                </>
-              )}
-            </Button>
-            {!isVerifierWallet && (
-              <p className="mt-3 text-xs text-gray-500">
-                Only approved verifiers can enter right now. This button will light up for you once your wallet is on the allowlist.
-              </p>
-            )}
-          </div>
-        </section>
 
         {/* Invite Friends Section */}
         {mounted && isConnected && address && (
-          <section className="mb-8 rounded-lg border border-gray-800 bg-gradient-to-br from-gray-900 to-gray-800 p-6 sm:mb-12 sm:p-8">
+          <section className="mb-8 rounded-lg border border-border bg-gradient-to-br from-card to-muted p-6 sm:mb-12 sm:p-8">
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-brand-green/20">
                 <Users className="h-6 w-6 text-brand-green" />
               </div>
               <div>
-                <h3 className="text-lg font-bold uppercase tracking-wide text-white sm:text-xl">
+                <h3 className="text-lg font-bold uppercase tracking-wide text-foreground sm:text-xl">
                   Invite Friends
                 </h3>
-                <p className="text-xs text-gray-400 sm:text-sm">
+                <p className="text-xs text-muted-foreground sm:text-sm">
                   Earn 3 $DCU when friends submit and verify their first cleanup
                 </p>
               </div>
             </div>
 
             <div className="space-y-3">
-              <p className="text-sm text-gray-300">
+              <p className="text-sm text-foreground/90">
                 Share your referral link and earn rewards when your friends join DeCleanup Rewards!
               </p>
 
@@ -563,7 +467,7 @@ export default function Home() {
                     window.open(xUrl, '_blank')
                   }}
                   variant="outline"
-                  className="flex-1 gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800"
+                  className="flex-1 gap-2 border-border bg-card text-foreground hover:bg-accent"
                 >
                   <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -584,7 +488,7 @@ export default function Home() {
                     }
                   }}
                   variant="outline"
-                  className="flex-1 gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800"
+                  className="flex-1 gap-2 border-border bg-card text-foreground hover:bg-accent"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -595,7 +499,7 @@ export default function Home() {
 
               <div className="mt-4 rounded-lg bg-gray-800/50 p-3">
                 <p className="text-xs text-gray-400">
-                  <strong className="text-brand-green">How it works:</strong> When someone uses your referral link to submit their first cleanup and it gets verified, you both earn <strong className="text-white">3 $DCU</strong>!
+                  <strong className="text-brand-green">How it works:</strong> When someone uses your referral link to submit their first cleanup and it gets verified, you both earn <strong className="text-foreground">3 $DCU</strong>!
                 </p>
               </div>
             </div>
@@ -603,8 +507,8 @@ export default function Home() {
         )}
 
         {/* Quick Actions */}
-        <section className="mb-8 rounded-lg border border-gray-800 bg-gray-900 p-4 sm:mb-12 sm:p-6">
-          <h3 className="mb-4 text-lg font-bold uppercase tracking-wide text-white sm:text-xl">
+        <section className="mb-8 rounded-lg border border-border bg-card p-4 sm:mb-12 sm:p-6">
+          <h3 className="mb-4 text-lg font-bold uppercase tracking-wide text-foreground sm:text-xl">
             Quick Actions
           </h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -615,7 +519,7 @@ export default function Home() {
             >
               <Button
                 variant="outline"
-                className="w-full justify-start gap-2 border-2 border-gray-700 bg-black font-semibold uppercase text-white hover:bg-gray-900"
+                className="w-full justify-start gap-2 border-2 border-border bg-background font-semibold uppercase text-foreground hover:bg-accent"
               >
                 <Users className="h-4 w-4" />
                 Join the Community
@@ -628,7 +532,7 @@ export default function Home() {
             >
               <Button
                 variant="outline"
-                className="w-full justify-start gap-2 border-2 border-gray-700 bg-black font-semibold uppercase text-white hover:bg-gray-900"
+                className="w-full justify-start gap-2 border-2 border-border bg-background font-semibold uppercase text-foreground hover:bg-accent"
               >
                 <Award className="h-4 w-4" />
                 Read Publications
@@ -641,7 +545,7 @@ export default function Home() {
             >
               <Button
                 variant="outline"
-                className="w-full justify-start gap-2 border-2 border-gray-700 bg-black font-semibold uppercase text-white hover:bg-gray-900"
+                className="w-full justify-start gap-2 border-2 border-border bg-background font-semibold uppercase text-foreground hover:bg-accent"
               >
                 <Heart className="h-4 w-4" />
                 Donate on Giveth
@@ -651,8 +555,8 @@ export default function Home() {
         </section>
 
         {/* Footer Links */}
-        <footer className="mt-8 border-t border-gray-800 pt-6 sm:mt-12">
-          <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-gray-400 sm:gap-6 sm:text-sm">
+        <footer className="mt-8 border-t border-border pt-6 sm:mt-12">
+          <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground sm:gap-6 sm:text-sm">
             <a href="https://github.com/DeCleanup-Network" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
               GITHUB
             </a>
@@ -664,7 +568,7 @@ export default function Home() {
             </a>
             <div className="flex items-center gap-2">
               <span>Powered by</span>
-              <div className="flex h-6 items-center justify-center rounded bg-gray-800 px-2 font-bold text-white">
+              <div className="flex h-6 items-center justify-center rounded bg-muted px-2 font-bold text-foreground">
                 BASE
               </div>
             </div>
@@ -696,7 +600,7 @@ export default function Home() {
         {/* Farcaster User Info */}
         {context?.user && (
           <section className="mx-auto mt-8 max-w-md rounded-lg border border-gray-800 bg-gray-900 p-4 sm:p-6">
-            <h3 className="mb-2 text-base font-bold uppercase tracking-wide text-white sm:text-lg">
+            <h3 className="mb-2 text-base font-bold uppercase tracking-wide text-foreground sm:text-lg">
               Welcome, {context.user.displayName || context.user.username}!
             </h3>
             <p className="text-xs text-gray-400 sm:text-sm">

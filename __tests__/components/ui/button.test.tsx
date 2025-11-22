@@ -32,7 +32,7 @@ describe('Button Component', () => {
   it('should apply size classes', () => {
     const { container } = render(<Button size="lg">Large button</Button>)
     const button = container.querySelector('button')
-    expect(button).toHaveClass('h-10')
+    expect(button).toHaveClass('min-h-[48px]')
   })
 
   it('should render as child when asChild is true', () => {

@@ -417,14 +417,14 @@ export default function ProfilePage() {
   }, [address, isConnected])
 
   if (!hasMounted) {
-    return <div className="min-h-screen bg-black" />
+    return <div className="min-h-screen bg-background" />
   }
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-black px-4 py-8">
-        <div className="mx-auto max-w-md rounded-lg border border-gray-800 bg-gray-900 p-6 text-center">
-          <h2 className="mb-4 text-2xl font-bold uppercase tracking-wide text-white">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20">
+        <div className="mx-auto max-w-md rounded-lg border border-border bg-card p-6 text-center">
+          <h2 className="mb-4 text-2xl font-bold uppercase tracking-wide text-foreground">
             Connect Your Wallet
           </h2>
           <p className="mb-6 text-gray-400">

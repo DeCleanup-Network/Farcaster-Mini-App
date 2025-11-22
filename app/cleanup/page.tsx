@@ -781,10 +781,43 @@ function CleanupContent() {
   const isWrongNetwork = chainId !== REQUIRED_CHAIN_ID
   const isSubmissionDisabled = (pendingCleanup && !pendingCleanup.verified) || isWrongNetwork || isSwitchingChain
 
+  // Referral Notification Component (defined early so it's always in scope)
+  const ReferralNotification = () => {
+    if (!showReferralNotification || !referrerAddress) return null
+    
+    return (
+      <div className="mb-6 rounded-lg border-2 border-brand-green bg-brand-green/10 p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0">
+            <Users className="h-5 w-5 text-brand-green" />
+          </div>
+          <div className="flex-1">
+            <h3 className="mb-1 text-sm font-bold uppercase text-brand-green">
+              🎉 You Were Invited!
+            </h3>
+            <p className="text-sm text-gray-300">
+              You've been referred to DeCleanup Rewards! When you submit your first cleanup and it gets verified, both you and your referrer will earn <strong className="text-white">3 $DCU</strong> each.
+            </p>
+            <p className="mt-2 text-xs text-gray-400">
+              Submit a cleanup below to get started and claim your referral reward!
+            </p>
+          </div>
+          <button
+            onClick={() => setShowReferralNotification(false)}
+            className="flex-shrink-0 text-gray-400 hover:text-white"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-black px-4 py-8">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20">
         <div className="mx-auto max-w-md">
           <BackButton href="/" label="Go Back" />
           <div className="mt-8 flex items-center justify-center p-8">
@@ -797,7 +830,7 @@ function CleanupContent() {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-black px-4 py-8">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20">
         <div className="mx-auto max-w-md rounded-lg border border-gray-800 bg-gray-900 p-6 text-center">
           <h2 className="mb-4 text-2xl font-bold uppercase text-white">
             Connect Your Wallet
@@ -848,39 +881,6 @@ function CleanupContent() {
                 {isSwitchingChain ? 'Switching...' : `Switch to ${REQUIRED_CHAIN_NAME}`}
               </Button>
             </div>
-          </div>
-        </div>
-      )
-    }
-    
-    // Referral Notification Component
-    const ReferralNotification = () => {
-      if (!showReferralNotification || !referrerAddress) return null
-      
-      return (
-        <div className="mb-6 rounded-lg border-2 border-brand-green bg-brand-green/10 p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0">
-              <Users className="h-5 w-5 text-brand-green" />
-            </div>
-            <div className="flex-1">
-              <h3 className="mb-1 text-sm font-bold uppercase text-brand-green">
-                🎉 You Were Invited!
-              </h3>
-              <p className="text-sm text-gray-300">
-                You've been referred to DeCleanup Rewards! When you submit your first cleanup and it gets verified, both you and your referrer will earn <strong className="text-white">3 $DCU</strong> each.
-              </p>
-              <p className="mt-2 text-xs text-gray-400">
-                Submit a cleanup below to get started and claim your referral reward!
-              </p>
-            </div>
-            <button
-              onClick={() => setShowReferralNotification(false)}
-              className="flex-shrink-0 text-gray-400 hover:text-white"
-              aria-label="Dismiss"
-            >
-              <X className="h-4 w-4" />
-            </button>
           </div>
         </div>
       )
@@ -991,7 +991,7 @@ function CleanupContent() {
   // Step 1: Before Photo
   if (step === 'before') {
     return (
-      <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
+      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20">
         <div className="mx-auto max-w-md">
           <div className="mb-6">
             <BackButton href="/" />
@@ -1160,7 +1160,7 @@ function CleanupContent() {
   // Step 2: After Photo
   if (step === 'after') {
     return (
-      <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
+      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20">
         <div className="mx-auto max-w-md">
           <div className="mb-6">
             <BackButton />
@@ -1254,7 +1254,7 @@ function CleanupContent() {
   // Step 4: Impact Report (Optional)
   if (step === 'enhanced') {
     return (
-      <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
+      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20">
         <div className="mx-auto max-w-md">
           <div className="mb-6">
             <BackButton />
@@ -1654,7 +1654,7 @@ function CleanupContent() {
 export default function CleanupPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-black px-4 py-8">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20">
         <div className="mx-auto max-w-md">
           <div className="mt-8 flex items-center justify-center p-8">
             <Loader2 className="h-8 w-8 animate-spin text-brand-green" />

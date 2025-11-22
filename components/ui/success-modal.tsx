@@ -48,8 +48,10 @@ export function SuccessModal({
 
   if (!isOpen) return null
 
-  const referralLink = userAddress ? generateReferralLink(userAddress) : MINIAPP_URL
-  const impactShareText = formatImpactShareMessage(level ?? null, referralLink)
+  const referralLinkWeb = userAddress ? generateReferralLink(userAddress, 'web') : MINIAPP_URL
+  const referralLinkFarcaster = userAddress ? generateReferralLink(userAddress, 'farcaster') : MINIAPP_URL
+  const impactShareTextWeb = formatImpactShareMessage(level ?? null, referralLinkWeb)
+  const impactShareTextFarcaster = formatImpactShareMessage(level ?? null, referralLinkFarcaster)
 
   const handleShare = () => {
     if (onShare) {

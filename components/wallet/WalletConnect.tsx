@@ -102,6 +102,44 @@ export function WalletConnect() {
       // Handle WalletConnect-specific errors gracefully
       const errorMessage = error?.message || String(error) || ''
       const errorName = error?.name || ''
+      const errorString = String(error).toLowerCase()
+      
+      // Check for stale session errors (WalletConnect v2)
+      const isStaleSession = errorMessage.includes('session topic doesn\'t exist') ||
+        errorMessage.includes('No matching key') ||
+        errorMessage.includes('session topic') ||
+        errorString.includes('session topic doesn\'t exist') ||
+        errorString.includes('no matching key')
+      
+      // If it's a stale session error, disconnect and clear storage
+      if (isStaleSession) {
+        console.log('WalletConnect session expired or invalid. Disconnecting and clearing session data...')
+        try {
+          // Disconnect to clear the stale session
+          await disconnect()
+          
+          // Clear WalletConnect storage
+          if (typeof window !== 'undefined') {
+            // Clear WalletConnect v2 storage
+            try {
+              const wcKeys = Object.keys(localStorage).filter(key => 
+                key.startsWith('wc@2:') || key.startsWith('walletconnect')
+              )
+              wcKeys.forEach(key => localStorage.removeItem(key))
+            } catch (e) {
+              console.warn('Failed to clear WalletConnect storage:', e)
+            }
+            
+            // Clear session storage
+            sessionStorage.removeItem('wallet_connected_this_session')
+          }
+          
+          console.log('Stale session cleared. Please reconnect your wallet.')
+        } catch (disconnectError) {
+          console.warn('Error during disconnect:', disconnectError)
+        }
+        return
+      }
       
       // Check for connection reset or rejection errors
       const isConnectionReset = errorMessage.includes('Connection request reset') ||
@@ -149,6 +187,45 @@ export function WalletConnect() {
     setIsInFarcaster(inFarcaster)
   }, [])
   
+  // Handle WalletConnect stale session errors globally
+  useEffect(() => {
+    if (!mounted) return
+    
+    // Set up global error handler for WalletConnect session errors
+    const handleError = (event: ErrorEvent) => {
+      const errorMessage = event.message || String(event.error || '')
+      const isStaleSession = errorMessage.includes('session topic doesn\'t exist') ||
+        errorMessage.includes('No matching key') ||
+        errorMessage.includes('session topic')
+      
+      if (isStaleSession && isConnected && connector?.id?.includes('walletconnect')) {
+        console.log('Detected WalletConnect stale session error. Disconnecting...')
+        try {
+          disconnect()
+        } catch (e) {
+          // Ignore disconnect errors
+          console.warn('Error during disconnect:', e)
+        }
+        
+        // Clear WalletConnect storage
+        if (typeof window !== 'undefined') {
+          try {
+            const wcKeys = Object.keys(localStorage).filter(key => 
+              key.startsWith('wc@2:') || key.startsWith('walletconnect')
+            )
+            wcKeys.forEach(key => localStorage.removeItem(key))
+            sessionStorage.removeItem('wallet_connected_this_session')
+          } catch (e) {
+            console.warn('Failed to clear WalletConnect storage:', e)
+          }
+        }
+      }
+    }
+    
+    window.addEventListener('error', handleError)
+    return () => window.removeEventListener('error', handleError)
+  }, [mounted, isConnected, connector, disconnect])
+
   // Disable auto-connect: disconnect on mount if Farcaster wallet auto-connected
   // This ensures users always get to choose their wallet
   useEffect(() => {

@@ -38,6 +38,52 @@ function getErrorMessage(error: any): string {
   return String(error)
 }
 
+// Helper to check if error is a WalletConnect stale session error
+function isWalletConnectStaleSessionError(error: any): boolean {
+  if (!error) return false
+  const errorMessage = getErrorMessage(error).toLowerCase()
+  const errorString = String(error).toLowerCase()
+  return errorMessage.includes('session topic doesn\'t exist') ||
+    errorMessage.includes('no matching key') ||
+    errorMessage.includes('session topic') ||
+    errorString.includes('session topic doesn\'t exist') ||
+    errorString.includes('no matching key')
+}
+
+// Helper to handle WalletConnect stale session errors
+async function handleWalletConnectStaleSession(error: any): Promise<void> {
+  if (!isWalletConnectStaleSessionError(error)) return
+  
+  console.log('WalletConnect stale session detected. Clearing session data...')
+  
+  // Clear WalletConnect storage
+  if (typeof window !== 'undefined') {
+    try {
+      const wcKeys = Object.keys(localStorage).filter(key => 
+        key.startsWith('wc@2:') || key.startsWith('walletconnect')
+      )
+      wcKeys.forEach(key => localStorage.removeItem(key))
+      sessionStorage.removeItem('wallet_connected_this_session')
+      
+      // Try to disconnect if possible
+      try {
+        const { getAccount } = await import('wagmi/actions')
+        const account = getAccount(config)
+        if (account.isConnected && account.connector?.id?.includes('walletconnect')) {
+          const { disconnect } = await import('wagmi/actions')
+          await disconnect(config)
+        }
+      } catch (disconnectError) {
+        console.warn('Failed to disconnect during stale session cleanup:', disconnectError)
+      }
+    } catch (e) {
+      console.warn('Failed to clear WalletConnect storage:', e)
+    }
+  }
+  
+  throw new Error('WalletConnect session expired. Please reconnect your wallet and try again.')
+}
+
 const REQUIRED_CHAIN_SYMBOL = 'ETH'
 const BLOCK_EXPLORER_BASE_URL =
   process.env.NEXT_PUBLIC_BLOCK_EXPLORER_URL || REQUIRED_BLOCK_EXPLORER_URL
@@ -204,6 +250,13 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
       throw new Error(`Failed to switch network. Please manually switch to ${REQUIRED_CHAIN_NAME} in your wallet.`)
     } catch (error: any) {
       console.error(`[${context}] Switch failed:`, error)
+      
+      // Check for WalletConnect stale session error first
+      if (isWalletConnectStaleSessionError(error)) {
+        await handleWalletConnectStaleSession(error)
+        return // This will throw, but TypeScript needs this
+      }
+      
       const errorMessage = getErrorMessage(error)
 
       // If user rejected, throw specific error
@@ -765,22 +818,31 @@ export async function submitCleanup(
     console.log('[cleanup submission] ✅ Chain validated via providedChainId, skipping pre-tx check')
   }
 
-  const hash = await writeContract(config as any, {
-    address: CONTRACT_ADDRESSES.VERIFICATION,
-    abi: VERIFICATION_ABI,
-    functionName: 'submitCleanup',
-    args: [
-      beforePhotoHash,
-      afterPhotoHash,
-      latScaled,
-      lngScaled,
-      referrerAddress || '0x0000000000000000000000000000000000000000',
-      hasImpactForm,
-      impactReportHash,
-    ],
-    value: value || BigInt(0), // Include fee if provided
-    chain: targetChain,
-  })
+  let hash: `0x${string}`
+  try {
+    hash = await writeContract(config as any, {
+      address: CONTRACT_ADDRESSES.VERIFICATION,
+      abi: VERIFICATION_ABI,
+      functionName: 'submitCleanup',
+      args: [
+        beforePhotoHash,
+        afterPhotoHash,
+        latScaled,
+        lngScaled,
+        referrerAddress || '0x0000000000000000000000000000000000000000',
+        hasImpactForm,
+        impactReportHash,
+      ],
+      value: value || BigInt(0), // Include fee if provided
+      chain: targetChain,
+    })
+  } catch (error: any) {
+    // Check for WalletConnect stale session error
+    if (isWalletConnectStaleSessionError(error)) {
+      await handleWalletConnectStaleSession(error)
+    }
+    throw error // Re-throw if not a stale session error
+  }
 
   // Wait for transaction receipt
   const receipt = await waitForTransactionReceipt(config, { hash })
@@ -1218,6 +1280,11 @@ export async function verifyCleanup(
     console.log(`[verification] ✅ Transaction hash received:`, hash)
     return hash
   } catch (error: any) {
+    // Check for WalletConnect stale session error first
+    if (isWalletConnectStaleSessionError(error)) {
+      await handleWalletConnectStaleSession(error)
+    }
+    
     const errorMessage = getErrorMessage(error)
     console.error('Error calling verifyCleanup:', errorMessage)
 
@@ -1311,6 +1378,11 @@ export async function rejectCleanup(
 
     return hash
   } catch (error: any) {
+    // Check for WalletConnect stale session error first
+    if (isWalletConnectStaleSessionError(error)) {
+      await handleWalletConnectStaleSession(error)
+    }
+    
     const errorMessage = getErrorMessage(error)
     console.error('Error calling rejectCleanup:', errorMessage)
 

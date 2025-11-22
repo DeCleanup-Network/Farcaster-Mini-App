@@ -120,7 +120,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-black text-white;
+    @apply bg-background text-foreground;
     font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   }
   
