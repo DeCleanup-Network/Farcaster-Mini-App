@@ -108,14 +108,19 @@ export async function uploadJSONToIPFS(data: any, name: string = 'data'): Promis
 
 /**
  * Get IPFS URL from hash with fallback gateways
- * @param hash IPFS hash
+ * @param hash IPFS hash (may include ipfs:// prefix)
  * @returns Full IPFS URL (uses first gateway, fallbacks handled in image onError)
  */
-export function getIPFSUrl(hash: string): string {
-  if (!hash) return ''
+export function getIPFSUrl(hash: string): string | null {
+  if (!hash || hash === '' || hash === '0x' || hash.length === 0) return null
+  
+  // Remove ipfs:// prefix if present
+  let cleanHash = hash.replace(/^ipfs:\/\//, '')
   
   // Clean hash (remove any query params or fragments)
-  const cleanHash = hash.split('?')[0].split('#')[0]
+  cleanHash = cleanHash.split('?')[0].split('#')[0].trim()
+  
+  if (!cleanHash || cleanHash.length === 0) return null
   
   // Use configured gateway or default to ipfs.io (better CORS support)
   const gateway = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://ipfs.io/ipfs/'
@@ -124,13 +129,19 @@ export function getIPFSUrl(hash: string): string {
 
 /**
  * Get fallback IPFS gateways for a hash
- * @param hash IPFS hash
+ * @param hash IPFS hash (may include ipfs:// prefix)
  * @returns Array of fallback gateway URLs
  */
 export function getIPFSFallbackUrls(hash: string): string[] {
-  if (!hash) return []
+  if (!hash || hash === '' || hash === '0x' || hash.length === 0) return []
   
-  const cleanHash = hash.split('?')[0].split('#')[0]
+  // Remove ipfs:// prefix if present
+  let cleanHash = hash.replace(/^ipfs:\/\//, '')
+  
+  // Clean hash (remove any query params or fragments)
+  cleanHash = cleanHash.split('?')[0].split('#')[0].trim()
+  
+  if (!cleanHash || cleanHash.length === 0) return []
   
   // List of IPFS gateways that support CORS
   const gateways = [

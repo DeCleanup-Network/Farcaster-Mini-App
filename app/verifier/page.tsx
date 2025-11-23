@@ -121,9 +121,17 @@ export default function VerifierPage() {
       for (const cleanup of cleanups) {
         if (cleanup.impactReportHash && !impactDataMap.has(cleanup.impactReportHash)) {
           try {
-            const url = getIPFSUrl(cleanup.impactReportHash)
+            // Clean the hash - remove ipfs:// prefix if present
+            const cleanHash = cleanup.impactReportHash.replace(/^ipfs:\/\//, '').trim()
+            if (!cleanHash || cleanHash.length === 0) continue
+            
+            const url = getIPFSUrl(cleanHash)
             if (!url) continue // Skip if URL is null
-            const response = await fetch(url)
+            
+            const response = await fetch(url, {
+              mode: 'cors',
+              cache: 'no-cache',
+            })
             if (response.ok) {
               const data = await response.json()
               setImpactDataMap(prev => {
@@ -134,7 +142,7 @@ export default function VerifierPage() {
             }
           } catch (error) {
             // Silently fail - will load when form is expanded
-            console.debug('Could not preload impact data for cleanup', cleanup.id.toString())
+            console.debug('Could not preload impact data for cleanup', cleanup.id.toString(), error)
           }
         }
       }
@@ -632,27 +640,49 @@ export default function VerifierPage() {
         try {
           setLoading(true)
           const { getIPFSUrl, getIPFSFallbackUrls } = await import('@/lib/ipfs')
-          const urls = [getIPFSUrl(impactReportHash), ...getIPFSFallbackUrls(impactReportHash)]
-          if (!urls[0]) {
-            throw new Error('Failed to generate IPFS URL for impact report')
+          
+          // Clean the hash - remove ipfs:// prefix if present
+          const cleanHash = impactReportHash.replace(/^ipfs:\/\//, '').trim()
+          if (!cleanHash || cleanHash.length === 0) {
+            throw new Error('Invalid impact report hash format')
           }
+          
+          const primaryUrl = getIPFSUrl(cleanHash)
+          const fallbackUrls = getIPFSFallbackUrls(cleanHash)
+          
+          // Filter out null values and combine URLs
+          const urls = [primaryUrl, ...fallbackUrls].filter((url): url is string => url !== null)
+          
+          if (urls.length === 0) {
+            throw new Error(`Failed to generate IPFS URL for impact report. Hash: ${cleanHash}`)
+          }
+          
           setImpactDataUrl(urls[0])
           
           // Try each gateway until one works
           let data: any = null
           let lastError: Error | null = null
           for (const url of urls) {
+            if (!url) continue // Skip null URLs
             try {
+              console.log(`Attempting to fetch impact report from: ${url}`)
               const response = await fetch(url, { 
                 mode: 'cors',
-                cache: 'no-cache'
+                cache: 'no-cache',
+                headers: {
+                  'Accept': 'application/json',
+                }
               })
               if (response.ok) {
                 data = await response.json()
+                console.log('Successfully loaded impact report data from IPFS')
                 break
+              } else {
+                console.warn(`Failed to fetch from ${url}: ${response.status} ${response.statusText}`)
               }
             } catch (err) {
               lastError = err instanceof Error ? err : new Error(String(err))
+              console.warn(`Error fetching from ${url}:`, err)
               continue
             }
           }
