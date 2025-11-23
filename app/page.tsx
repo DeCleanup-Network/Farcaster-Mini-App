@@ -447,9 +447,9 @@ export default function Home() {
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button
                   onClick={async () => {
-                    const { generateReferralLink, shareCast } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address, 'farcaster')
-                    await shareCast(formatReferralMessage(referralLink), referralLink)
+                    const { generateReferralLink, shareCast, formatReferralMessage } = await import('@/lib/farcaster')
+                    const referralLink = generateReferralLink(address, 'farcaster', true)
+                    await shareCast(formatReferralMessage(referralLink, 'farcaster'), referralLink)
                   }}
                   className="flex-1 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
                 >

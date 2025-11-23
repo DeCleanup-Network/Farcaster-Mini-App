@@ -34,7 +34,7 @@ import {
 } from '@/lib/contracts'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { useChainId } from 'wagmi'
-import { shareCast, generateReferralLink, formatReferralMessage, formatImpactShareMessage } from '@/lib/farcaster'
+import { shareCast, generateReferralLink, generateClaimShareLink, formatReferralMessage, formatImpactShareMessage } from '@/lib/farcaster'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   ? 'Basescan (Sepolia)'
@@ -962,7 +962,7 @@ export default function ProfilePage() {
                             if (sharing || !address) return
                             setSharing(true)
                             try {
-                              const link = generateReferralLink(address, 'farcaster')
+                              const link = generateClaimShareLink(address, profileData.level, 'farcaster', true)
                               const text = formatImpactShareMessage(profileData.level, link, 'farcaster')
                               await shareCast(text, link)
                             } catch (error) {
@@ -989,7 +989,7 @@ export default function ProfilePage() {
                         <Button
                           onClick={() => {
                             if (!address) return
-                            const link = generateReferralLink(address, 'web')
+                            const link = generateClaimShareLink(address, profileData.level, 'web', true)
                             const text = formatImpactShareMessage(profileData.level, link, 'web')
                             const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
                             window.open(xUrl, '_blank')
@@ -1005,7 +1005,7 @@ export default function ProfilePage() {
                         <Button
                           onClick={async () => {
                             if (!address) return
-                            const link = generateReferralLink(address, 'copy')
+                            const link = generateClaimShareLink(address, profileData.level, 'copy', true)
                             const message = formatImpactShareMessage(profileData.level, link, 'copy')
                             try {
                               await navigator.clipboard.writeText(message)

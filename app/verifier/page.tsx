@@ -1172,30 +1172,8 @@ export default function VerifierPage() {
                           <div className="text-xs text-yellow-400">Referred by: {cleanup.referrer.slice(0, 10)}...</div>
                         )}
                         {cleanup.hasImpactForm && (
-                          <div className="text-xs">
-                            <button
-                              onClick={() => {
-                                const formId = cleanup.id.toString()
-                                setExpandedForms(prev => {
-                                  const newSet = new Set(prev)
-                                  if (newSet.has(formId)) {
-                                    newSet.delete(formId)
-                                  } else {
-                                    newSet.add(formId)
-                                  }
-                                  return newSet
-                                })
-                              }}
-                              className="flex items-center gap-1 text-green-400 hover:text-green-300"
-                            >
-                              ✓ Enhanced impact form submitted
-                              <span className="text-xs text-gray-400">(click to {expandedForms.has(cleanup.id.toString()) ? 'collapse' : 'expand'})</span>
-                            </button>
-                            {expandedForms.has(cleanup.id.toString()) && cleanup.impactReportHash && (
-                              <div className="mt-2">
-                                <ImpactReportDetails key={`${cleanup.id}-${cleanup.impactReportHash}`} impactReportHash={cleanup.impactReportHash} />
-                              </div>
-                            )}
+                          <div className="text-xs text-green-400">
+                            ✓ Enhanced impact form submitted
                           </div>
                         )}
                       </div>
@@ -1573,29 +1551,11 @@ export default function VerifierPage() {
                     </div>
                   </div>
                   {cleanup.hasImpactForm && (
-                    <div className="mt-4">
-                      <button
-                        onClick={() => {
-                          const formId = cleanup.id.toString()
-                          setExpandedForms(prev => {
-                            const newSet = new Set(prev)
-                            if (newSet.has(formId)) {
-                              newSet.delete(formId)
-                            } else {
-                              newSet.add(formId)
-                            }
-                            return newSet
-                          })
-                        }}
-                        className="text-sm text-gray-400 hover:text-gray-300"
-                      >
-                        {expandedForms.has(cleanup.id.toString()) ? '▼' : '▶'} View Impact Report
-                      </button>
-                      {expandedForms.has(cleanup.id.toString()) && cleanup.impactReportHash && (
-                        <div className="mt-2">
-                          <ImpactReportDetails key={`${cleanup.id}-${cleanup.impactReportHash}`} impactReportHash={cleanup.impactReportHash} />
-                        </div>
-                      )}
+                    <div className="mt-4 rounded-lg border border-green-500/30 bg-green-500/5 p-3">
+                      <div className="flex items-center gap-2 text-sm text-green-400">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="font-semibold">Enhanced impact form submitted</span>
+                      </div>
                     </div>
                   )}
                   <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/5 p-3">

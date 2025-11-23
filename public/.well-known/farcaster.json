@@ -8,7 +8,7 @@
     "ownerAddress": "0x54e2bC746Cf63469A0ca1e3c6647BB3cfCE48978"
   },
   "miniapp": {
-    "version": "1.1",
+    "version": "1",
     "name": "DeCleanup Rewards",
     "homeUrl": "https://farcaster-mini-app-umber.vercel.app",
     "iconUrl": "https://gateway.pinata.cloud/ipfs/bafkreicdyq37dkuel7njhxinmkdm5werrgeqghfzqoviotgveqbzeg7qym?filename=icon1.png",
@@ -24,7 +24,7 @@
     ],
     "primaryCategory": "social",
     "tags": ["environment", "cleanup", "impact", "nft", "base"],
-    "heroImageUrl": "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png",
+    "heroImageUrl": "https://gateway.pinata.cloud/ipfs/bafkreihasy2n6tpczlsw4f2v3jp477dsfjg4isyqjr5hvaxwela5illmtm?filename=hero.png",
     "tagline": "Clean Up, Snap, Earn",
     "ogTitle": "DeCleanup Rewards",
     "ogDescription": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
