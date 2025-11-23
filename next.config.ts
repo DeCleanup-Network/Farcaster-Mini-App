@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  // Force clean build (removed recyclables route)
   // Ensure .well-known directory is served
   async headers() {
     return [
