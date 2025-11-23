@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 /**
  * @title RecyclablesReward
  * @notice Handle recyclables submissions and cRECY token rewards
- * @dev Manages 5000 cRECY token reserve, distributes 10 cRECY per submission
+ * @dev Manages 5000 cRECY token reserve, distributes 5 cRECY per submission
  */
 contract RecyclablesReward is Ownable, ReentrancyGuard {
     // cRECY Token address (Celo)
@@ -17,8 +17,8 @@ contract RecyclablesReward is Ownable, ReentrancyGuard {
     // Reserve amount: 5000 cRECY tokens
     uint256 public constant RESERVE_AMOUNT = 5_000 * 10**18;
     
-    // Reward per submission: 10 cRECY
-    uint256 public constant REWARD_AMOUNT = 10 * 10**18;
+    // Reward per submission: 5 cRECY (changed from 10)
+    uint256 public constant REWARD_AMOUNT = 5 * 10**18;
     
     // Distributed amount
     uint256 public distributedAmount;

@@ -10,6 +10,7 @@ export interface VerificationStatus {
   cleanupId: bigint
   verified: boolean
   claimed: boolean
+  rejected: boolean
   level: number
   canClaim: boolean
 }
@@ -31,7 +32,7 @@ async function findUserCleanupOnChain(
   userAddress: Address
 ): Promise<VerificationStatus | null> {
   try {
-    const { getCleanupCounter, getCleanupStatus } = await import('./contracts')
+    const { getCleanupCounter, getCleanupDetails } = await import('./contracts')
     
     // Get the current cleanup counter
     const counter = await getCleanupCounter()
@@ -47,10 +48,10 @@ async function findUserCleanupOnChain(
     
     for (let id = counter - BigInt(1); id >= startId; id--) {
       try {
-        const status = await getCleanupStatus(id)
+        const details = await getCleanupDetails(id)
         
         // Check if this cleanup belongs to the user
-        if (status.user.toLowerCase() === userAddress.toLowerCase()) {
+        if (details.user.toLowerCase() === userAddress.toLowerCase()) {
           console.log(`Found user's cleanup on-chain: ${id.toString()}`)
           
           // Update localStorage with the found cleanup ID
@@ -61,10 +62,11 @@ async function findUserCleanupOnChain(
           
           return {
             cleanupId: id,
-            verified: status.verified,
-            claimed: status.claimed,
-            level: status.level,
-            canClaim: status.verified && !status.claimed,
+            verified: details.verified,
+            claimed: details.claimed,
+            rejected: details.rejected || false,
+            level: details.level,
+            canClaim: details.verified && !details.claimed,
           }
         }
       } catch (error: any) {
@@ -99,11 +101,11 @@ export async function getLatestCleanupStatus(
       
       if (pendingCleanupId) {
         try {
-          const { getCleanupStatus } = await import('./contracts')
-          const status = await getCleanupStatus(BigInt(pendingCleanupId))
+          const { getCleanupDetails } = await import('./contracts')
+          const details = await getCleanupDetails(BigInt(pendingCleanupId))
           
           // Verify this cleanup belongs to the current user
-          if (status.user.toLowerCase() !== userAddress.toLowerCase()) {
+          if (details.user.toLowerCase() !== userAddress.toLowerCase()) {
             console.log('Cleanup belongs to different user, clearing localStorage')
             localStorage.removeItem(pendingKey)
             localStorage.removeItem(`pending_cleanup_location_${userAddress.toLowerCase()}`)
@@ -118,10 +120,11 @@ export async function getLatestCleanupStatus(
             // Found valid cleanup in localStorage
             return {
               cleanupId: BigInt(pendingCleanupId),
-              verified: status.verified,
-              claimed: status.claimed,
-              level: status.level,
-              canClaim: status.verified && !status.claimed,
+              verified: details.verified,
+              claimed: details.claimed,
+              rejected: details.rejected,
+              level: details.level,
+              canClaim: details.verified && !details.claimed,
             }
           }
         } catch (error: any) {
@@ -165,6 +168,7 @@ export async function getUserCleanupStatus(
   reason?: string
   verified?: boolean
   claimed?: boolean
+  rejected?: boolean
   level?: number
   rejected?: boolean
 }> {
@@ -211,7 +215,28 @@ export async function getUserCleanupStatus(
       }
     }
     
-    const hasPending = !latest.verified
+    // If rejected, allow new submission (hasPendingCleanup = false)
+    if (latest.rejected) {
+      // Clear localStorage for rejected cleanup so user can submit new one
+      if (typeof window !== 'undefined' && userAddress) {
+        const pendingKey = `pending_cleanup_id_${userAddress.toLowerCase()}`
+        localStorage.removeItem(pendingKey)
+        localStorage.removeItem(`pending_cleanup_location_${userAddress.toLowerCase()}`)
+      }
+      
+      return {
+        hasPendingCleanup: false,
+        canClaim: false,
+        cleanupId: latest.cleanupId,
+        verified: latest.verified,
+        claimed: latest.claimed,
+        rejected: true,
+        level: latest.level,
+        reason: 'Your cleanup was rejected, you can try again.',
+      }
+    }
+    
+    const hasPending = !latest.verified && !latest.rejected
     const canClaim = latest.verified && !latest.claimed
     
     // Check if this cleanup was rejected
@@ -240,6 +265,7 @@ export async function getUserCleanupStatus(
       cleanupId: latest.cleanupId,
       verified: latest.verified,
       claimed: latest.claimed,
+      rejected: latest.rejected,
       level: latest.level,
       rejected: false,
       reason: hasPending
@@ -288,7 +314,7 @@ export async function canClaimLevel(
       if (latest.claimed) {
         return {
           canClaim: false,
-          reason: 'This cleanup has already been claimed.',
+          reason: 'Your cleanup has already been claimed.',
         }
       }
       
@@ -310,7 +336,7 @@ export async function canClaimLevel(
     if (status.claimed) {
       return {
         canClaim: false,
-        reason: 'This cleanup has already been claimed.',
+        reason: 'Your cleanup has already been claimed.',
       }
     }
     

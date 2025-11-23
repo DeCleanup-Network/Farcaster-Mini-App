@@ -7,6 +7,7 @@ module.exports = {
   solidity: {
     version: "0.8.22",
     settings: {
+      viaIR: true, // Avoid "stack too deep" compilation errors for complex contracts
       optimizer: {
         enabled: true,
         runs: 200,
