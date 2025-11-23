@@ -32,14 +32,20 @@ export async function generateMetadata({
   const shareUrl = `${SITE_URL}/share${ref ? `?ref=${ref}` : ''}${type ? `&type=${type}` : ''}${level ? `&level=${level}` : ''}`
 
   // Farcaster Mini App embed metadata
+  // The imageUrl in the embed is what shows as the preview image when sharing
+  // The action.url should point to where users go when they click the button
   const EMBED_METADATA = {
     version: "1",
-    imageUrl: imageUrl,
+    imageUrl: imageUrl, // This is the preview image that shows in feeds
     button: {
       title: "Open DeCleanup Rewards",
       action: {
         type: "launch_frame",
-        url: SITE_URL,
+        url: type === 'referral' && ref 
+          ? `${FARCASTER_MINIAPP_URL}/cleanup?ref=${ref}`
+          : type === 'claim' && ref
+          ? `${FARCASTER_MINIAPP_URL}/profile`
+          : FARCASTER_MINIAPP_URL, // Point to the actual app destination
         name: "DeCleanup Rewards",
         splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png",
         splashBackgroundColor: "#000000",

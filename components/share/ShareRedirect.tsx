@@ -9,11 +9,12 @@ interface ShareRedirectProps {
 
 export function ShareRedirect({ redirectUrl }: ShareRedirectProps) {
   useEffect(() => {
-    // Small delay to ensure crawlers can read meta tags
+    // Longer delay to ensure crawlers can read meta tags and embed data
+    // Farcaster crawlers need time to fetch the page and parse fc:miniapp embed
     // Then redirect client-side
     const timer = setTimeout(() => {
       window.location.href = redirectUrl
-    }, 100)
+    }, 2000) // Increased from 100ms to 2 seconds for better crawler support
 
     return () => clearTimeout(timer)
   }, [redirectUrl])
