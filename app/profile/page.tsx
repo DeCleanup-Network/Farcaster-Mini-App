@@ -34,7 +34,7 @@ import {
 } from '@/lib/contracts'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { useChainId } from 'wagmi'
-import { shareCast, generateReferralLink, formatImpactShareMessage } from '@/lib/farcaster'
+import { shareCast, generateReferralLink, formatReferralMessage, formatImpactShareMessage } from '@/lib/farcaster'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   ? 'Basescan (Sepolia)'
@@ -524,7 +524,7 @@ export default function ProfilePage() {
             <div className="mb-2 flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-brand-green" />
               <h3 className="text-sm font-medium text-gray-400">
-                DCU Points
+                $DCU Points
               </h3>
             </div>
             <p className="text-3xl font-bold text-white">
@@ -717,7 +717,7 @@ export default function ProfilePage() {
                     ) : (
                       <>
                         <Award className="h-4 w-4" />
-                        Claim Impact Product NFT
+                        Claim Impact Product
                       </>
                     )}
                   </Button>
@@ -963,7 +963,7 @@ export default function ProfilePage() {
                             setSharing(true)
                             try {
                               const link = generateReferralLink(address, 'farcaster')
-                              const text = formatImpactShareMessage(profileData.level, link)
+                              const text = formatImpactShareMessage(profileData.level, link, 'farcaster')
                               await shareCast(text, link)
                             } catch (error) {
                               console.error('Failed to share:', error)
@@ -990,7 +990,7 @@ export default function ProfilePage() {
                           onClick={() => {
                             if (!address) return
                             const link = generateReferralLink(address, 'web')
-                            const text = formatImpactShareMessage(profileData.level, link)
+                            const text = formatImpactShareMessage(profileData.level, link, 'web')
                             const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
                             window.open(xUrl, '_blank')
                           }}
@@ -1006,7 +1006,7 @@ export default function ProfilePage() {
                           onClick={async () => {
                             if (!address) return
                             const link = generateReferralLink(address, 'copy')
-                            const message = formatImpactShareMessage(profileData.level, link)
+                            const message = formatImpactShareMessage(profileData.level, link, 'copy')
                             try {
                               await navigator.clipboard.writeText(message)
                               alert('Share message copied to clipboard!')

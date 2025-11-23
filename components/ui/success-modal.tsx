@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
-import { X, CheckCircle, ExternalLink, Share2 } from 'lucide-react'
+import { X, CheckCircle, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { shareCast, generateReferralLink, formatImpactShareMessage, MINIAPP_URL } from '@/lib/farcaster'
 
 interface SuccessModalProps {
   isOpen: boolean
@@ -47,32 +46,6 @@ export function SuccessModal({
   }, [isOpen, onClose])
 
   if (!isOpen) return null
-
-  const referralLinkWeb = userAddress ? generateReferralLink(userAddress, 'web') : MINIAPP_URL
-  const referralLinkFarcaster = userAddress ? generateReferralLink(userAddress, 'farcaster') : MINIAPP_URL
-  const impactShareTextWeb = formatImpactShareMessage(level ?? null, referralLinkWeb)
-  const impactShareTextFarcaster = formatImpactShareMessage(level ?? null, referralLinkFarcaster)
-
-  const handleShare = () => {
-    if (onShare) {
-      onShare()
-    } else if (transactionHash && explorerUrl) {
-      const shareText = `${title}\n\n${message}\n\nView on ${explorerName}: ${explorerUrl}`
-      if (navigator.share) {
-        navigator.share({
-          title,
-          text: shareText,
-          url: explorerUrl,
-        }).catch(() => {
-          // Fallback to clipboard
-          navigator.clipboard.writeText(shareText)
-        })
-      } else {
-        // Fallback to clipboard
-        navigator.clipboard.writeText(shareText)
-      }
-    }
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
@@ -125,42 +98,6 @@ export function SuccessModal({
               <ExternalLink className="h-4 w-4" />
               View on {explorerName}
             </a>
-          )}
-          
-          {showShare && (
-            <div className="flex flex-col gap-2">
-              <Button
-                onClick={async () => {
-                  if (onShare) {
-                    onShare()
-                  } else {
-                    // Include referral link in the share text for Farcaster
-                    const shareText = `${impactShareTextFarcaster} ${referralLinkFarcaster}`
-                    await shareCast(shareText, referralLinkFarcaster)
-                  }
-                }}
-                className="w-full gap-2 bg-purple-600 text-white hover:bg-purple-700"
-              >
-                <Share2 className="h-4 w-4" />
-                Share on Farcaster
-              </Button>
-              <Button
-                onClick={() => {
-                  if (onShare) {
-                    onShare()
-                  } else {
-                    // Include referral link in the share text for X
-                    const shareText = `${impactShareTextWeb} ${referralLinkWeb}`
-                    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`
-                    window.open(twitterUrl, '_blank', 'noopener,noreferrer')
-                  }
-                }}
-                className="w-full gap-2 bg-brand-yellow text-black hover:bg-[#e6e600]"
-              >
-                <Share2 className="h-4 w-4" />
-                Share on X
-              </Button>
-            </div>
           )}
           
           <Button

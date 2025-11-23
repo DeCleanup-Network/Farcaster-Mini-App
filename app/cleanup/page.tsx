@@ -1267,10 +1267,10 @@ function CleanupContent() {
               Impact Report
             </h1>
             <p className="mb-2 text-sm font-medium text-brand-yellow">
-              +5 DCU Points Bonus
+              +5 $DCU Points Bonus
             </p>
             <p className="text-sm text-gray-400">
-              Provide more details on your cleanup (optional, rewarded with 5 DCU Points).
+              Provide more details on your cleanup (optional, rewarded with 5 $DCU Points).
             </p>
           </div>
 
@@ -1486,11 +1486,11 @@ function CleanupContent() {
                 className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
               >
                 <option value="">Select license</option>
-                <option value="attribution">Attribution (CC BY)</option>
-                <option value="non-commercial">Non-Commercial (CC BY-NC)</option>
-                <option value="no-derivatives">No Derivatives (CC BY-ND)</option>
-                <option value="share-alike">Share Alike (CC BY-SA)</option>
-                <option value="all-rights-reserved">All Rights Reserved</option>
+                <option value="attribution">Allow use with credit (CC BY)</option>
+                <option value="non-commercial">Non-commercial use only (CC BY-NC)</option>
+                <option value="no-derivatives">No modifications allowed (CC BY-ND)</option>
+                <option value="share-alike">Share with same license (CC BY-SA)</option>
+                <option value="all-rights-reserved">All rights reserved</option>
               </select>
             </div>
 

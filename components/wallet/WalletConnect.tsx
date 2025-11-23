@@ -226,34 +226,15 @@ export function WalletConnect() {
     return () => window.removeEventListener('error', handleError)
   }, [mounted, isConnected, connector, disconnect])
 
-  // Disable auto-connect: disconnect on mount if Farcaster wallet auto-connected
-  // This ensures users always get to choose their wallet
+  // Mark connection in session storage (but don't auto-disconnect Farcaster)
   useEffect(() => {
     if (!mounted) return
     
     if (typeof window !== 'undefined' && isConnected) {
       const sessionKey = 'wallet_connected_this_session'
-      const wasConnectedThisSession = sessionStorage.getItem(sessionKey)
-      
-      // If connected but not in this session, check if it's Farcaster auto-connect
-      if (!wasConnectedThisSession) {
-        const inFarcaster = isFarcasterContext()
-        const isFarcasterAutoConnect = inFarcaster && 
-          connector?.name?.toLowerCase().includes('farcaster')
-        
-        if (isFarcasterAutoConnect) {
-          console.log('Disconnecting auto-connected Farcaster wallet to allow wallet selection')
-          disconnect()
-        } else {
-          // Mark as connected in this session for non-Farcaster wallets
-          sessionStorage.setItem(sessionKey, 'true')
-        }
-      } else {
-        // Already connected in this session, keep it
-        sessionStorage.setItem(sessionKey, 'true')
-      }
+      sessionStorage.setItem(sessionKey, 'true')
     }
-  }, [mounted, isConnected, connector, disconnect])
+  }, [mounted, isConnected])
 
   // Auto-switch to required chain after connection
   useEffect(() => {

@@ -202,7 +202,7 @@ export default function Home() {
               DECLEANUP REWARDS
             </h2>
             <p className="mx-auto mb-4 text-sm leading-relaxed text-muted-foreground sm:text-base md:text-lg">
-              DeCleanup Rewards turns real-world cleanups into tokenized proof. Submit evidence, level up Impact Product NFTs, and stack $DCU rewards ahead of token launch.
+              Turn real-world cleanups into on-chain rewards. Submit proof, level up your Impact Product, and earn $DCU as you climb the ranks.
             </p>
           </div>
 
@@ -239,7 +239,7 @@ export default function Home() {
                             🎉 Your cleanup has been verified!
                           </p>
                           <p className="mt-1 text-xs text-gray-300">
-                            You can now claim your Impact Product NFT (Level {cleanupStatus.level || 1})
+                            You can now claim your Impact Product (Level {cleanupStatus.level || 1})
                           </p>
                         </div>
                       </>
@@ -282,7 +282,7 @@ export default function Home() {
                       cleanupStatus?.hasPendingCleanup
                         ? 'You have a cleanup pending verification. Please wait for verification before submitting a new cleanup.'
                         : cleanupStatus?.canClaim
-                          ? 'Please claim your Impact Product NFT before submitting a new cleanup.'
+                          ? 'Please claim your Impact Product before submitting a new cleanup.'
                           : ''
                     }
                   >
@@ -324,8 +324,8 @@ export default function Home() {
                             if (status.claimed || pollCount >= maxPolls) {
                               clearInterval(pollInterval)
                               setSuccessModalData({
-                                title: 'Impact Product Minted!',
-                                message: 'Your Impact Product NFT has been successfully minted!',
+                              title: 'Impact Product Minted!',
+                              message: 'Your Impact Product has been successfully minted!',
                                 transactionHash: hash,
                               })
                               setShowSuccessModal(true)
@@ -402,9 +402,7 @@ export default function Home() {
             <div className="mx-auto max-w-md space-y-4">
               <div>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  {isInFarcaster
-                    ? 'Your Farcaster wallet should connect automatically. Tap below if it does not.'
-                    : 'Connect your wallet to get started.'}
+                  Connect your wallet to get started.
                 </p>
                 <Button
                   size="lg"

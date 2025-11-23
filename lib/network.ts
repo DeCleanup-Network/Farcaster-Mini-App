@@ -26,19 +26,19 @@ export async function tryAddRequiredChain(chainId?: number): Promise<boolean> {
   // Try method 1: Direct provider (works for MetaMask and other injected wallets)
   const provider = (window as any)?.ethereum
   if (provider?.request) {
-    try {
-      await provider.request({
-        method: 'wallet_addEthereumChain',
-        params: [chainParams],
-      })
+  try {
+    await provider.request({
+      method: 'wallet_addEthereumChain',
+      params: [chainParams],
+    })
       console.log('✅ Added Base network via wallet_addEthereumChain')
-      return true
+    return true
     } catch (error: any) {
       // If it's a user rejection, don't try other methods
       if (error?.code === 4001 || error?.message?.includes('rejected')) {
         console.log('User rejected chain addition')
-        return false
-      }
+    return false
+  }
       console.warn('wallet_addEthereumChain failed, trying alternative method:', error)
     }
   }

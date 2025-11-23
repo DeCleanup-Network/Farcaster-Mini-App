@@ -194,9 +194,9 @@ export async function getUserCleanupStatus(
             }
           } catch (error) {
             // Cleanup doesn't exist or error - clear localStorage
-            console.log('Clearing stale localStorage cleanup data')
-            localStorage.removeItem(pendingKey)
-            localStorage.removeItem(`pending_cleanup_location_${userAddress.toLowerCase()}`)
+          console.log('Clearing stale localStorage cleanup data')
+          localStorage.removeItem(pendingKey)
+          localStorage.removeItem(`pending_cleanup_location_${userAddress.toLowerCase()}`)
           }
         }
         // Also clear old global keys

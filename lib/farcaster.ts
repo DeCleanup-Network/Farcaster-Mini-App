@@ -3,17 +3,28 @@ import { sdk } from '@farcaster/miniapp-sdk'
 const APP_NAME = 'DeCleanup Rewards'
 export const MINIAPP_URL =
   process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
-export const REFERRAL_MESSAGE =
-  '🌱 Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact:'
+// Profile share messages
+export const formatReferralMessage = (referralLink: string, type: 'farcaster' | 'web' | 'copy' = 'copy') => {
+  const baseMessage = type === 'farcaster'
+    ? 'Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base:'
+    : type === 'web'
+    ? 'Join me in @decleanupnet Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base:'
+    : 'Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on Base chain:'
+  return `${baseMessage}\n\n${referralLink}`
+}
 
-export const formatReferralMessage = (referralLink: string) =>
-  `${REFERRAL_MESSAGE}\n\n${referralLink}`
-
-export const formatImpactShareMessage = (level: number | null | undefined, link?: string) => {
+// Claim share messages
+export const formatImpactShareMessage = (level: number | null | undefined, link?: string, type: 'farcaster' | 'web' | 'copy' = 'copy') => {
   const normalizedLink = (link && link.trim().length > 0 ? link : MINIAPP_URL).trim()
-  const levelLabel =
-    typeof level === 'number' && level > 0 ? `Level ${level} Impact Product` : 'an Impact Product NFT'
-  return `🌱 I've just minted ${levelLabel} for my recent cleanup join DeCleanup Rewards to make a difference and tokenize your impact: ${normalizedLink}`
+  const levelLabel = typeof level === 'number' && level > 0 ? `Level ${level} Impact Product` : 'an Impact Product'
+  
+  if (type === 'farcaster') {
+    return `Just minted ${levelLabel} for my recent cleanup. Join DeCleanup Rewards on @base to turn your actions into Impact Products:\n\n${normalizedLink}`
+  } else if (type === 'web') {
+    return `Just minted ${levelLabel} for my recent cleanup. Join @decleanupnet Rewards on @base to turn your action into Impact Products:\n\n${normalizedLink}`
+  } else {
+    return `Just minted ${levelLabel} for my recent cleanup. Join DeCleanup Rewards on Base chain to turn your action into Impact Products:\n\n${normalizedLink}`
+  }
 }
 
 // EIP-1193 Provider type (for wallet integration)

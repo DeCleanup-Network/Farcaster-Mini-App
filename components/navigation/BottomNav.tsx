@@ -54,9 +54,9 @@ export function BottomNav() {
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm safe-area-inset-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm safe-area-inset-bottom pb-safe">
       <div className="container mx-auto">
-        <div className="flex items-center justify-around px-2 py-2">
+        <div className={`flex items-center ${navItems.length === 3 ? 'justify-around' : 'justify-evenly'} px-2 py-3`}>
           {navItems.map((item) => {
             const Icon = item.icon
             return (
@@ -69,7 +69,7 @@ export function BottomNav() {
                     : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 }`}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-6 w-6" />
                 <span className="text-[10px] font-medium uppercase leading-tight">
                   {item.label}
                 </span>

@@ -1161,8 +1161,10 @@ export default function VerifierPage() {
                               ✓ Enhanced impact form submitted
                               <span className="text-xs text-gray-400">(click to {expandedForms.has(cleanup.id.toString()) ? 'collapse' : 'expand'})</span>
                             </button>
-                            {expandedForms.has(cleanup.id.toString()) && (
-                              <ImpactReportDetails impactReportHash={cleanup.impactReportHash} />
+                            {expandedForms.has(cleanup.id.toString()) && cleanup.impactReportHash && (
+                              <div className="mt-2">
+                                <ImpactReportDetails key={`${cleanup.id}-${cleanup.impactReportHash}`} impactReportHash={cleanup.impactReportHash} />
+                              </div>
                             )}
                           </div>
                         )}
@@ -1559,9 +1561,9 @@ export default function VerifierPage() {
                       >
                         {expandedForms.has(cleanup.id.toString()) ? '▼' : '▶'} View Impact Report
                       </button>
-                      {expandedForms.has(cleanup.id.toString()) && (
+                      {expandedForms.has(cleanup.id.toString()) && cleanup.impactReportHash && (
                         <div className="mt-2">
-                          <ImpactReportDetails impactReportHash={cleanup.impactReportHash} />
+                          <ImpactReportDetails key={`${cleanup.id}-${cleanup.impactReportHash}`} impactReportHash={cleanup.impactReportHash} />
                         </div>
                       )}
                     </div>
