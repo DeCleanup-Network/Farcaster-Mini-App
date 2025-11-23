@@ -110,7 +110,7 @@ export async function getLatestCleanupStatus(
             localStorage.removeItem(pendingKey)
             localStorage.removeItem(`pending_cleanup_location_${userAddress.toLowerCase()}`)
             // Fall through to on-chain search
-          } else if (status.rejected) {
+          } else if (details.rejected) {
             // If cleanup is rejected, clear localStorage and don't return it
             console.log('Cleanup is rejected, clearing localStorage to allow new submission')
             localStorage.removeItem(pendingKey)
@@ -170,7 +170,6 @@ export async function getUserCleanupStatus(
   claimed?: boolean
   rejected?: boolean
   level?: number
-  rejected?: boolean
 }> {
   try {
     const latest = await getLatestCleanupStatus(userAddress)
@@ -267,7 +266,6 @@ export async function getUserCleanupStatus(
       claimed: latest.claimed,
       rejected: latest.rejected,
       level: latest.level,
-      rejected: false,
       reason: hasPending
         ? 'Your cleanup is still under review. Please wait for verification.'
         : latest.claimed
