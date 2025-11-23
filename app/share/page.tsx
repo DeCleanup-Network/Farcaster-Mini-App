@@ -19,7 +19,7 @@ export async function generateMetadata({
 
   let title = "DeCleanup Rewards - Tokenize Your Environmental Impact"
   let description = "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference."
-  let imageUrl = OG_IMAGE_URL
+  const imageUrl = OG_IMAGE_URL
 
   if (type === 'claim' && level) {
     title = `Just minted Level ${level} Impact Product! - DeCleanup Rewards`
@@ -100,7 +100,6 @@ export default async function SharePage({
   const params = await searchParams
   const ref = params.ref
   const type = params.type || 'referral'
-  const level = params.level
 
   // Build redirect URL
   let redirectUrl = SITE_URL
