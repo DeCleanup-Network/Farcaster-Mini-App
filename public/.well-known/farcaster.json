@@ -8,7 +8,7 @@
     "ownerAddress": "0x54e2bC746Cf63469A0ca1e3c6647BB3cfCE48978"
   },
   "miniapp": {
-    "version": "1",
+    "version": "1.1",
     "name": "DeCleanup Rewards",
     "homeUrl": "https://farcaster-mini-app-umber.vercel.app",
     "iconUrl": "https://gateway.pinata.cloud/ipfs/bafkreicdyq37dkuel7njhxinmkdm5werrgeqghfzqoviotgveqbzeg7qym?filename=icon1.png",
