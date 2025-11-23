@@ -8,7 +8,7 @@ export const formatReferralMessage = (referralLink: string, type: 'farcaster' | 
   const baseMessage = type === 'farcaster'
     ? 'Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base.base.eth:'
     : type === 'web'
-    ? 'Join me in @decleanupnet Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base.base.eth:'
+    ? 'Join me in @decleanupnet Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base:'
     : 'Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on Base chain:'
   return `${baseMessage}\n\n${referralLink}`
 }
@@ -21,7 +21,7 @@ export const formatImpactShareMessage = (level: number | null | undefined, link?
   if (type === 'farcaster') {
     return `Just minted ${levelLabel} for my recent cleanup. Join DeCleanup Rewards on @base.base.eth to turn your actions into Impact Products:\n\n${normalizedLink}`
   } else if (type === 'web') {
-    return `Just minted ${levelLabel} for my recent cleanup. Join @decleanupnet Rewards on @base.base.eth to turn your action into Impact Products:\n\n${normalizedLink}`
+    return `Just minted ${levelLabel} for my recent cleanup. Join @decleanupnet Rewards on @base to turn your action into Impact Products:\n\n${normalizedLink}`
   } else {
     return `Just minted ${levelLabel} for my recent cleanup. Join DeCleanup Rewards on Base chain to turn your action into Impact Products:\n\n${normalizedLink}`
   }
@@ -155,18 +155,20 @@ const WEB_APP_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mi
 
 // Generate referral link with wallet address
 // type: 'farcaster' | 'web' | 'copy' - determines which URL to use
-// For social sharing, use the /share route which provides proper OG tags for previews
+// For Farcaster sharing, use the /share route which provides proper OG tags for previews
+// For X/Copy, use direct browser app links
 export const generateReferralLink = (
   walletAddress: string, 
   type: 'farcaster' | 'web' | 'copy' = 'web',
-  useSharePage: boolean = true // Use /share page for better social previews
+  useSharePage: boolean = true // Use /share page for Farcaster to get proper OG tags
 ): string => {
   if (useSharePage && type === 'farcaster') {
-    // Use share page for Farcaster to get proper OG tags
+    // Use share page for Farcaster to get proper OG tags (redirects to FC app)
     const baseUrl = WEB_APP_URL.replace(/\/$/, '')
     return `${baseUrl}/share?ref=${walletAddress}&type=referral`
   }
   
+  // For X and Copy, use direct browser app links
   const baseUrl = type === 'farcaster' 
     ? FARCASTER_MINIAPP_URL 
     : WEB_APP_URL
@@ -175,18 +177,21 @@ export const generateReferralLink = (
 }
 
 // Generate claim share link with wallet address and level
+// For Farcaster sharing, use the /share route which provides proper OG tags for previews
+// For X/Copy, use direct browser app links
 export const generateClaimShareLink = (
   walletAddress: string,
   level: number,
   type: 'farcaster' | 'web' | 'copy' = 'web',
-  useSharePage: boolean = true // Use /share page for better social previews
+  useSharePage: boolean = true // Use /share page for Farcaster to get proper OG tags
 ): string => {
   if (useSharePage && type === 'farcaster') {
-    // Use share page for Farcaster to get proper OG tags
+    // Use share page for Farcaster to get proper OG tags (redirects to FC app)
     const baseUrl = WEB_APP_URL.replace(/\/$/, '')
     return `${baseUrl}/share?ref=${walletAddress}&type=claim&level=${level}`
   }
   
+  // For X and Copy, use direct browser app links
   const baseUrl = type === 'farcaster' 
     ? FARCASTER_MINIAPP_URL 
     : WEB_APP_URL

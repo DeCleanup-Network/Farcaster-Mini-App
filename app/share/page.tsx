@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
-import { redirect } from 'next/navigation'
+import { ShareRedirect } from '@/components/share/ShareRedirect'
 
 const OG_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png"
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://farcaster-mini-app-umber.vercel.app"
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
 
 // This page handles sharing with proper OG tags for social media previews
-// It redirects to the actual app while providing rich previews for referral and claim links
+// It renders HTML with meta tags so crawlers can read them, then redirects client-side
 export async function generateMetadata({
   searchParams,
 }: {
@@ -29,13 +29,31 @@ export async function generateMetadata({
     description = "Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base.base.eth"
   }
 
+  const shareUrl = `${SITE_URL}/share${ref ? `?ref=${ref}` : ''}${type ? `&type=${type}` : ''}${level ? `&level=${level}` : ''}`
+
+  // Farcaster Mini App embed metadata
+  const EMBED_METADATA = {
+    version: "1",
+    imageUrl: imageUrl,
+    button: {
+      title: "Open DeCleanup Rewards",
+      action: {
+        type: "launch_frame",
+        url: SITE_URL,
+        name: "DeCleanup Rewards",
+        splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png",
+        splashBackgroundColor: "#000000",
+      },
+    },
+  }
+
   return {
     title,
     description,
     openGraph: {
       title,
       description,
-      url: `${SITE_URL}/share${ref ? `?ref=${ref}` : ''}${type ? `&type=${type}` : ''}${level ? `&level=${level}` : ''}`,
+      url: shareUrl,
       siteName: "DeCleanup Rewards",
       images: [
         {
@@ -53,6 +71,17 @@ export async function generateMetadata({
       title,
       description,
       images: [imageUrl],
+    },
+    // Add explicit meta tags for better crawler support
+    other: {
+      'og:image': imageUrl,
+      'og:image:width': '1200',
+      'og:image:height': '630',
+      'og:image:type': 'image/png',
+      'twitter:image': imageUrl,
+      'twitter:image:alt': title,
+      // Farcaster mini app metadata for proper embed recognition
+      'fc:miniapp': JSON.stringify(EMBED_METADATA),
     },
   }
 }
@@ -77,7 +106,8 @@ export default async function SharePage({
     redirectUrl = FARCASTER_MINIAPP_URL
   }
 
-  // Redirect to the actual app
-  redirect(redirectUrl)
+  // Render page with meta tags, then redirect client-side
+  // This allows crawlers to read the OG tags before redirect
+  return <ShareRedirect redirectUrl={redirectUrl} />
 }
 

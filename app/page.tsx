@@ -459,9 +459,9 @@ export default function Home() {
 
                 <Button
                   onClick={async () => {
-                    const { generateReferralLink } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address, 'web')
-                    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(formatReferralMessage(referralLink))}`
+                    const { generateReferralLink, formatReferralMessage } = await import('@/lib/farcaster')
+                    const referralLink = generateReferralLink(address, 'web', false)
+                    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(formatReferralMessage(referralLink, 'web'))}`
                     window.open(xUrl, '_blank')
                   }}
                   variant="outline"
@@ -475,14 +475,14 @@ export default function Home() {
 
                 <Button
                   onClick={async () => {
-                    const { generateReferralLink } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address, 'copy')
+                    const { generateReferralLink, formatReferralMessage } = await import('@/lib/farcaster')
+                    const referralLink = generateReferralLink(address, 'copy', false)
                     try {
-                      const copyText = formatReferralMessage(referralLink)
+                      const copyText = formatReferralMessage(referralLink, 'copy')
                       await navigator.clipboard.writeText(copyText)
                       alert('Referral message copied to clipboard!')
                     } catch (error) {
-                      alert(formatReferralMessage(referralLink))
+                      alert(formatReferralMessage(referralLink, 'copy'))
                     }
                   }}
                   variant="outline"
