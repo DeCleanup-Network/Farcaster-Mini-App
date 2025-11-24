@@ -44,16 +44,16 @@ export async function generateMetadata({
   const type = params.type || 'referral' // 'referral' or 'claim'
   const level = params.level
 
-  let title = 'DeCleanup Rewards - Tokenize Your Environmental Impact'
-  let description = 'Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.'
+  let title = 'DeCleanup Rewards - Earn Tokens for Cleanups'
+  let description = 'Clean up, share proof, earn tokens, and trade on Base.'
   const imageUrl = SHARE_IMAGE_URL // Same preview image for both referral and claim
 
   if (type === 'claim' && level) {
     title = `Just minted Level ${level} Impact Product! - DeCleanup Rewards`
-    description = `Just minted Level ${level} Impact Product for my recent cleanup. Join DeCleanup Rewards on @base.base.eth to turn your actions into Impact Products.`
+    description = `Just minted Level ${level} Impact Product for my recent cleanup. Earn tokens and trade on Base with DeCleanup Rewards.`
   } else if (type === 'referral') {
     title = 'Join DeCleanup Rewards - Clean Up, Snap, Earn'
-    description = 'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on @base.'
+    description = 'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on Base.'
   }
 
   const shareQuery = buildQueryString({ ref, type, level })

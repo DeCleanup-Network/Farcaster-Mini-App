@@ -448,8 +448,9 @@ export default function Home() {
                 <Button
                   onClick={async () => {
                     const { generateReferralLink, shareCast, formatReferralMessage } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address, 'farcaster', true)
-                    await shareCast(formatReferralMessage(referralLink, 'farcaster'), referralLink)
+                    const farcasterLink = generateReferralLink(address, 'farcaster', false)
+                    const embedLink = generateReferralLink(address, 'web', true)
+                    await shareCast(formatReferralMessage(farcasterLink, 'farcaster'), embedLink)
                   }}
                   className="flex-1 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
                 >
@@ -460,7 +461,7 @@ export default function Home() {
                 <Button
                   onClick={async () => {
                     const { generateReferralLink, formatReferralMessage } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address, 'web', true) // Use share page for preview images
+                    const referralLink = generateReferralLink(address, 'web', true)
                     const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(formatReferralMessage(referralLink, 'web'))}`
                     window.open(xUrl, '_blank')
                   }}

@@ -3,29 +3,50 @@ import { sdk } from '@farcaster/miniapp-sdk'
 const APP_NAME = 'DeCleanup Rewards'
 export const MINIAPP_URL =
   process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
+const FARCASTER_HANDLE = '@base'
+const REFERRAL_COPY_FARCASTER =
+  `Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on ${FARCASTER_HANDLE}.\n\n`
+const REFERRAL_COPY_WEB =
+  'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on Base.\n\n'
+const REFERRAL_COPY_COPY =
+  'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on the Base network.\n\n'
+
 // Profile share messages
-export const formatReferralMessage = (referralLink: string, type: 'farcaster' | 'web' | 'copy' = 'copy') => {
-  if (type === 'farcaster') {
-    return `Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base.base.eth\n\n${referralLink}`
-  } else if (type === 'web') {
-    return `Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base\n\n${referralLink}`
-  } else {
-    return `Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on Base chain\n\n${referralLink}`
-  }
+export const formatReferralMessage = (
+  referralLink: string,
+  type: 'farcaster' | 'web' | 'copy' = 'copy'
+) => {
+  const copy =
+    type === 'farcaster'
+      ? REFERRAL_COPY_FARCASTER
+      : type === 'web'
+      ? REFERRAL_COPY_WEB
+      : REFERRAL_COPY_COPY
+  return `${copy}${referralLink}`
 }
 
 // Claim share messages
-export const formatImpactShareMessage = (level: number | null | undefined, link?: string, type: 'farcaster' | 'web' | 'copy' = 'copy') => {
+export const formatImpactShareMessage = (
+  level: number | string | null | undefined,
+  link?: string,
+  type: 'farcaster' | 'web' | 'copy' = 'copy'
+) => {
   const normalizedLink = (link && link.trim().length > 0 ? link : MINIAPP_URL).trim()
-  const levelLabel = typeof level === 'number' && level > 0 ? `Level ${level} Impact Product` : 'an Impact Product'
-  
+  const parsedLevel =
+    typeof level === 'string'
+      ? Number(level)
+      : typeof level === 'number'
+      ? level
+      : null
+  const hasLevel = typeof parsedLevel === 'number' && Number.isFinite(parsedLevel) && parsedLevel > 0
+  const levelLabel = hasLevel ? `Level ${parsedLevel} Impact Product` : 'an Impact Product'
+
   if (type === 'farcaster') {
-    return `Just minted ${levelLabel} for my recent cleanup. Join DeCleanup Rewards on @base.base.eth to turn your actions into Impact Products:\n\n${normalizedLink}`
+    return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on ${FARCASTER_HANDLE}:\n\n${normalizedLink}`
   } else if (type === 'web') {
-    return `Just minted ${levelLabel} for my recent cleanup. Join DeCleanup Rewards on @base to turn your actions into Impact Products:\n\n${normalizedLink}`
-  } else {
-    return `Just minted ${levelLabel} for my recent cleanup. Join DeCleanup Rewards on Base chain to turn your actions into Impact Products:\n\n${normalizedLink}`
+    return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on Base:\n\n${normalizedLink}`
   }
+  return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on the Base network:\n\n${normalizedLink}`
 }
 
 // EIP-1193 Provider type (for wallet integration)
@@ -151,52 +172,77 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
 }
 
 // Farcaster miniapp link
-const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
-const WEB_APP_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
+const FARCASTER_MINIAPP_URL =
+  'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
+const WEB_APP_URL =
+  process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
 
-// Generate referral link with wallet address
-// type: 'farcaster' | 'web' | 'copy' - determines which URL to use
-// For Farcaster and X sharing, use the /share route which provides proper OG tags for previews
-// For Copy, use direct browser app links (no preview needed)
+function buildUrl(base: string, path: string, params?: Record<string, string | number | undefined>) {
+  const normalizedBase = base.endsWith('/') ? base : `${base}/`
+  const url = new URL(path, normalizedBase)
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        url.searchParams.set(key, String(value))
+      }
+    })
+  }
+  return url.toString()
+}
+
 export const generateReferralLink = (
   walletAddress: string, 
   type: 'farcaster' | 'web' | 'copy' = 'web',
-  useSharePage: boolean = true // Use /share page for Farcaster and X to get proper OG tags
+  useSharePage: boolean = true
 ): string => {
-  if (useSharePage && (type === 'farcaster' || type === 'web')) {
-    // Use share page for Farcaster and X to get proper OG tags for preview images
-    const baseUrl = WEB_APP_URL.replace(/\/$/, '')
-    return `${baseUrl}/share?ref=${walletAddress}&type=referral`
+  const sanitizedAddress = walletAddress?.trim()
+  if (!sanitizedAddress) {
+    return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
   }
-  
-  // For Copy, use direct browser app links (no preview needed)
-  const baseUrl = type === 'farcaster' 
-    ? FARCASTER_MINIAPP_URL 
-    : WEB_APP_URL
-  const url = baseUrl.replace(/\/$/, '')
-  return `${url}/cleanup?ref=${walletAddress}`
+
+  if (type === 'farcaster') {
+    return buildUrl(FARCASTER_MINIAPP_URL, 'cleanup', { ref: sanitizedAddress })
+  }
+
+  if (useSharePage && type !== 'copy') {
+    return buildUrl(WEB_APP_URL, 'share', { ref: sanitizedAddress, type: 'referral' })
+  }
+
+  return buildUrl(WEB_APP_URL, 'cleanup', { ref: sanitizedAddress })
 }
 
 // Generate claim share link with wallet address and level
-// For Farcaster and X sharing, use the /share route which provides proper OG tags for previews
-// For Copy, use direct browser app links (no preview needed)
 export const generateClaimShareLink = (
   walletAddress: string,
   level: number,
   type: 'farcaster' | 'web' | 'copy' = 'web',
-  useSharePage: boolean = true // Use /share page for Farcaster and X to get proper OG tags
+  useSharePage: boolean = true
 ): string => {
-  if (useSharePage && (type === 'farcaster' || type === 'web')) {
-    // Use share page for Farcaster and X to get proper OG tags for preview images
-    const baseUrl = WEB_APP_URL.replace(/\/$/, '')
-    return `${baseUrl}/share?ref=${walletAddress}&type=claim&level=${level}`
+  const sanitizedAddress = walletAddress?.trim()
+  if (!sanitizedAddress) {
+    return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
   }
-  
-  // For Copy, use direct browser app links (no preview needed)
-  const baseUrl = type === 'farcaster' 
-    ? FARCASTER_MINIAPP_URL 
-    : WEB_APP_URL
-  const url = baseUrl.replace(/\/$/, '')
-  return `${url}/profile`
+
+  const levelParam = typeof level === 'number' && !Number.isNaN(level) ? level : undefined
+
+  if (type === 'farcaster') {
+    return buildUrl(FARCASTER_MINIAPP_URL, 'profile', {
+      ref: sanitizedAddress,
+      level: levelParam,
+    })
+  }
+
+  if (useSharePage && type !== 'copy') {
+    return buildUrl(WEB_APP_URL, 'share', {
+      ref: sanitizedAddress,
+      type: 'claim',
+      level: levelParam,
+    })
+  }
+
+  return buildUrl(WEB_APP_URL, 'profile', {
+    ref: sanitizedAddress,
+    level: levelParam,
+  })
 }
 

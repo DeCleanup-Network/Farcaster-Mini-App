@@ -19,6 +19,7 @@ import {
   Copy,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import {
   getDCUBalance,
   getStakedDCU,
@@ -75,6 +76,7 @@ function extractImpactStats(metadata: ImpactMetadata | null) {
 export default function ProfilePage() {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
+  const searchParams = useSearchParams()
   const [hasMounted, setHasMounted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [profileData, setProfileData] = useState({
@@ -107,6 +109,20 @@ export default function ProfilePage() {
   useEffect(() => {
     setHasMounted(true)
   }, [])
+
+  // Capture referral codes from profile links as fallback
+  useEffect(() => {
+    if (!hasMounted || !searchParams) return
+    const ref = searchParams.get('ref')
+    if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('referrer_pending', ref)
+        if (address) {
+          localStorage.setItem(`referrer_${address.toLowerCase()}`, ref)
+        }
+      }
+    }
+  }, [hasMounted, searchParams, address])
 
   const loadProfileData = useCallback(
     async (userAddress: Address, options?: { showSpinner?: boolean }) => {
@@ -962,9 +978,10 @@ export default function ProfilePage() {
                             if (sharing || !address) return
                             setSharing(true)
                             try {
-                              const link = generateClaimShareLink(address, profileData.level, 'farcaster', true)
-                              const text = formatImpactShareMessage(profileData.level, link, 'farcaster')
-                              await shareCast(text, link)
+                              const farcasterLink = generateClaimShareLink(address, profileData.level, 'farcaster', false)
+                              const embedLink = generateClaimShareLink(address, profileData.level, 'web', true)
+                              const text = formatImpactShareMessage(profileData.level, farcasterLink, 'farcaster')
+                              await shareCast(text, embedLink)
                             } catch (error) {
                               console.error('Failed to share:', error)
                             } finally {
@@ -989,7 +1006,7 @@ export default function ProfilePage() {
                         <Button
                           onClick={() => {
                             if (!address) return
-                            const link = generateClaimShareLink(address, profileData.level, 'web', true) // Use share page for preview images
+                            const link = generateClaimShareLink(address, profileData.level, 'web', true)
                             const text = formatImpactShareMessage(profileData.level, link, 'web')
                             const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
                             window.open(xUrl, '_blank')
