@@ -1,10 +1,8 @@
 import type { Metadata } from 'next'
 import { ShareRedirect } from '@/components/share/ShareRedirect'
 
-// Different preview images for different share types
-const REFERRAL_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png"
-const CLAIM_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png" // TODO: Replace with claim-specific image
-const DEFAULT_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png"
+// Preview image for sharing (used for both referral and claim)
+const SHARE_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png"
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://farcaster-mini-app-umber.vercel.app"
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
 
@@ -22,16 +20,14 @@ export async function generateMetadata({
 
   let title = "DeCleanup Rewards - Tokenize Your Environmental Impact"
   let description = "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference."
-  let imageUrl = DEFAULT_IMAGE_URL
+  const imageUrl = SHARE_IMAGE_URL // Same preview image for both referral and claim
 
   if (type === 'claim' && level) {
     title = `Just minted Level ${level} Impact Product! - DeCleanup Rewards`
     description = `Just minted Level ${level} Impact Product for my recent cleanup. Join DeCleanup Rewards on @base.base.eth to turn your actions into Impact Products.`
-    imageUrl = CLAIM_IMAGE_URL
   } else if (type === 'referral') {
     title = "Join DeCleanup Rewards - Clean Up, Snap, Earn"
     description = "Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base.base.eth"
-    imageUrl = REFERRAL_IMAGE_URL
   }
 
   const shareUrl = `${SITE_URL}/share${ref ? `?ref=${ref}` : ''}${type ? `&type=${type}` : ''}${level ? `&level=${level}` : ''}`
@@ -107,13 +103,13 @@ export default async function SharePage({
   const type = params.type || 'referral'
 
   // Build redirect URL
+  // For web/X sharing, redirect to web app
+  // For Farcaster, the deep link will be handled by Farcaster client
   let redirectUrl = SITE_URL
   if (type === 'referral' && ref) {
-    redirectUrl = `${FARCASTER_MINIAPP_URL}/cleanup?ref=${ref}`
+    redirectUrl = `${SITE_URL}/cleanup?ref=${ref}`
   } else if (type === 'claim' && ref) {
-    redirectUrl = `${FARCASTER_MINIAPP_URL}/profile`
-  } else {
-    redirectUrl = FARCASTER_MINIAPP_URL
+    redirectUrl = `${SITE_URL}/profile`
   }
 
   // Render page with meta tags, then redirect client-side

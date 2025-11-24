@@ -156,20 +156,20 @@ const WEB_APP_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mi
 
 // Generate referral link with wallet address
 // type: 'farcaster' | 'web' | 'copy' - determines which URL to use
-// For Farcaster sharing, use the /share route which provides proper OG tags for previews
-// For X/Copy, use direct browser app links
+// For Farcaster and X sharing, use the /share route which provides proper OG tags for previews
+// For Copy, use direct browser app links (no preview needed)
 export const generateReferralLink = (
   walletAddress: string, 
   type: 'farcaster' | 'web' | 'copy' = 'web',
-  useSharePage: boolean = true // Use /share page for Farcaster to get proper OG tags
+  useSharePage: boolean = true // Use /share page for Farcaster and X to get proper OG tags
 ): string => {
-  if (useSharePage && type === 'farcaster') {
-    // Use share page for Farcaster to get proper OG tags (redirects to FC app)
+  if (useSharePage && (type === 'farcaster' || type === 'web')) {
+    // Use share page for Farcaster and X to get proper OG tags for preview images
     const baseUrl = WEB_APP_URL.replace(/\/$/, '')
     return `${baseUrl}/share?ref=${walletAddress}&type=referral`
   }
   
-  // For X and Copy, use direct browser app links
+  // For Copy, use direct browser app links (no preview needed)
   const baseUrl = type === 'farcaster' 
     ? FARCASTER_MINIAPP_URL 
     : WEB_APP_URL
@@ -178,21 +178,21 @@ export const generateReferralLink = (
 }
 
 // Generate claim share link with wallet address and level
-// For Farcaster sharing, use the /share route which provides proper OG tags for previews
-// For X/Copy, use direct browser app links
+// For Farcaster and X sharing, use the /share route which provides proper OG tags for previews
+// For Copy, use direct browser app links (no preview needed)
 export const generateClaimShareLink = (
   walletAddress: string,
   level: number,
   type: 'farcaster' | 'web' | 'copy' = 'web',
-  useSharePage: boolean = true // Use /share page for Farcaster to get proper OG tags
+  useSharePage: boolean = true // Use /share page for Farcaster and X to get proper OG tags
 ): string => {
-  if (useSharePage && type === 'farcaster') {
-    // Use share page for Farcaster to get proper OG tags (redirects to FC app)
+  if (useSharePage && (type === 'farcaster' || type === 'web')) {
+    // Use share page for Farcaster and X to get proper OG tags for preview images
     const baseUrl = WEB_APP_URL.replace(/\/$/, '')
     return `${baseUrl}/share?ref=${walletAddress}&type=claim&level=${level}`
   }
   
-  // For X and Copy, use direct browser app links
+  // For Copy, use direct browser app links (no preview needed)
   const baseUrl = type === 'farcaster' 
     ? FARCASTER_MINIAPP_URL 
     : WEB_APP_URL

@@ -460,7 +460,7 @@ export default function Home() {
                 <Button
                   onClick={async () => {
                     const { generateReferralLink, formatReferralMessage } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address, 'web', false)
+                    const referralLink = generateReferralLink(address, 'web', true) // Use share page for preview images
                     const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(formatReferralMessage(referralLink, 'web'))}`
                     window.open(xUrl, '_blank')
                   }}

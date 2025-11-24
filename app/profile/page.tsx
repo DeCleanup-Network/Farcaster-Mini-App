@@ -989,7 +989,7 @@ export default function ProfilePage() {
                         <Button
                           onClick={() => {
                             if (!address) return
-                            const link = generateClaimShareLink(address, profileData.level, 'web', false)
+                            const link = generateClaimShareLink(address, profileData.level, 'web', true) // Use share page for preview images
                             const text = formatImpactShareMessage(profileData.level, link, 'web')
                             const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
                             window.open(xUrl, '_blank')
