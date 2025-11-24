@@ -125,16 +125,24 @@ function getManualNetworkAddInstructions() {
 }
 
 async function ensureWalletOnRequiredChain(context = 'transaction', providedChainId?: number | null): Promise<void> {
-  // If providedChainId is valid and matches required, trust it and return early
-  // This fixes the issue where useChainId() shows correct chain but getCurrentChainId() returns null
-  if (providedChainId !== undefined && providedChainId !== null && providedChainId === REQUIRED_CHAIN_ID) {
-    console.log(`[${context}] ✅ Already on correct chain (from provided chainId: ${providedChainId})`)
-    return
+  // Always verify the actual chain ID from the wallet, don't just trust the hook value
+  // The hook value might be stale or incorrect
+  let currentChainId: number | null = await getCurrentChainId()
+  
+  // If we couldn't get chain ID, try using providedChainId as fallback
+  if (currentChainId === null && providedChainId !== undefined && providedChainId !== null) {
+    console.log(`[${context}] Could not get chain ID from wallet, using provided chainId: ${providedChainId}`)
+    currentChainId = providedChainId
   }
   
-  // Use provided chainId if available (from useChainId hook), otherwise try to get it
-  let currentChainId: number | null = providedChainId !== undefined ? providedChainId : await getCurrentChainId()
   console.log(`[${context}] Current chain ID: ${currentChainId}, required: ${REQUIRED_CHAIN_ID}`)
+  
+  // If providedChainId matches but actual chain doesn't, we still need to switch
+  // This handles cases where the hook is stale but wallet is on wrong chain
+  if (currentChainId === REQUIRED_CHAIN_ID) {
+    console.log(`[${context}] ✅ Already on correct chain`)
+    return
+  }
 
   // If we can't determine chain (e.g., WalletConnect), try to add the chain first
   // This helps WalletConnect-MetaMask users who might not have the chain configured
@@ -1235,7 +1243,27 @@ export async function verifyCleanup(
   }
 
   // Ensure wallet is on the required chain - this handles switching and validation
-  await ensureWalletOnRequiredChain('verification', providedChainId)
+  // This will throw an error if chain switch is rejected or fails
+  try {
+    await ensureWalletOnRequiredChain('verification', providedChainId)
+  } catch (chainError: any) {
+    const chainErrorMessage = getErrorMessage(chainError)
+    // If user rejected chain switch, throw a clear error
+    if (chainErrorMessage.includes('rejected') || chainErrorMessage.includes('Network switch rejected')) {
+      throw new Error('Network switch was rejected. Please switch to the correct network in your wallet and try again.')
+    }
+    // Re-throw other chain errors
+    throw chainError
+  }
+
+  // Double-check chain before proceeding with transaction
+  const finalChainCheck = await getCurrentChainId()
+  if (finalChainCheck !== null && finalChainCheck !== REQUIRED_CHAIN_ID) {
+    throw new Error(
+      `Wallet is still on the wrong network (Chain ID: ${finalChainCheck}). ` +
+      `Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) and try again.`
+    )
+  }
 
   console.log(`[verification] Chain check passed, proceeding with transaction`)
 
