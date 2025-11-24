@@ -5,11 +5,11 @@ export const MINIAPP_URL =
   process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
 const FARCASTER_HANDLE = '@base'
 const REFERRAL_COPY_FARCASTER =
-  `Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on ${FARCASTER_HANDLE}.\n\n`
+  'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on @base.base.eth\n\n'
 const REFERRAL_COPY_WEB =
-  'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on Base.\n\n'
+  'Join me in @decleanupnet Rewards! Clean up, share proof, earn tokens, and trade on @base.\n\n'
 const REFERRAL_COPY_COPY =
-  'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on the Base network.\n\n'
+  'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on Base.\n\n'
 
 // Profile share messages
 export const formatReferralMessage = (
@@ -42,11 +42,11 @@ export const formatImpactShareMessage = (
   const levelLabel = hasLevel ? `Level ${parsedLevel} Impact Product` : 'an Impact Product'
 
   if (type === 'farcaster') {
-    return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on ${FARCASTER_HANDLE}:\n\n${normalizedLink}`
+    return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on @base.base.eth\n\n${normalizedLink}`
   } else if (type === 'web') {
-    return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on Base:\n\n${normalizedLink}`
+    return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on @base:\n\n${normalizedLink}`
   }
-  return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on the Base network:\n\n${normalizedLink}`
+  return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on @base:\n\n${normalizedLink}`
 }
 
 // EIP-1193 Provider type (for wallet integration)
