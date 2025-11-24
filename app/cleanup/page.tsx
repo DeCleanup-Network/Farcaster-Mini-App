@@ -317,8 +317,10 @@ function CleanupContent() {
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (file) {
-        if (file.size > 10 * 1024 * 1024) {
-          alert('Image size must be less than 10 MB')
+        const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB per image
+        if (file.size > MAX_FILE_SIZE) {
+          const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2)
+          alert(`Image size must be less than 10 MB per image. This image is ${fileSizeMB} MB.`)
           return
         }
         if (type === 'before') {

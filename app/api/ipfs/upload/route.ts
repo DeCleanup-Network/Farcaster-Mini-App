@@ -30,6 +30,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate file size: each image must be max 10MB (not total)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB per image
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: `Image size must be less than 10 MB per image. This image is ${(file.size / (1024 * 1024)).toFixed(2)} MB.` },
+        { status: 400 }
+      )
+    }
+
     // Create new FormData for Pinata
     const pinataFormData = new FormData()
     pinataFormData.append('file', file)
