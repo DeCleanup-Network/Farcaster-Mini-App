@@ -2,9 +2,35 @@ import type { Metadata } from 'next'
 import { ShareRedirect } from '@/components/share/ShareRedirect'
 
 // Preview image for sharing (used for both referral and claim)
-const SHARE_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png"
-const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://farcaster-mini-app-umber.vercel.app"
+const SHARE_IMAGE_URL =
+  'https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png'
+const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
+
+function buildQueryString(params: Record<string, string | undefined>) {
+  const query = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) {
+      query.set(key, value)
+    }
+  })
+  const queryString = query.toString()
+  return queryString ? `?${queryString}` : ''
+}
+
+function buildFarcasterActionUrl(type: string, ref?: string) {
+  if (type === 'referral' && ref) {
+    const referralUrl = new URL(`${FARCASTER_MINIAPP_URL}/cleanup`)
+    referralUrl.searchParams.set('ref', ref)
+    return referralUrl.toString()
+  }
+
+  if (type === 'claim') {
+    return `${FARCASTER_MINIAPP_URL}/profile`
+  }
+
+  return FARCASTER_MINIAPP_URL
+}
 
 // This page handles sharing with proper OG tags for social media previews
 // It renders HTML with meta tags so crawlers can read them, then redirects client-side
@@ -18,38 +44,33 @@ export async function generateMetadata({
   const type = params.type || 'referral' // 'referral' or 'claim'
   const level = params.level
 
-  let title = "DeCleanup Rewards - Tokenize Your Environmental Impact"
-  let description = "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference."
+  let title = 'DeCleanup Rewards - Tokenize Your Environmental Impact'
+  let description = 'Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.'
   const imageUrl = SHARE_IMAGE_URL // Same preview image for both referral and claim
 
   if (type === 'claim' && level) {
     title = `Just minted Level ${level} Impact Product! - DeCleanup Rewards`
     description = `Just minted Level ${level} Impact Product for my recent cleanup. Join DeCleanup Rewards on @base.base.eth to turn your actions into Impact Products.`
   } else if (type === 'referral') {
-    title = "Join DeCleanup Rewards - Clean Up, Snap, Earn"
-    description = "Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base.base.eth"
+    title = 'Join DeCleanup Rewards - Clean Up, Snap, Earn'
+    description = 'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on @base.'
   }
 
-  const shareUrl = `${SITE_URL}/share${ref ? `?ref=${ref}` : ''}${type ? `&type=${type}` : ''}${level ? `&level=${level}` : ''}`
+  const shareQuery = buildQueryString({ ref, type, level })
+  const shareUrl = `${SITE_URL}/share${shareQuery}`
 
-  // Farcaster Mini App embed metadata
-  // The imageUrl in the embed is what shows as the preview image when sharing
-  // The action.url should point to where users go when they click the button
   const EMBED_METADATA = {
-    version: "1",
-    imageUrl: imageUrl, // This is the preview image that shows in feeds
+    version: '1',
+    imageUrl, // This is the preview image that shows in feeds
     button: {
-      title: "Open DeCleanup Rewards",
+      title: 'Open DeCleanup Rewards',
       action: {
-        type: "launch_frame",
-        url: type === 'referral' && ref 
-          ? `${FARCASTER_MINIAPP_URL}/cleanup?ref=${ref}`
-          : type === 'claim' && ref
-          ? `${FARCASTER_MINIAPP_URL}/profile`
-          : FARCASTER_MINIAPP_URL, // Point to the actual app destination
-        name: "DeCleanup Rewards",
-        splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png",
-        splashBackgroundColor: "#000000",
+        type: 'launch_frame',
+        url: buildFarcasterActionUrl(type, ref),
+        name: 'DeCleanup Rewards',
+        splashImageUrl:
+          'https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png',
+        splashBackgroundColor: '#000000',
       },
     },
   }
@@ -61,7 +82,7 @@ export async function generateMetadata({
       title,
       description,
       url: shareUrl,
-      siteName: "DeCleanup Rewards",
+      siteName: 'DeCleanup Rewards',
       images: [
         {
           url: imageUrl,
@@ -70,11 +91,11 @@ export async function generateMetadata({
           alt: title,
         },
       ],
-      locale: "en_US",
-      type: "website",
+      locale: 'en_US',
+      type: 'website',
     },
     twitter: {
-      card: "summary_large_image",
+      card: 'summary_large_image',
       title,
       description,
       images: [imageUrl],
@@ -102,15 +123,23 @@ export default async function SharePage({
   const ref = params.ref
   const type = params.type || 'referral'
 
-  // Build redirect URL
-  // For web/X sharing, redirect to web app
-  // For Farcaster, the deep link will be handled by Farcaster client
-  let redirectUrl = SITE_URL
-  if (type === 'referral' && ref) {
-    redirectUrl = `${SITE_URL}/cleanup?ref=${ref}`
-  } else if (type === 'claim' && ref) {
-    redirectUrl = `${SITE_URL}/profile`
-  }
+  const redirectUrl = (() => {
+    const url = new URL(SITE_URL)
+
+    if (type === 'referral' && ref) {
+      url.pathname = '/cleanup'
+      url.searchParams.set('ref', ref)
+      return url.toString()
+    }
+
+    if (type === 'claim') {
+      url.pathname = '/profile'
+      url.search = ''
+      return url.toString()
+    }
+
+    return url.toString()
+  })()
 
   // Render page with meta tags, then redirect client-side
   // This allows crawlers to read the OG tags before redirect

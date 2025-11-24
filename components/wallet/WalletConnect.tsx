@@ -23,6 +23,7 @@ export function WalletConnect() {
   const [showNetworkTools, setShowNetworkTools] = useState(false)
   const [isAddingNetwork, setIsAddingNetwork] = useState(false)
   const [copiedNetworkDetails, setCopiedNetworkDetails] = useState(false)
+  const [autoConnectAttempted, setAutoConnectAttempted] = useState(false)
   const NETWORK_DETAILS = [
     `Network Name: ${REQUIRED_CHAIN_NAME}`,
     `RPC URL: ${REQUIRED_RPC_URL}`,
@@ -254,6 +255,23 @@ export function WalletConnect() {
     const inFarcaster = isFarcasterContext()
     setIsInFarcaster(inFarcaster)
   }, [])
+
+  // Auto-connect Farcaster wallet when inside the mini app while still allowing manual switches
+  useEffect(() => {
+    if (!mounted || autoConnectAttempted || isConnected) return
+    if (!isInFarcaster || !farcasterConnector) return
+
+    const attemptAutoConnect = async () => {
+      try {
+        setAutoConnectAttempted(true)
+        await connectAsync({ connector: farcasterConnector })
+      } catch (error) {
+        console.warn('Auto Farcaster connect failed:', error)
+      }
+    }
+
+    attemptAutoConnect()
+  }, [mounted, isInFarcaster, farcasterConnector, connectAsync, autoConnectAttempted, isConnected])
   
   // Handle WalletConnect stale session errors globally
   useEffect(() => {
