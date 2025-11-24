@@ -243,6 +243,8 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
         const newChainId = await getCurrentChainId()
         if (newChainId === REQUIRED_CHAIN_ID) {
           console.log(`[${context}] ✅ Successfully switched to ${REQUIRED_CHAIN_NAME}`)
+          // Add a small delay to ensure wallet has fully updated before proceeding
+          await new Promise(resolve => setTimeout(resolve, 500))
           return
         }
         retries++
@@ -252,6 +254,8 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
       const finalCheck = await getCurrentChainId()
       if (finalCheck === REQUIRED_CHAIN_ID) {
         console.log(`[${context}] ✅ Chain switch confirmed`)
+        // Add a small delay to ensure wallet has fully updated before proceeding
+        await new Promise(resolve => setTimeout(resolve, 500))
         return
       }
 
@@ -296,6 +300,8 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
                 const newChainId = await getCurrentChainId()
                 if (newChainId === REQUIRED_CHAIN_ID) {
                   console.log(`[${context}] ✅ Chain added and switched successfully`)
+                  // Add a small delay to ensure wallet has fully updated before proceeding
+                  await new Promise(resolve => setTimeout(resolve, 500))
                   return
                 }
               } catch (retryError: any) {
@@ -1265,6 +1271,10 @@ export async function verifyCleanup(
     )
   }
 
+  // Add a small delay after chain switch to ensure wallet has fully updated
+  // This prevents race conditions where the transaction is attempted before the chain switch is complete
+  await new Promise(resolve => setTimeout(resolve, 500))
+  
   console.log(`[verification] Chain check passed, proceeding with transaction`)
 
   // Validate cleanup exists before submitting
@@ -1333,6 +1343,29 @@ export async function verifyCleanup(
       throw new Error(
         `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
         `Current network: ${currentChainId || 'unknown'}\n${getNetworkSetupMessage()}`
+      )
+    }
+    
+    // Check if user rejected the transaction (not the chain switch)
+    if (
+      error?.code === 4001 || 
+      errorMessage.includes('User rejected') || 
+      errorMessage.includes('User denied') ||
+      errorMessage.includes('rejected the request') ||
+      errorMessage.includes('denied transaction signature')
+    ) {
+      // Check if we're on the correct chain - if not, the rejection might be due to wrong network
+      const currentChainId = await getCurrentChainId()
+      if (currentChainId !== null && currentChainId !== REQUIRED_CHAIN_ID) {
+        throw new Error(
+          `Transaction was rejected. Your wallet is on the wrong network (Chain ID: ${currentChainId}). ` +
+          `Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) and try again.`
+        )
+      }
+      // If on correct chain, user explicitly rejected the transaction
+      throw new Error(
+        `Transaction was rejected. Please approve the transaction in your wallet to verify the cleanup. ` +
+        `If you're unsure about the transaction, check that you're on ${REQUIRED_CHAIN_NAME} and have enough ETH for gas.`
       )
     }
     
