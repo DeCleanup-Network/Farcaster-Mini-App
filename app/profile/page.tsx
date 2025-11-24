@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { useAccount } from 'wagmi'
 import type { Address } from 'viem'
 import { Button } from '@/components/ui/button'
@@ -74,6 +74,14 @@ function extractImpactStats(metadata: ImpactMetadata | null) {
 }
 
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={<ProfilePageFallback />}>
+      <ProfileContent />
+    </Suspense>
+  )
+}
+
+function ProfileContent() {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const searchParams = useSearchParams()
@@ -1075,6 +1083,19 @@ export default function ProfilePage() {
               Submit New Cleanup
             </Button>
           </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProfilePageFallback() {
+  return (
+    <div className="min-h-screen bg-background px-4 py-8 pb-20">
+      <div className="mx-auto max-w-4xl">
+        <BackButton href="/" />
+        <div className="mt-8 flex items-center justify-center p-8">
+          <Loader2 className="h-8 w-8 animate-spin text-brand-green" />
         </div>
       </div>
     </div>
