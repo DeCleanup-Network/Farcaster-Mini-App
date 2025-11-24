@@ -4,22 +4,32 @@ import { useEffect, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from 'wagmi'
 import type { Connector } from 'wagmi'
 import { Button } from '@/components/ui/button'
-import { Wallet, LogOut, ChevronDown, QrCode, X } from 'lucide-react'
+import { Wallet, LogOut, ChevronDown, QrCode, X, RefreshCw, Copy } from 'lucide-react'
 import { isFarcasterContext, MINIAPP_URL } from '@/lib/farcaster'
-import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
+import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_RPC_URL, REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
 import { tryAddRequiredChain } from '@/lib/network'
 
 export function WalletConnect() {
   const [mounted, setMounted] = useState(false)
   const { address, isConnected, connector } = useAccount()
   const chainId = useChainId()
-  const { switchChain } = useSwitchChain()
+  const { switchChain, isPending: isSwitchingNetwork } = useSwitchChain()
   const { connectAsync, connectors, isPending } = useConnect()
   const { disconnect } = useDisconnect()
   const [isInFarcaster, setIsInFarcaster] = useState(false)
   const [showOtherWallets, setShowOtherWallets] = useState(false)
   const [hasSwitchedNetwork, setHasSwitchedNetwork] = useState(false)
   const [showFarcasterQR, setShowFarcasterQR] = useState(false)
+  const [showNetworkTools, setShowNetworkTools] = useState(false)
+  const [isAddingNetwork, setIsAddingNetwork] = useState(false)
+  const [copiedNetworkDetails, setCopiedNetworkDetails] = useState(false)
+  const NETWORK_DETAILS = [
+    `Network Name: ${REQUIRED_CHAIN_NAME}`,
+    `RPC URL: ${REQUIRED_RPC_URL}`,
+    `Chain ID: ${REQUIRED_CHAIN_ID}`,
+    `Currency: ETH`,
+    `Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}`,
+  ].join('\n')
 
   // Get Farcaster connector and external wallet connectors
   // The farcasterMiniApp connector might have different names, so we check by ID or type
@@ -165,6 +175,64 @@ export function WalletConnect() {
     }
   }
   
+  const handleNetworkSwitch = async () => {
+    try {
+      await switchChain({ chainId: REQUIRED_CHAIN_ID })
+      setShowNetworkTools(false)
+    } catch (error: any) {
+      console.warn('Network switch failed:', error)
+      const message = (error?.message || '').toLowerCase()
+      const requiresImport =
+        message.includes('not configured') ||
+        message.includes('unrecognized chain') ||
+        message.includes('unknown chain') ||
+        error?.code === 4902
+      
+      if (requiresImport) {
+        const added = await tryAddRequiredChain()
+        if (added) {
+          await new Promise(resolve => setTimeout(resolve, 1200))
+          try {
+            await switchChain({ chainId: REQUIRED_CHAIN_ID })
+            setShowNetworkTools(false)
+            return
+          } catch (retryError) {
+            console.warn('Switch after add failed:', retryError)
+          }
+        }
+      }
+      
+      alert(
+        `Unable to switch automatically. Please switch to ${REQUIRED_CHAIN_NAME} manually:\n\n${NETWORK_DETAILS}`
+      )
+    }
+  }
+
+  const handleAddNetwork = async () => {
+    if (isAddingNetwork) return
+    setIsAddingNetwork(true)
+    try {
+      const added = await tryAddRequiredChain()
+      if (added) {
+        alert(`${REQUIRED_CHAIN_NAME} has been sent to your wallet. Confirm the prompt there, then tap "Switch Network".`)
+      } else {
+        alert(`We couldn't add ${REQUIRED_CHAIN_NAME} automatically. Please add it manually:\n\n${NETWORK_DETAILS}`)
+      }
+    } finally {
+      setIsAddingNetwork(false)
+    }
+  }
+
+  const handleCopyNetworkDetails = async () => {
+    try {
+      await navigator.clipboard.writeText(NETWORK_DETAILS)
+      setCopiedNetworkDetails(true)
+      setTimeout(() => setCopiedNetworkDetails(false), 2000)
+    } catch {
+      alert(`Copy failed. Details:\n\n${NETWORK_DETAILS}`)
+    }
+  }
+  
   // Generate Farcaster deep link
   const getFarcasterDeepLink = () => {
     // Try Warpcast first, then fallback to Farcaster protocol
@@ -235,6 +303,13 @@ export function WalletConnect() {
       sessionStorage.setItem(sessionKey, 'true')
     }
   }, [mounted, isConnected])
+  
+  useEffect(() => {
+    if (!isConnected) {
+      setShowNetworkTools(false)
+      setShowOtherWallets(false)
+    }
+  }, [isConnected])
 
   // Auto-switch to required chain after connection
   useEffect(() => {
@@ -324,6 +399,15 @@ export function WalletConnect() {
               {connector?.name?.toLowerCase().includes('farcaster') ? 'Farcaster' : connector?.name || 'Wallet'}: {address.slice(0, 6)}...{address.slice(-4)}
             </span>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowNetworkTools(!showNetworkTools)}
+            className="gap-2 border-2 border-gray-700 bg-black text-white hover:bg-gray-900 text-xs sm:text-sm"
+          >
+            <RefreshCw className={`h-3 w-3 ${showNetworkTools ? 'rotate-90 transition-transform' : ''}`} />
+            <span className="hidden sm:inline">Network</span>
+          </Button>
           {externalConnectors.length > 0 && (
             <Button
               variant="outline"
@@ -359,6 +443,36 @@ export function WalletConnect() {
                 {connector.name}
               </button>
             ))}
+          </div>
+        )}
+
+        {/* Network tools dropdown */}
+        {showNetworkTools && (
+          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-gray-700 bg-gray-900 p-3 shadow-lg">
+            <p className="mb-2 text-xs font-medium text-gray-400">Network tools</p>
+            <button
+              onClick={handleNetworkSwitch}
+              disabled={isSwitchingNetwork}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-white hover:bg-gray-800 disabled:opacity-50"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-brand-green" />
+              {isSwitchingNetwork ? 'Switching...' : `Switch to ${REQUIRED_CHAIN_NAME}`}
+            </button>
+            <button
+              onClick={handleAddNetwork}
+              disabled={isAddingNetwork}
+              className="mt-1 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-white hover:bg-gray-800 disabled:opacity-50"
+            >
+              <PlusIcon />
+              {isAddingNetwork ? 'Adding...' : 'Add network to wallet'}
+            </button>
+            <button
+              onClick={handleCopyNetworkDetails}
+              className="mt-1 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-white hover:bg-gray-800"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {copiedNetworkDetails ? 'Copied!' : 'Copy network details'}
+            </button>
           </div>
         )}
       </div>
@@ -517,5 +631,22 @@ export function WalletConnect() {
         </div>
       )}
     </div>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      className="h-3.5 w-3.5 text-brand-green"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
   )
 }

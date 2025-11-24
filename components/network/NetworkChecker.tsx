@@ -10,13 +10,23 @@ import {
   REQUIRED_RPC_URL,
   REQUIRED_BLOCK_EXPLORER_URL,
 } from '@/lib/wagmi'
+import { tryAddRequiredChain } from '@/lib/network'
 const NATIVE_SYMBOL = 'ETH'
+const NETWORK_DETAILS = [
+  `Network Name: ${REQUIRED_CHAIN_NAME}`,
+  `RPC URL: ${REQUIRED_RPC_URL}`,
+  `Chain ID: ${REQUIRED_CHAIN_ID}`,
+  `Currency Symbol: ${NATIVE_SYMBOL}`,
+  `Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}`,
+].join('\n')
 
 export function NetworkChecker() {
   const { isConnected } = useAccount()
   const chainId = useChainId()
   const { switchChain, isPending } = useSwitchChain()
   const [showWarning, setShowWarning] = useState(false)
+  const [isAddingNetwork, setIsAddingNetwork] = useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
 
   useEffect(() => {
     // Only show warning if chainId is valid and different from required
@@ -33,19 +43,57 @@ export function NetworkChecker() {
       await switchChain({ chainId: REQUIRED_CHAIN_ID })
     } catch (error: any) {
       console.error('Failed to switch network:', error)
+      const message = (error?.message || '').toLowerCase()
+      const requiresImport =
+        message.includes('not configured') ||
+        message.includes('unrecognized chain') ||
+        message.includes('unknown chain') ||
+        error?.code === 4902
+
+      if (requiresImport) {
+        const added = await tryAddRequiredChain()
+        if (added) {
+          await new Promise(resolve => setTimeout(resolve, 1200))
+          try {
+            await switchChain({ chainId: REQUIRED_CHAIN_ID })
+            return
+          } catch (retryError) {
+            console.warn('Switch failed after adding network:', retryError)
+          }
+        }
+      }
+
       // Show manual instructions if switch fails
       alert(
-        `Please switch to ${REQUIRED_CHAIN_NAME} manually in MetaMask:\n\n` +
-        `1. Click the network dropdown in MetaMask\n` +
-        `2. Click "Add Network" or "Add a network manually"\n` +
-        `3. Enter these details:\n` +
-        `   - Network Name: ${REQUIRED_CHAIN_NAME}\n` +
-        `   - RPC URL: ${REQUIRED_RPC_URL}\n` +
-        `   - Chain ID: ${REQUIRED_CHAIN_ID}\n` +
-        `   - Currency Symbol: ${NATIVE_SYMBOL}\n` +
-        `   - Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
-        `4. Click "Save" and switch to the network`
+        `Please switch to ${REQUIRED_CHAIN_NAME} manually:\n\n${NETWORK_DETAILS}`
       )
+    }
+  }
+
+  const handleAddNetwork = async () => {
+    if (isAddingNetwork) return
+    setIsAddingNetwork(true)
+    try {
+      const added = await tryAddRequiredChain()
+      if (added) {
+        alert(`${REQUIRED_CHAIN_NAME} has been added to your wallet. Approve the prompt in your wallet and then tap "Switch Network".`)
+      } else {
+        alert(
+          `We couldn't add ${REQUIRED_CHAIN_NAME} automatically. Please add it manually:\n\n${NETWORK_DETAILS}`
+        )
+      }
+    } finally {
+      setIsAddingNetwork(false)
+    }
+  }
+
+  const handleCopyDetails = async () => {
+    try {
+      await navigator.clipboard.writeText(NETWORK_DETAILS)
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch {
+      alert(`Copy failed. Details:\n\n${NETWORK_DETAILS}`)
     }
   }
 
@@ -78,6 +126,23 @@ export function NetworkChecker() {
                 className="bg-brand-green text-black hover:bg-brand-green/90"
               >
                 {isPending ? 'Switching...' : `Switch to ${REQUIRED_CHAIN_NAME}`}
+              </Button>
+              <Button
+                onClick={handleAddNetwork}
+                disabled={isAddingNetwork}
+                variant="secondary"
+                size="sm"
+                className="bg-black/40 text-white hover:bg-black/60"
+              >
+                {isAddingNetwork ? 'Adding...' : 'Add Network'}
+              </Button>
+              <Button
+                onClick={handleCopyDetails}
+                variant="outline"
+                size="sm"
+                className="border-gray-600 text-gray-300"
+              >
+                {copySuccess ? 'Copied!' : 'Copy Details'}
               </Button>
               <Button
                 onClick={() => setShowWarning(false)}

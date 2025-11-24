@@ -18,16 +18,24 @@ const {
 } = contractsLib
 import { Address } from 'viem'
 import { waitForTransactionReceipt } from 'wagmi/actions'
-import { config, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUIRED_CHAIN_ID } from '@/lib/wagmi'
+import { config, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUIRED_CHAIN_ID, REQUIRED_RPC_URL } from '@/lib/wagmi'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
 import { getIPFSUrl, getIPFSFallbackUrls } from '@/lib/ipfs'
 import { findCleanupsByWallet } from '@/lib/find-cleanup-by-wallet'
+import { tryAddRequiredChain } from '@/lib/network'
 
 const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   ? 'Basescan (Sepolia)'
   : 'Basescan'
 const getExplorerTxUrl = (hash: `0x${string}`) => `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${hash}`
+const NETWORK_DETAILS = [
+  `Network Name: ${REQUIRED_CHAIN_NAME}`,
+  `RPC URL: ${REQUIRED_RPC_URL}`,
+  `Chain ID: ${REQUIRED_CHAIN_ID}`,
+  `Currency: ETH`,
+  `Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}`,
+].join('\n')
 
 interface CleanupItem {
   id: bigint
@@ -56,7 +64,7 @@ const VERIFIED_VERIFIER_KEY = 'decleanup_verified_verifier'
 export default function VerifierPage() {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
-  const { switchChain } = useSwitchChain()
+  const { switchChain, isPending: isSwitchingNetwork } = useSwitchChain()
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [isVerifier, setIsVerifier] = useState(false)
@@ -77,8 +85,147 @@ export default function VerifierPage() {
   const [searching, setSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<Array<{ cleanupId: bigint; verified: boolean; claimed: boolean; level: number; user: Address }>>([])
   const [isLoadingCleanups, setIsLoadingCleanups] = useState(false)
+  const [isAddingNetwork, setIsAddingNetwork] = useState(false)
+  const [copiedNetworkDetails, setCopiedNetworkDetails] = useState(false)
 
   const { signMessageAsync, isPending: isSigning } = useSignMessage()
+  const isWrongNetwork = Boolean(
+    isConnected &&
+      (typeof chainId !== 'number' || chainId !== REQUIRED_CHAIN_ID)
+  )
+
+  const attemptSwitchToRequiredChain = async (context: string) => {
+    if (!switchChain) {
+      throw new Error(
+        `Automatic network switching is not supported by this wallet. Please switch to ${REQUIRED_CHAIN_NAME} manually:\n\n${NETWORK_DETAILS}`
+      )
+    }
+
+    try {
+      await switchChain({ chainId: REQUIRED_CHAIN_ID })
+      await new Promise(resolve => setTimeout(resolve, 500))
+    } catch (error: any) {
+      console.warn(`[${context}] switchChain failed:`, error)
+      const message = (error?.message || '').toLowerCase()
+      const requiresImport =
+        message.includes('not configured') ||
+        message.includes('unrecognized chain') ||
+        message.includes('unknown chain') ||
+        error?.code === 4902
+
+      if (requiresImport) {
+        const added = await tryAddRequiredChain()
+        if (added) {
+          await new Promise(resolve => setTimeout(resolve, 1200))
+          try {
+            await switchChain({ chainId: REQUIRED_CHAIN_ID })
+            await new Promise(resolve => setTimeout(resolve, 500))
+            return
+          } catch (retryError) {
+            console.warn(`[${context}] Retry switch after add failed:`, retryError)
+          }
+        }
+        throw new Error(
+          `${REQUIRED_CHAIN_NAME} is not configured in your wallet. Please add it manually:\n\n${NETWORK_DETAILS}`
+        )
+      }
+
+      if (message.includes('rejected')) {
+        throw new Error('Network switch was rejected. Approve the prompt in your wallet or switch manually.')
+      }
+
+      throw new Error(
+        `Unable to switch to ${REQUIRED_CHAIN_NAME}. Please switch manually and try again.\n\n${NETWORK_DETAILS}`
+      )
+    }
+  }
+
+  const ensureCorrectNetwork = async (context: string) => {
+    if (!isConnected) {
+      throw new Error('Please connect your wallet first.')
+    }
+    if (typeof chainId === 'number' && chainId === REQUIRED_CHAIN_ID) {
+      return
+    }
+    await attemptSwitchToRequiredChain(context)
+  }
+
+  const handleAddNetwork = async () => {
+    if (isAddingNetwork) return
+    setIsAddingNetwork(true)
+    try {
+      const added = await tryAddRequiredChain()
+      if (added) {
+        alert(`${REQUIRED_CHAIN_NAME} was sent to your wallet. Approve the prompt there, then tap "Switch Network".`)
+      } else {
+        alert(`We couldn't add ${REQUIRED_CHAIN_NAME} automatically. Please add it manually:\n\n${NETWORK_DETAILS}`)
+      }
+    } finally {
+      setIsAddingNetwork(false)
+    }
+  }
+
+  const handleCopyNetworkDetails = async () => {
+    try {
+      await navigator.clipboard.writeText(NETWORK_DETAILS)
+      setCopiedNetworkDetails(true)
+      setTimeout(() => setCopiedNetworkDetails(false), 2000)
+    } catch {
+      alert(`Copy failed. Details:\n\n${NETWORK_DETAILS}`)
+    }
+  }
+
+  const handleNetworkBannerSwitch = async () => {
+    try {
+      await ensureCorrectNetwork('network banner')
+    } catch (error: any) {
+      alert(error?.message || String(error))
+    }
+  }
+
+  const WrongNetworkBanner = () => {
+    if (!isWrongNetwork) return null
+    return (
+      <div className="mb-4 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-4 text-left">
+        <div className="flex flex-col gap-2 text-sm text-gray-200 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold text-yellow-300">Wrong network detected</p>
+            <p className="text-xs text-gray-400">
+              Please switch to {REQUIRED_CHAIN_NAME} before verifying or rejecting cleanups.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onClick={handleNetworkBannerSwitch}
+              disabled={isSwitchingNetwork}
+              className="bg-brand-green text-black hover:bg-brand-green/90"
+            >
+              {isSwitchingNetwork ? 'Switching...' : `Switch to ${REQUIRED_CHAIN_NAME}`}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleAddNetwork}
+              disabled={isAddingNetwork}
+              className="bg-black/30 text-white hover:bg-black/60"
+            >
+              {isAddingNetwork ? 'Adding...' : 'Add network'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCopyNetworkDetails}
+              className="border-gray-600 text-gray-200"
+            >
+              {copiedNetworkDetails ? 'Copied!' : 'Copy details'}
+            </Button>
+          </div>
+        </div>
+        <p className="mt-2 text-xs font-mono text-gray-400 whitespace-pre-wrap">{NETWORK_DETAILS}</p>
+      </div>
+    )
+  }
 
   // Fix hydration error by only rendering after mount
   useEffect(() => {
@@ -241,25 +388,7 @@ export default function VerifierPage() {
     setSigningAddress(address)
 
     try {
-      // Ensure wallet is on the correct chain before signing
-      // Some connectors (like WalletConnect) require the chain to be configured
-      if (chainId !== REQUIRED_CHAIN_ID) {
-        console.log(`Current chain: ${chainId}, required: ${REQUIRED_CHAIN_ID}, switching...`)
-        try {
-          await switchChain({ chainId: REQUIRED_CHAIN_ID })
-          // Wait a moment for the chain switch to complete
-          await new Promise(resolve => setTimeout(resolve, 1000))
-        } catch (switchError: any) {
-          const switchMsg = switchError?.message || String(switchError)
-          if (switchMsg.includes('not configured') || switchMsg.includes('Chain not configured')) {
-            throw new Error(
-              `Your wallet doesn't have ${REQUIRED_CHAIN_NAME} configured. ` +
-              `Please add ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) to your wallet manually, then try again.`
-            )
-          }
-          throw new Error(`Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet and try again.`)
-        }
-      }
+      await ensureCorrectNetwork('verifier sign-in')
 
       // Request signature - if user can sign, they control the wallet
       // This is proof enough, no need to verify the signature
@@ -431,6 +560,7 @@ export default function VerifierPage() {
     setError(null)
 
     try {
+      await ensureCorrectNetwork('verify cleanup')
       // Get the cleanup details to find the user
       const cleanup = cleanups.find(c => c.id === cleanupId)
       if (!cleanup) {
@@ -569,6 +699,7 @@ export default function VerifierPage() {
     setError(null)
 
     try {
+      await ensureCorrectNetwork('reject cleanup')
       // Pass chainId to avoid false chain detection
       const hash = await rejectCleanup(cleanupId, chainId)
       console.log(`Rejecting cleanup ${cleanupId.toString()}`)
@@ -911,6 +1042,8 @@ export default function VerifierPage() {
               </div>
             )}
 
+            <WrongNetworkBanner />
+
             <Button
               onClick={handleSignIn}
               disabled={isSigning || loading}
@@ -965,6 +1098,9 @@ export default function VerifierPage() {
                 <p className="text-sm text-yellow-400 font-mono break-all">{error}</p>
               </div>
             )}
+
+            <WrongNetworkBanner />
+
             <p className="mb-4 text-gray-400">
               This address is not authorized as a verifier. Only whitelisted verifier addresses can access this dashboard.
             </p>
@@ -1036,6 +1172,8 @@ export default function VerifierPage() {
             </Button>
           </div>
         </div>
+
+        <WrongNetworkBanner />
 
         {/* Search by Wallet Address */}
         <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900 p-4">
