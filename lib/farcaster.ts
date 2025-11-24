@@ -5,12 +5,13 @@ export const MINIAPP_URL =
   process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
 // Profile share messages
 export const formatReferralMessage = (referralLink: string, type: 'farcaster' | 'web' | 'copy' = 'copy') => {
-  const baseMessage = type === 'farcaster'
-    ? 'Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base.base.eth:'
-    : type === 'web'
-    ? 'Join me in @decleanupnet Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base:'
-    : 'Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on Base chain:'
-  return `${baseMessage}\n\n${referralLink}`
+  if (type === 'farcaster') {
+    return `Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base.base.eth\n\n${referralLink}`
+  } else if (type === 'web') {
+    return `Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on @base\n\n${referralLink}`
+  } else {
+    return `Join me in DeCleanup Rewards app! Clean up, share the proof, earn Impact Products, and tokenize your environmental impact on Base chain\n\n${referralLink}`
+  }
 }
 
 // Claim share messages
@@ -21,9 +22,9 @@ export const formatImpactShareMessage = (level: number | null | undefined, link?
   if (type === 'farcaster') {
     return `Just minted ${levelLabel} for my recent cleanup. Join DeCleanup Rewards on @base.base.eth to turn your actions into Impact Products:\n\n${normalizedLink}`
   } else if (type === 'web') {
-    return `Just minted ${levelLabel} for my recent cleanup. Join @decleanupnet Rewards on @base to turn your action into Impact Products:\n\n${normalizedLink}`
+    return `Just minted ${levelLabel} for my recent cleanup. Join DeCleanup Rewards on @base to turn your actions into Impact Products:\n\n${normalizedLink}`
   } else {
-    return `Just minted ${levelLabel} for my recent cleanup. Join DeCleanup Rewards on Base chain to turn your action into Impact Products:\n\n${normalizedLink}`
+    return `Just minted ${levelLabel} for my recent cleanup. Join DeCleanup Rewards on Base chain to turn your actions into Impact Products:\n\n${normalizedLink}`
   }
 }
 
