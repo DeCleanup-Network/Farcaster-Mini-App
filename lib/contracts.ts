@@ -16,7 +16,7 @@ import {
   REQUIRED_RPC_URL,
   REQUIRED_CHAIN_IS_TESTNET,
 } from './wagmi'
-import { tryAddRequiredChain } from './network'
+import { tryAddRequiredChain, switchToRequiredChainViaProvider } from './network'
 import * as pointsLib from './points'
 
 // Helper to safely extract error messages

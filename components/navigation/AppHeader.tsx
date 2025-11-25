@@ -12,7 +12,7 @@ export function AppHeader() {
             <Leaf className="h-5 w-5 text-black" />
           </div>
           <div className="flex flex-col">
-            <span className="text-base font-bold uppercase tracking-tight text-foreground sm:text-lg">
+            <span className="font-heading text-lg uppercase tracking-wide text-foreground sm:text-2xl">
               DeCleanup Network
             </span>
             <span className="hidden text-[10px] font-medium text-muted-foreground sm:block sm:text-xs">
