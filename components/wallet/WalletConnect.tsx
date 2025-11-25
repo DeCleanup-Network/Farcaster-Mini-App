@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Wallet, LogOut, ChevronDown, QrCode, X, RefreshCw, Copy } from 'lucide-react'
 import { isFarcasterContext, MINIAPP_URL } from '@/lib/farcaster'
 import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_RPC_URL, REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
-import { tryAddRequiredChain } from '@/lib/network'
+import { tryAddRequiredChain, switchToRequiredChainViaProvider } from '@/lib/network'
 
 export function WalletConnect() {
   const [mounted, setMounted] = useState(false)
@@ -18,7 +18,7 @@ export function WalletConnect() {
   const { disconnect } = useDisconnect()
   const [isInFarcaster, setIsInFarcaster] = useState(false)
   const [showOtherWallets, setShowOtherWallets] = useState(false)
-  const [hasSwitchedNetwork, setHasSwitchedNetwork] = useState(false)
+  const [isAutoSwitching, setIsAutoSwitching] = useState(false)
   const [showFarcasterQR, setShowFarcasterQR] = useState(false)
   const [showNetworkTools, setShowNetworkTools] = useState(false)
   const [isAddingNetwork, setIsAddingNetwork] = useState(false)
@@ -331,54 +331,69 @@ export function WalletConnect() {
 
   // Auto-switch to required chain after connection
   useEffect(() => {
-    // Only auto-switch if chainId is actually different and not null/undefined
-    // Check if chainId is valid and different from required
-    if (isConnected && chainId && chainId !== REQUIRED_CHAIN_ID && !hasSwitchedNetwork) {
-      const attemptSwitch = async () => {
-        try {
-          console.log(
-            `Auto-switching from chain ${chainId} to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})...`
-          )
+    if (!isConnected) {
+      setIsAutoSwitching(false)
+      return
+    }
 
-          await switchChain({ chainId: REQUIRED_CHAIN_ID })
-          setHasSwitchedNetwork(true)
-        } catch (error: any) {
-          const message = (error?.message || '').toLowerCase()
-          const code = error?.code
-          const isChainMissing =
-            message.includes('not configured') ||
-            message.includes('unrecognized chain') ||
-            message.includes('unknown chain') ||
-            code === 4902
+    if (!chainId || chainId === REQUIRED_CHAIN_ID || isAutoSwitching) {
+      return
+    }
 
-          if (isChainMissing) {
-            const added = await tryAddRequiredChain()
-            if (added) {
-              // Wait for wallet to process the add request
-              await new Promise(resolve => setTimeout(resolve, 1000))
-              try {
-                await switchChain({ chainId: REQUIRED_CHAIN_ID })
-                setHasSwitchedNetwork(true)
-                return
-              } catch (retryError) {
-                console.warn('Switch failed after auto-adding network:', retryError)
-              }
+    let cancelled = false
+
+    const attemptSwitch = async () => {
+      setIsAutoSwitching(true)
+      try {
+        console.log(
+          `Auto-switching from chain ${chainId} to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})...`
+        )
+        await switchChain({ chainId: REQUIRED_CHAIN_ID })
+        return
+      } catch (error: any) {
+        const message = (error?.message || '').toLowerCase()
+        const code = error?.code
+        const isChainMissing =
+          message.includes('not configured') ||
+          message.includes('unrecognized chain') ||
+          message.includes('unknown chain') ||
+          code === 4902
+
+        if (isChainMissing) {
+          const added = await tryAddRequiredChain()
+          if (added) {
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            try {
+              await switchChain({ chainId: REQUIRED_CHAIN_ID })
+              return
+            } catch (retryError) {
+              console.warn('Switch failed after auto-adding network:', retryError)
             }
           }
+        }
 
-          console.log('Auto network switch failed or was rejected:', error)
-          // Don't keep retrying automatically to avoid spamming the user
-          setHasSwitchedNetwork(true) // Mark as "attempted" to stop loop
+        console.log('Auto network switch via wagmi failed, attempting provider request...', error)
+        try {
+          const switched = await switchToRequiredChainViaProvider()
+          if (switched) {
+            return
+          }
+        } catch (providerError) {
+          console.warn('Provider switch attempt failed:', providerError)
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAutoSwitching(false)
         }
       }
-
-      // Wait a bit after connection before attempting switch
-      const timeout = setTimeout(attemptSwitch, 1000)
-      return () => clearTimeout(timeout)
-    } else if (chainId === REQUIRED_CHAIN_ID) {
-      setHasSwitchedNetwork(true)
     }
-  }, [isConnected, chainId, hasSwitchedNetwork, switchChain])
+
+    const timeout = setTimeout(attemptSwitch, 500)
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+    }
+  }, [isConnected, chainId, switchChain, isAutoSwitching])
 
   // Show consistent initial state on server and client
   if (!mounted) {

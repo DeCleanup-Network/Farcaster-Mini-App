@@ -2,6 +2,14 @@ import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, RE
 import { getAccount } from 'wagmi/actions'
 
 const NATIVE_CURRENCY = { name: 'Ether', symbol: 'ETH', decimals: 18 }
+const CHAIN_ID_HEX = `0x${REQUIRED_CHAIN_ID.toString(16)}`
+const CHAIN_PARAMS = {
+  chainId: CHAIN_ID_HEX,
+  chainName: REQUIRED_CHAIN_NAME,
+  nativeCurrency: NATIVE_CURRENCY,
+  rpcUrls: [REQUIRED_RPC_URL],
+  blockExplorerUrls: [REQUIRED_BLOCK_EXPLORER_URL],
+}
 
 /**
  * Attempts to add the required Base network to the connected wallet
@@ -93,4 +101,31 @@ export async function tryAddRequiredChain(chainId?: number): Promise<boolean> {
   // If all methods failed, return false
   console.warn('Could not add chain - all methods failed. User may need to add manually.')
   return false
+}
+
+export async function switchToRequiredChainViaProvider(): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+  const provider = (window as any)?.ethereum
+  if (!provider?.request) {
+    return false
+  }
+  try {
+    await provider.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: CHAIN_ID_HEX }],
+    })
+    return true
+  } catch (error: any) {
+    if (error?.code === 4902) {
+      const added = await tryAddRequiredChain()
+      if (added) {
+        await provider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: CHAIN_ID_HEX }],
+        })
+        return true
+      }
+    }
+    throw error
+  }
 }

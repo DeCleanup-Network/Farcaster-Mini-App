@@ -210,7 +210,22 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
 
   // Force switch if on wrong chain
   if (currentChainId !== REQUIRED_CHAIN_ID) {
-    console.log(`[${context}] Wrong chain (${currentChainId}), attempting to switch to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})`)
+    console.log(
+      `[${context}] Wrong chain (${currentChainId}), attempting to switch to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})`
+    )
+
+    // First try direct provider request if available (MetaMask / injected wallets)
+    if (typeof window !== 'undefined') {
+      try {
+        const switched = await switchToRequiredChainViaProvider()
+        if (switched) {
+          await new Promise((resolve) => setTimeout(resolve, 500))
+          return
+        }
+      } catch (providerError) {
+        console.warn(`[${context}] Provider switch attempt failed:`, providerError)
+      }
+    }
 
     // For WalletConnect and similar connectors, try adding the chain FIRST before switching
     // This prevents "Chain not configured" errors
