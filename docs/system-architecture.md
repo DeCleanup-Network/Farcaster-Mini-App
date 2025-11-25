@@ -47,7 +47,6 @@ This document mirrors the level of depth and structure we admire in Green Goods�
 2. Files upload to IPFS (Pinata) with input validation (<10 MB, JPEG/HEIC). `uploadToIPFS` provides deterministic hash logging.
 3. `submitCleanup` scales GPS coordinates (×1e6), enforces Base via `getCurrentChainId`, and writes to the Verification contract.  
 4. On success, we store the cleanup ID locally (scoped to address) to surface “Pending verification” warnings.  
-5. If on Base Sepolia, placeholder cRECY reserve logic bypasses on-chain calls (since rewards only exist on Base mainnet).
 
 ### 3.3 Verification Workflow
 1. `/verifier` page gates access via signature + allowlist check (see `contractsLib.isVerifier`).  

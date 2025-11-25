@@ -7,11 +7,9 @@ const { ethers } = require("hardhat");
  * 1. ImpactProductNFT (needs baseURI, verifier)
  * 2. RewardDistributor (needs impactProductNFT, verifier)
  * 3. VerificationContract (needs verifier, impactProductNFT, rewardDistributor)
- * 4. RecyclablesReward (needs verifier)
  * 
  * Post-Deployment Setup:
  * - Wire up contract references
- * - Fund RecyclablesReward with 5000 cRECY
  */
 
 async function main() {
@@ -163,7 +161,6 @@ async function main() {
   console.log("ImpactProductNFT:", impactProductNFTAddress);
   console.log("RewardDistributor:", rewardDistributorAddress);
   console.log("VerificationContract:", verificationContractAddress);
-  console.log("RecyclablesReward: (not deployed)");
   console.log("\n=== Next Steps ===");
   console.log("1. Update .env.local with contract addresses:");
   console.log("   NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT=" + impactProductNFTAddress);
