@@ -5,6 +5,7 @@ import { Providers } from "@/lib/providers";
 import { FarcasterProvider } from "@/components/farcaster/FarcasterProvider";
 import { NetworkChecker } from "@/components/network/NetworkChecker";
 import { BottomNav } from "@/components/navigation/BottomNav";
+import { AppHeader } from "@/components/navigation/AppHeader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -112,8 +113,9 @@ export default function RootLayout({
       >
         <Providers>
           <FarcasterProvider>
+            <AppHeader />
             <NetworkChecker />
-            <div className="pb-16">
+            <div className="pt-20 pb-16">
               {children}
             </div>
             <BottomNav />

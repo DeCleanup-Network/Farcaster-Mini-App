@@ -143,28 +143,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur-sm">
-        <div className="container mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:flex-nowrap sm:px-6 sm:py-0">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-green">
-              <Leaf className="h-5 w-5 text-black" />
-            </div>
-            <div className="flex flex-col">
-              <h1 className="text-base font-bold uppercase tracking-tight text-foreground sm:text-lg">
-                DECLEANUP REWARDS
-              </h1>
-              <p className="hidden text-[10px] font-medium text-muted-foreground sm:block sm:text-xs">
-                TOKENIZE CLEANUPS ON BASE
-              </p>
-            </div>
-          </div>
-          <div className="flex w-full flex-wrap justify-start gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
-            <WalletConnect />
-          </div>
-        </div>
-      </header>
-
       {/* Rejection Alert */}
       {showRejectionAlert && (
         <div className="container mx-auto px-4 pt-4 sm:px-6">
@@ -198,11 +176,14 @@ export default function Home() {
         {/* Hero Section */}
         <section className="mb-6 text-center sm:mb-8">
           <div className="mx-auto mb-4 max-w-3xl">
-            <h2 className="mb-2 text-3xl font-bold uppercase leading-tight tracking-wide text-foreground sm:text-4xl md:text-5xl">
-              DECLEANUP REWARDS
+            <h2 className="mb-1 text-3xl font-bold uppercase leading-tight tracking-wide text-foreground sm:text-4xl md:text-5xl">
+              DeCleanup Rewards
             </h2>
-            <p className="mx-auto mb-4 text-sm leading-relaxed text-muted-foreground sm:text-base md:text-lg">
-              Turn real-world cleanups into on-chain rewards. Submit proof, level up your Impact Product, and earn $DCU as you climb the ranks.
+            <p className="mx-auto text-base font-semibold text-brand-green sm:text-lg">
+              Self-tokenize environmental cleanup efforts
+            </p>
+            <p className="mx-auto mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base md:text-lg">
+              Apply with your cleanup results to receive a DeCleanup Impact Product, earn community token $DCU, and progress through levels.
             </p>
           </div>
 
