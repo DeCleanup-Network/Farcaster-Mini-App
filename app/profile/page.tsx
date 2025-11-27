@@ -548,14 +548,14 @@ function ProfileContent() {
             <div className="mb-2 flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-brand-green" />
               <h3 className="text-sm font-medium text-gray-400">
-                $DCU Points
+                $bDCU
               </h3>
             </div>
             <p className="text-3xl font-bold text-white">
               {profileData.dcuBalance.toFixed(0)}
             </p>
             <p className="mt-1 text-xs text-gray-500">
-              Exchangeable for $DCU after TGE
+              Earned from cleanups and actions
             </p>
             {profileData.stakedDCU > 0 && (
               <p className="mt-1 text-xs text-gray-500">
@@ -1064,7 +1064,7 @@ function ProfileContent() {
               No Impact Product Yet
             </h2>
             <p className="mb-4 text-sm text-gray-400">
-              Submit your first cleanup to earn your Impact Product NFT and start earning DCU Points!
+              Submit your first cleanup to earn your Impact Product NFT and start earning $bDCU!
             </p>
             <Link href="/cleanup">
               <Button className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26]">

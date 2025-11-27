@@ -448,6 +448,16 @@ export const CONTRACT_ADDRESSES = {
     (process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_CONTRACT ||
       process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_ADDRESS ||
       '') as Address,
+  // $bDCU Token contract (from Clanker)
+  // Token name: bDCU (DeCleanup Token on Base)
+  // Note: "bDCU" = Base DeCleanup, "DCU" was the old name (deprecated)
+  BDCU_TOKEN:
+    (process.env.NEXT_PUBLIC_BDCU_TOKEN_ADDRESS || '') as Address,
+  // bDCU Reward Distributor contract (for automatic token distributions)
+  BDCU_REWARD_DISTRIBUTOR:
+    (process.env.NEXT_PUBLIC_BDCU_REWARD_DISTRIBUTOR_ADDRESS ||
+      process.env.NEXT_PUBLIC_BDCU_DISTRIBUTOR_ADDRESS ||
+      '') as Address,
 }
 
 
@@ -466,7 +476,12 @@ export const IMPACT_PRODUCT_ABI = parseAbi([
   'function setVerificationContract(address _verificationContract) external',
 ])
 
-// DCU Points are stored directly in RewardDistributor contract
+// $bDCU Token Integration Strategy:
+// 1. CURRENT: Points system via RewardDistributor contract (pointsBalance mapping)
+// 2. AFTER CLANKER LAUNCH: Direct ERC20 token balance from Clanker token contract
+// 3. DISTRIBUTION: bDCURewardDistributor contract automatically distributes tokens on user actions
+// 
+// Migration path: Points → Tokens (1:1 conversion when token is live)
 
 // Verification Contract ABI
 export const VERIFICATION_ABI = parseAbi([
@@ -483,10 +498,20 @@ export const VERIFICATION_ABI = parseAbi([
   'function isRejected(uint256 cleanupId) external view returns (bool)',
 ])
 
+// ERC20 Token ABI (for Clanker $bDCU token)
+export const ERC20_ABI = parseAbi([
+  'function balanceOf(address account) external view returns (uint256)',
+  'function decimals() external view returns (uint8)',
+  'function symbol() external view returns (string)',
+  'function name() external view returns (string)',
+  'function totalSupply() external view returns (uint256)',
+])
+
 // Reward Distributor ABI
 // NOTE: Contract is upgradeable. V2 includes DCU token migration support.
-// DCU Points are stored directly in RewardDistributor contract.
-// After token deployment, points can be migrated to actual DCU tokens.
+// CURRENT: Points system via RewardDistributor contract (pointsBalance mapping)
+// FUTURE: After Clanker token launch, will use bDCURewardDistributor contract for automatic distributions
+// After token deployment, points can be migrated to actual $bDCU tokens (1:1 conversion)
 export const REWARD_DISTRIBUTOR_ABI = parseAbi([
   'function getStreakCount(address user) external view returns (uint256)',
   'function hasActiveStreak(address user) external view returns (bool)',
@@ -498,6 +523,14 @@ export const REWARD_DISTRIBUTOR_ABI = parseAbi([
   'function dcuToken() external view returns (address)',
   'function tokenMigrationEnabled() external view returns (bool)',
   'function hasMigrated(address user) external view returns (bool)',
+])
+
+// bDCU Reward Distributor ABI (new contract for automatic token distributions)
+export const BDCU_REWARD_DISTRIBUTOR_ABI = parseAbi([
+  'function bDCUToken() external view returns (address)',
+  'function getContractBalance() external view returns (uint256)',
+  'function getTotalDistributed(address user) external view returns (uint256)',
+  'function globalTotalDistributed() external view returns (uint256)',
 ])
 
 
@@ -594,19 +627,49 @@ export async function claimImpactProduct(cleanupId: bigint, level: number): Prom
   throw new Error('claimImpactProduct is deprecated. Use claimImpactProductFromVerification instead.')
 }
 
-// DCU Points Functions
-// NOTE: Currently uses points system. DCU token contract will be integrated soon.
-// When DCU token is deployed, points will be migrated to actual tokens.
-// The contract is upgradeable to support seamless migration without redeployment.
+// $bDCU Token Functions
+// 
+// Integration Strategy:
+// 1. CURRENT (Pre-Clanker): Points system via RewardDistributor contract
+// 2. AFTER CLANKER LAUNCH: Direct ERC20 token balance from Clanker token contract
+// 3. DISTRIBUTION: bDCURewardDistributor contract automatically distributes tokens
+//
+// Migration: Points can be migrated to tokens (1:1) when token is live
+// This function automatically detects which system is active and reads accordingly
 
 /**
- * Get user's DCU points balance from on-chain storage
- * Points are stored directly in RewardDistributor contract
+ * Get user's $bDCU balance from on-chain storage
  * 
- * TODO: After DCU token deployment, this will check if user has migrated
- * and return token balance instead of points balance
+ * Priority order:
+ * 1. Direct ERC20 token balance from Clanker token contract (if deployed)
+ * 2. Points balance from RewardDistributor contract (legacy/fallback)
+ * 3. Local storage fallback (development only)
+ * 
+ * @param userAddress User's wallet address
+ * @returns Balance in $bDCU tokens (or points if token not deployed)
  */
 export async function getPointsBalance(userAddress: Address): Promise<number> {
+  // Priority 1: Try to read from Clanker token contract (if deployed)
+  if (CONTRACT_ADDRESSES.BDCU_TOKEN) {
+    try {
+      const tokenBalance = await readContract(config, {
+        address: CONTRACT_ADDRESSES.BDCU_TOKEN,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [userAddress],
+      })
+      
+      // ERC20 tokens use 18 decimals
+      const balance = Number(tokenBalance) / 1e18
+      console.log(`Read $bDCU balance from token contract: ${balance}`)
+      return balance
+    } catch (error) {
+      console.warn('Error reading from Clanker token contract, falling back to points:', error)
+      // Fall through to points system
+    }
+  }
+
+  // Priority 2: Read from RewardDistributor contract (points system)
   if (!CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR) {
     // Fallback to local storage for development
     return pointsLib.getPointsBalance(userAddress)
@@ -640,25 +703,26 @@ export async function getPointsBalance(userAddress: Address): Promise<number> {
       args: [userAddress],
     })
 
-    // Points use 18 decimals for consistency
+    // $bDCU uses 18 decimals for consistency
     return Number(balance) / 1e18
   } catch (error) {
-    console.warn('Error reading points from on-chain storage, using fallback:', error)
+    console.warn('Error reading $bDCU balance from on-chain storage, using fallback:', error)
     // Fallback to local storage for development
     return pointsLib.getPointsBalance(userAddress)
   }
 }
 
 /**
- * Get user's DCU points balance (alias for getPointsBalance)
- * Points are stored directly in RewardDistributor contract
+ * Get user's $bDCU balance (alias for getPointsBalance)
+ * Currently reads from RewardDistributor contract
+ * After token deployment, will read from $bDCU token contract
  */
 export async function getDCUBalance(userAddress: Address): Promise<number> {
   return getPointsBalance(userAddress)
 }
 
 /**
- * Get user's staked DCU points
+ * Get user's staked $bDCU
  * Note: Staking functionality may be implemented in the future
  */
 export async function getStakedDCU(userAddress: Address): Promise<number> {

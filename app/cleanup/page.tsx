@@ -1269,10 +1269,10 @@ function CleanupContent() {
               Impact Report
             </h1>
             <p className="mb-2 text-sm font-medium text-brand-yellow">
-              +5 $DCU Points Bonus
+              +5 $bDCU Bonus
             </p>
             <p className="text-sm text-gray-400">
-              Provide more details on your cleanup (optional, rewarded with 5 $DCU Points).
+              Provide more details on your cleanup (optional, rewarded with 5 $bDCU).
             </p>
           </div>
 
