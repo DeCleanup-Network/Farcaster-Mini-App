@@ -123,7 +123,7 @@ export async function generateMetadata({
 export default async function SharePage({
   searchParams,
 }: {
-  searchParams: Promise<{ ref?: string; type?: string; level?: string }
+  searchParams: Promise<{ ref?: string; type?: string; level?: string }>
 }) {
   const params = await searchParams
   const ref = params.ref
@@ -182,33 +182,9 @@ export default async function SharePage({
     },
   }
 
-  // Render page with explicit HTML meta tags for crawlers
-  // This ensures Farcaster crawlers can read the embed metadata
-  return (
-    <>
-      <head>
-        <title>{title}</title>
-        <meta name="description" content={description} />
-        <meta property="og:title" content={title} />
-        <meta property="og:description" content={description} />
-        <meta property="og:url" content={shareUrl} />
-        <meta property="og:site_name" content="DeCleanup Rewards" />
-        <meta property="og:image" content={imageUrl} />
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
-        <meta property="og:image:type" content="image/png" />
-        <meta property="og:image:secure_url" content={imageUrl} />
-        <meta property="og:type" content="website" />
-        <meta property="og:locale" content="en_US" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={title} />
-        <meta name="twitter:description" content={description} />
-        <meta name="twitter:image" content={imageUrl} />
-        <meta name="twitter:image:alt" content={title} />
-        <meta name="fc:miniapp" content={JSON.stringify(EMBED_METADATA)} />
-      </head>
-      <ShareRedirect redirectUrl={redirectUrl} />
-    </>
-  )
+  // Render page with meta tags, then redirect client-side
+  // This allows crawlers to read the OG tags before redirect
+  // The generateMetadata function above handles all the meta tags
+  return <ShareRedirect redirectUrl={redirectUrl} />
 }
 
