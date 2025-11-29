@@ -1126,7 +1126,7 @@ function CleanupContent() {
                 {locationError}
                 {isBaseBuildHost && (
                   <p className="mt-2 text-[11px] text-yellow-300/90">
-                    Base Build sandboxes block GPS prompts. Open https://decleanup-mini-app-base.vercel.app/cleanup in a new tab or enter approximate coordinates below.
+                    Base Build sandboxes block GPS prompts. Open https://miniapp.decleanup.net/cleanup in a new tab or enter approximate coordinates below.
                   </p>
                 )}
               </div>

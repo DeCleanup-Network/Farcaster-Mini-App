@@ -1,7 +1,7 @@
 {
   "accountAssociation": {
     "header": "eyJmaWQiOjM3OTUzMywidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweGM5NjBFNTEzMjFiNUU3YTk3MDM5Yjk3ZjU3MTdjM2RCZDJiODdmODAifQ",
-    "payload": "eyJkb21haW4iOiJmYXJjYXN0ZXItbWluaS1hcHAtdW1iZXIudmVyY2VsLmFwcCJ9",
+    "payload": "eyJkb21haW4iOiJtaW5pYXBwLmRlY2xlYW51cC5uZXQifQ==",
     "signature": "f8stEhv+Q/F6hgDZseKFZI3n1xzNx3Spv7J/lkfHqRZbJtGCJx5XKt0UQjHk34eeL93qCcHv/gAVRw9Xnyw8nhw="
   },
   "baseBuilder": {
@@ -10,9 +10,9 @@
   "miniapp": {
     "version": "1",
     "name": "DeCleanup Rewards",
-    "homeUrl": "https://farcaster-mini-app-umber.vercel.app",
+    "homeUrl": "https://miniapp.decleanup.net",
     "iconUrl": "https://gateway.pinata.cloud/ipfs/bafkreicdyq37dkuel7njhxinmkdm5werrgeqghfzqoviotgveqbzeg7qym?filename=icon1.png",
-    "castShareUrl": "https://farcaster-mini-app-umber.vercel.app",
+    "castShareUrl": "https://miniapp.decleanup.net",
     "splashImageUrl": "https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png",
     "splashBackgroundColor": "#000000",
     "subtitle": "Tokenize Cleanup Impact",
