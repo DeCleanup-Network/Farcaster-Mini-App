@@ -177,14 +177,6 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
     return
   }
 
-  // Check for unsupported chains
-  if (currentChainId === 11142220) {
-    throw new Error(
-      `VeChain wallet detected (Chain ID: 11142220). Please disable the VeChain extension or use MetaMask, Coinbase Wallet, or the Farcaster wallet.\n\n` +
-      `Then switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).`
-    )
-  }
-
   // Check for Ethereum mainnet (common mistake)
   if (currentChainId === 1) {
     throw new Error(
@@ -1409,16 +1401,9 @@ export async function verifyCleanup(
     if (
       errorMessage.includes('ChainMismatchError') ||
       errorMessage.includes('chain mismatch') ||
-      errorMessage.includes('does not match the target chain') ||
-      errorMessage.includes('11142220') // VeChain chain ID
+      errorMessage.includes('does not match the target chain')
     ) {
       const currentChainId = await getCurrentChainId()
-      if (currentChainId === 11142220) {
-        throw new Error(
-          `VeChain wallet detected (Chain ID: 11142220). Please disable the VeChain extension or use MetaMask, Coinbase Wallet, or the Farcaster wallet.\n\n` +
-          `Then switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) and try again.`
-        )
-      }
       throw new Error(
         `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
         `Current network: ${currentChainId || 'unknown'}\n${getNetworkSetupMessage()}`
@@ -1530,16 +1515,9 @@ export async function rejectCleanup(
     if (
       errorMessage.includes('ChainMismatchError') ||
       errorMessage.includes('chain mismatch') ||
-      errorMessage.includes('does not match the target chain') ||
-      errorMessage.includes('11142220') // VeChain chain ID
+      errorMessage.includes('does not match the target chain')
     ) {
       const currentChainId = await getCurrentChainId()
-      if (currentChainId === 11142220) {
-        throw new Error(
-          `VeChain wallet detected (Chain ID: 11142220). Please disable the VeChain extension or use MetaMask, Coinbase Wallet, or the Farcaster wallet.\n\n` +
-          `Then switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) and try again.`
-        )
-      }
       throw new Error(
         `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
         `Current network: ${currentChainId || 'unknown'}\n${getNetworkSetupMessage()}`

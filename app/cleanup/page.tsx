@@ -38,8 +38,6 @@ const describeChain = (id?: number) => {
       return 'Base Sepolia'
     case 44787:
       return 'Celo Sepolia'
-    case 11142220:
-      return 'VeChain (Carbon)'
     default:
       return 'Unknown Network'
   }
@@ -852,7 +850,6 @@ function CleanupContent() {
     
     // Show wrong network warning first (higher priority)
     if (isWrongNetwork) {
-      const isVeChain = chainId === 11142220
       const isCelo = chainId === 44787
       return (
         <div className="mb-6 rounded-lg border border-red-500/50 bg-red-500/10 p-4">
@@ -862,11 +859,9 @@ function CleanupContent() {
               <h3 className="mb-1 font-semibold text-red-400">Wrong Network</h3>
               <p className="mb-3 text-sm text-gray-300">
                 You're on Chain ID {chainId} ({describeChain(chainId)}).
-                {isVeChain
-                  ? ' VeChain browser extensions hijack window.ethereum and block Base transactions. Please disable the VeChain extension (or use MetaMask/Coinbase/Farcaster) and switch to the required network.'
-                  : isCelo
-                    ? ' This looks like Celo Sepolia. Switch to Base Sepolia Testnet to continue.'
-                    : ' Please switch to the required network before submitting a cleanup.'}
+                {isCelo
+                  ? ' This looks like Celo Sepolia. Switch to Base Sepolia Testnet to continue.'
+                  : ' Please switch to the required network before submitting a cleanup.'}
               </p>
               <Button
                 onClick={async () => {

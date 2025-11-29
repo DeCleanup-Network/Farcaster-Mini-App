@@ -71,7 +71,6 @@ const APP_ICON_URL =
   'https://gateway.pinata.cloud/ipfs/bafybeiatsp354gtary234ie6irpa5x56q3maykjynkbe3f2hj6lq7pbvba?filename=icon.png'
 
 // Wagmi configuration with Farcaster wallet support
-// Note: Using explicit connectors to avoid VeChain hijacking window.ethereum.
 // IMPORTANT: Only initialize connectors on client side to avoid SSR errors
 // All wallet connectors require browser APIs and will fail during server-side rendering
 const connectors = typeof window !== 'undefined'
