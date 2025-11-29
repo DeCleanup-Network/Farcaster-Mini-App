@@ -19,16 +19,8 @@ function buildQueryString(params: Record<string, string | undefined>) {
 }
 
 function buildFarcasterActionUrl(type: string, ref?: string) {
-  if (type === 'referral' && ref) {
-    const referralUrl = new URL(`${FARCASTER_MINIAPP_URL}/cleanup`)
-    referralUrl.searchParams.set('ref', ref)
-    return referralUrl.toString()
-  }
-
-  if (type === 'claim') {
-    return `${FARCASTER_MINIAPP_URL}/profile`
-  }
-
+  // For Farcaster embeds, the action URL should always be the base miniapp URL
+  // The app will handle routing based on the share page redirect
   return FARCASTER_MINIAPP_URL
 }
 

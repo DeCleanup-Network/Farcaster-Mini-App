@@ -436,7 +436,7 @@ export default function Home() {
                 <Button
                   onClick={async () => {
                     try {
-                      const { generateReferralLink, shareCast, formatReferralMessage } = await import('@/lib/farcaster')
+                    const { generateReferralLink, shareCast, formatReferralMessage } = await import('@/lib/farcaster')
                       const farcasterLink = generateReferralLink(address, 'farcaster', false)
                       const embedLink = generateReferralLink(address, 'web', true)
                       const message = formatReferralMessage(farcasterLink, 'farcaster')

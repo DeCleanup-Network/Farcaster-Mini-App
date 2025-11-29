@@ -26,6 +26,7 @@ const bebasNeue = Bebas_Neue({
 // Farcaster Mini App embed metadata configuration
 // Required for Farcaster embeds & previews - must match homeUrl in manifest
 // Per Farcaster docs: version must be "1" (not "next"), and we should only use fc:miniapp (not fc:frame)
+const FARCASTER_MINIAPP_URL = "https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards";
 const EMBED_METADATA = {
   version: "1", // Must be "1" per Farcaster docs, not "next"
   imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png",
@@ -33,7 +34,7 @@ const EMBED_METADATA = {
     title: "Open DeCleanup Rewards",
     action: {
       type: "launch_frame",
-      url: "https://miniapp.decleanup.net/",
+      url: FARCASTER_MINIAPP_URL, // Use Farcaster miniapp URL format
       name: "DeCleanup Rewards",
       splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png",
       splashBackgroundColor: "#000000",
