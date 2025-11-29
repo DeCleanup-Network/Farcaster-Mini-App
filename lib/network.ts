@@ -51,46 +51,53 @@ export async function tryAddRequiredChain(chainId?: number): Promise<boolean> {
     }
   }
 
-  // Try method 2: Through wagmi connector (works for WalletConnect)
+  // Method 2: Through wagmi connector (WalletConnect)
+  // This is especially important for Safari mobile where WalletConnect is used
   try {
     const account = await getAccount(config)
     if (account.connector) {
-      // Some connectors support adding chains directly
       const connector = account.connector as any
       
-      // Try connector's addChain method if available
+      // Check if it's WalletConnect connector
+      const isWalletConnect = connector.id?.includes('walletConnect') || 
+                              connector.name?.toLowerCase().includes('walletconnect')
+      
+      if (isWalletConnect) {
+        // For WalletConnect, try to get the provider first
+        const connectorProvider = await connector.getProvider?.()
+        if (connectorProvider?.request) {
+          try {
+            await connectorProvider.request({
+              method: 'wallet_addEthereumChain',
+              params: [chainParams],
+            })
+            console.log('✅ Added Base network via WalletConnect provider')
+            return true
+          } catch (wcError: any) {
+            // If user rejected, don't try other methods
+            if (wcError?.code === 4001 || wcError?.message?.includes('rejected')) {
+              console.log('User rejected chain addition via WalletConnect')
+              return false
+            }
+            console.warn('WalletConnect provider request failed:', wcError)
+          }
+        }
+      }
+      
+      // Try connector's addChain method if available (for other connector types)
       if (connector.addChain) {
         try {
           await connector.addChain({
             id: targetChainId,
             name: REQUIRED_CHAIN_NAME,
             nativeCurrency: NATIVE_CURRENCY,
-            rpcUrls: {
-              default: { http: [REQUIRED_RPC_URL] },
-            },
-            blockExplorers: {
-              default: { url: REQUIRED_BLOCK_EXPLORER_URL },
-            },
+            rpcUrls: { default: { http: [REQUIRED_RPC_URL] } },
+            blockExplorers: { default: { url: REQUIRED_BLOCK_EXPLORER_URL } },
           })
           console.log('✅ Added Base network via connector.addChain')
           return true
         } catch (connectorError) {
           console.warn('Connector addChain failed:', connectorError)
-        }
-      }
-
-      // Try getting provider from connector
-      const connectorProvider = await connector.getProvider?.()
-      if (connectorProvider?.request) {
-        try {
-          await connectorProvider.request({
-            method: 'wallet_addEthereumChain',
-            params: [chainParams],
-          })
-          console.log('✅ Added Base network via connector provider')
-          return true
-        } catch (providerError) {
-          console.warn('Connector provider request failed:', providerError)
         }
       }
     }

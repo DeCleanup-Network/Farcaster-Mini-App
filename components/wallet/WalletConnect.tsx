@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from 'wagmi'
+import { getEnsName } from 'wagmi/actions'
 import type { Connector } from 'wagmi'
 import { Button } from '@/components/ui/button'
-import { Wallet, LogOut, ChevronDown, QrCode, X, RefreshCw, Copy } from 'lucide-react'
+import { Wallet, LogOut, ChevronDown, QrCode, X } from 'lucide-react'
 import { isFarcasterContext, MINIAPP_URL } from '@/lib/farcaster'
-import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_RPC_URL, REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
+import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_RPC_URL, REQUIRED_BLOCK_EXPLORER_URL, config } from '@/lib/wagmi'
 import { tryAddRequiredChain, switchToRequiredChainViaProvider } from '@/lib/network'
 
 export function WalletConnect() {
@@ -20,17 +21,8 @@ export function WalletConnect() {
   const [showOtherWallets, setShowOtherWallets] = useState(false)
   const [isAutoSwitching, setIsAutoSwitching] = useState(false)
   const [showFarcasterQR, setShowFarcasterQR] = useState(false)
-  const [showNetworkTools, setShowNetworkTools] = useState(false)
-  const [isAddingNetwork, setIsAddingNetwork] = useState(false)
-  const [copiedNetworkDetails, setCopiedNetworkDetails] = useState(false)
   const [autoConnectAttempted, setAutoConnectAttempted] = useState(false)
-  const NETWORK_DETAILS = [
-    `Network Name: ${REQUIRED_CHAIN_NAME}`,
-    `RPC URL: ${REQUIRED_RPC_URL}`,
-    `Chain ID: ${REQUIRED_CHAIN_ID}`,
-    `Currency: ETH`,
-    `Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}`,
-  ].join('\n')
+  const [ensName, setEnsName] = useState<string | null>(null)
 
   // Get Farcaster connector and external wallet connectors
   // The farcasterMiniApp connector might have different names, so we check by ID or type
@@ -60,7 +52,7 @@ export function WalletConnect() {
       c => {
         const name = c.name.toLowerCase()
         const id = c.id?.toLowerCase() || ''
-        const isInjected = name === 'injected' || id === 'injected' || name.includes('browser') || id.includes('browser')
+        const isInjected = name === 'injected' || id === 'injected' || name === 'Browser Wallet' || name.includes('browser') || id.includes('browser')
         
         // Filter out Farcaster connectors
         if (name.includes('farcaster') || name.includes('frame') || name.includes('miniapp') ||
@@ -176,62 +168,15 @@ export function WalletConnect() {
     }
   }
   
-  const handleNetworkSwitch = async () => {
-    try {
-      await switchChain({ chainId: REQUIRED_CHAIN_ID })
-      setShowNetworkTools(false)
-    } catch (error: any) {
-      console.warn('Network switch failed:', error)
-      const message = (error?.message || '').toLowerCase()
-      const requiresImport =
-        message.includes('not configured') ||
-        message.includes('unrecognized chain') ||
-        message.includes('unknown chain') ||
-        error?.code === 4902
-      
-      if (requiresImport) {
-        const added = await tryAddRequiredChain()
-        if (added) {
-          await new Promise(resolve => setTimeout(resolve, 1200))
-          try {
-            await switchChain({ chainId: REQUIRED_CHAIN_ID })
-            setShowNetworkTools(false)
-            return
-          } catch (retryError) {
-            console.warn('Switch after add failed:', retryError)
-          }
-        }
-      }
-      
-      alert(
-        `Unable to switch automatically. Please switch to ${REQUIRED_CHAIN_NAME} manually:\n\n${NETWORK_DETAILS}`
-      )
-    }
-  }
 
-  const handleAddNetwork = async () => {
-    if (isAddingNetwork) return
-    setIsAddingNetwork(true)
-    try {
-      const added = await tryAddRequiredChain()
-      if (added) {
-        alert(`${REQUIRED_CHAIN_NAME} has been sent to your wallet. Confirm the prompt there, then tap "Switch Network".`)
-      } else {
-        alert(`We couldn't add ${REQUIRED_CHAIN_NAME} automatically. Please add it manually:\n\n${NETWORK_DETAILS}`)
-      }
-    } finally {
-      setIsAddingNetwork(false)
+  // Helper function to get display name for connector
+  const getConnectorDisplayName = (connector: Connector | null | undefined): string => {
+    if (!connector?.name) return 'Wallet'
+    const name = connector.name
+    if (name === 'Injected' || name?.toLowerCase().includes('injected')) {
+      return 'Browser Wallet'
     }
-  }
-
-  const handleCopyNetworkDetails = async () => {
-    try {
-      await navigator.clipboard.writeText(NETWORK_DETAILS)
-      setCopiedNetworkDetails(true)
-      setTimeout(() => setCopiedNetworkDetails(false), 2000)
-    } catch {
-      alert(`Copy failed. Details:\n\n${NETWORK_DETAILS}`)
-    }
+    return name
   }
   
   // Generate Farcaster deep link
@@ -255,6 +200,36 @@ export function WalletConnect() {
     const inFarcaster = isFarcasterContext()
     setIsInFarcaster(inFarcaster)
   }, [])
+
+  // Fetch ENS name when address changes
+  useEffect(() => {
+    if (!address || !isConnected) {
+      setEnsName(null)
+      return
+    }
+
+    // Fetch ENS name (ENS resolution works cross-chain, queries Ethereum mainnet)
+    const fetchEnsName = async () => {
+      try {
+        // getEnsName automatically queries Ethereum mainnet for ENS resolution
+        // This works regardless of which chain the wallet is connected to
+        const name = await getEnsName(config, { 
+          address: address as `0x${string}`
+        })
+        if (name) {
+          setEnsName(name)
+        } else {
+          setEnsName(null)
+        }
+      } catch (error) {
+        // ENS lookup failed (no ENS name or network error), just use address
+        // This is expected for most addresses, so we silently fail
+        setEnsName(null)
+      }
+    }
+
+    fetchEnsName()
+  }, [address, isConnected])
 
   // Auto-connect Farcaster wallet when inside the mini app while still allowing manual switches
   useEffect(() => {
@@ -324,7 +299,6 @@ export function WalletConnect() {
   
   useEffect(() => {
     if (!isConnected) {
-      setShowNetworkTools(false)
       setShowOtherWallets(false)
     }
   }, [isConnected])
@@ -340,15 +314,38 @@ export function WalletConnect() {
       return
     }
 
+    // Detect Safari/WalletConnect for longer delays
+    const isSafari = typeof window !== 'undefined' && /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+    const isWalletConnect = connector?.id?.includes('walletConnect') || 
+                            connector?.name?.toLowerCase().includes('walletconnect')
+    const isSafariWalletConnect = isSafari && isWalletConnect
+
     let cancelled = false
 
     const attemptSwitch = async () => {
       setIsAutoSwitching(true)
       try {
         console.log(
-          `Auto-switching from chain ${chainId} to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})...`
+          `Auto-switching from chain ${chainId} to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})...`,
+          { isSafari, isWalletConnect, isSafariWalletConnect }
         )
+        
+        // First, try to add the required chain
+        await tryAddRequiredChain(REQUIRED_CHAIN_ID)
+        
+        // For Safari/WalletConnect, use longer delay
+        const delay = isSafariWalletConnect ? 3000 : 1000
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        
+        // Then request the network switch
         await switchChain({ chainId: REQUIRED_CHAIN_ID })
+        
+        // For Safari/WalletConnect, wait longer to ensure switch completes
+        if (isSafariWalletConnect) {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+          console.log('Safari/WalletConnect: Chain switch completed, waiting for confirmation...')
+        }
+        
         return
       } catch (error: any) {
         const message = (error?.message || '').toLowerCase()
@@ -357,12 +354,14 @@ export function WalletConnect() {
           message.includes('not configured') ||
           message.includes('unrecognized chain') ||
           message.includes('unknown chain') ||
+          message.includes('chain not configured') ||
           code === 4902
 
         if (isChainMissing) {
-          const added = await tryAddRequiredChain()
+          const added = await tryAddRequiredChain(REQUIRED_CHAIN_ID)
           if (added) {
-            await new Promise((resolve) => setTimeout(resolve, 1000))
+            const delay = isSafariWalletConnect ? 3000 : 2000
+            await new Promise((resolve) => setTimeout(resolve, delay))
             try {
               await switchChain({ chainId: REQUIRED_CHAIN_ID })
               return
@@ -388,12 +387,14 @@ export function WalletConnect() {
       }
     }
 
-    const timeout = setTimeout(attemptSwitch, 500)
+    // For Safari/WalletConnect, use longer initial delay
+    const initialDelay = isSafariWalletConnect ? 1500 : 500
+    const timeout = setTimeout(attemptSwitch, initialDelay)
     return () => {
       cancelled = true
       clearTimeout(timeout)
     }
-  }, [isConnected, chainId, switchChain, isAutoSwitching])
+  }, [isConnected, chainId, switchChain, isAutoSwitching, connector])
 
   // Show consistent initial state on server and client
   if (!mounted) {
@@ -428,19 +429,10 @@ export function WalletConnect() {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-2 py-1.5 sm:px-3 sm:py-2">
             <Wallet className="h-3 w-3 text-brand-green sm:h-4 sm:w-4" />
-            <span className="text-xs font-medium text-white sm:text-sm" title={`Full address: ${address}\nConnector: ${connector?.name || 'Unknown'}`}>
-              {connector?.name?.toLowerCase().includes('farcaster') ? 'Farcaster' : connector?.name || 'Wallet'}: {address.slice(0, 6)}...{address.slice(-4)}
+            <span className="text-xs font-medium text-white sm:text-sm" title={`Full address: ${address}`}>
+              {ensName || `${address.slice(0, 6)}...${address.slice(-4)}`}
             </span>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowNetworkTools(!showNetworkTools)}
-            className="gap-2 border-2 border-gray-700 bg-black text-white hover:bg-gray-900 text-xs sm:text-sm"
-          >
-            <RefreshCw className={`h-3 w-3 ${showNetworkTools ? 'rotate-90 transition-transform' : ''}`} />
-            <span className="hidden sm:inline">Network</span>
-          </Button>
           {externalConnectors.length > 0 && (
             <Button
               variant="outline"
@@ -473,41 +465,12 @@ export function WalletConnect() {
                 disabled={isPending}
                 className="w-full rounded px-2 py-1.5 text-left text-xs text-white hover:bg-gray-800 disabled:opacity-50"
               >
-                {connector.name}
+                {getConnectorDisplayName(connector)}
               </button>
             ))}
           </div>
         )}
 
-        {/* Network tools dropdown */}
-        {showNetworkTools && (
-          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-gray-700 bg-gray-900 p-3 shadow-lg">
-            <p className="mb-2 text-xs font-medium text-gray-400">Network tools</p>
-            <button
-              onClick={handleNetworkSwitch}
-              disabled={isSwitchingNetwork}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-white hover:bg-gray-800 disabled:opacity-50"
-            >
-              <RefreshCw className="h-3.5 w-3.5 text-brand-green" />
-              {isSwitchingNetwork ? 'Switching...' : `Switch to ${REQUIRED_CHAIN_NAME}`}
-            </button>
-            <button
-              onClick={handleAddNetwork}
-              disabled={isAddingNetwork}
-              className="mt-1 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-white hover:bg-gray-800 disabled:opacity-50"
-            >
-              <PlusIcon />
-              {isAddingNetwork ? 'Adding...' : 'Add network to wallet'}
-            </button>
-            <button
-              onClick={handleCopyNetworkDetails}
-              className="mt-1 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-white hover:bg-gray-800"
-            >
-              <Copy className="h-3.5 w-3.5" />
-              {copiedNetworkDetails ? 'Copied!' : 'Copy network details'}
-            </button>
-          </div>
-        )}
       </div>
     )
   }
@@ -541,10 +504,10 @@ export function WalletConnect() {
           >
             <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">
-              {isPending ? 'Connecting...' : `Connect ${externalConnectors[0].name === 'Injected' ? 'Browser Wallet' : externalConnectors[0].name}`}
+              {isPending ? 'Connecting...' : `Connect ${getConnectorDisplayName(externalConnectors[0])}`}
             </span>
             <span className="sm:hidden">
-              {isPending ? '...' : (externalConnectors[0].name === 'Injected' ? 'Browser' : externalConnectors[0].name)}
+              {isPending ? '...' : (getConnectorDisplayName(externalConnectors[0]) === 'Browser Wallet' ? 'Browser' : getConnectorDisplayName(externalConnectors[0]))}
             </span>
           </Button>
         ) : (
@@ -593,7 +556,7 @@ export function WalletConnect() {
               disabled={isPending}
               className="w-full rounded px-2 py-1.5 text-left text-xs text-white hover:bg-gray-800 disabled:opacity-50"
             >
-              {connector.name === 'Injected' ? 'Browser Wallet' : connector.name}
+              {getConnectorDisplayName(connector)}
             </button>
           ))}
         </div>
@@ -667,19 +630,3 @@ export function WalletConnect() {
   )
 }
 
-function PlusIcon() {
-  return (
-    <svg
-      className="h-3.5 w-3.5 text-brand-green"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  )
-}

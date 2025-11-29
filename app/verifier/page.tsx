@@ -757,25 +757,27 @@ export default function VerifierPage() {
   function ImpactReportDetails({ impactReportHash }: { impactReportHash?: string | null }) {
     const [impactData, setImpactData] = useState<any>(null)
     const [impactDataUrl, setImpactDataUrl] = useState<string | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
-    const [reloadKey, setReloadKey] = useState(0)
+    const [expanded, setExpanded] = useState(false)
 
     useEffect(() => {
       async function fetchImpactData() {
-        if (!impactReportHash) {
-          setError('Impact report data was not provided with this cleanup.')
-          setLoading(false)
+        if (!impactReportHash || expanded === false) {
+          return // Only fetch when expanded
+        }
+        
+        // Check if we already have this data cached
+        if (impactDataMap.has(impactReportHash)) {
+          setImpactData(impactDataMap.get(impactReportHash))
           return
         }
+        
         try {
-          setLoading(true)
           const { getIPFSUrl, getIPFSFallbackUrls } = await import('@/lib/ipfs')
           
           // Clean the hash - remove ipfs:// prefix if present
           const cleanHash = impactReportHash.replace(/^ipfs:\/\//, '').trim()
           if (!cleanHash || cleanHash.length === 0) {
-            throw new Error('Invalid impact report hash format')
+            return
           }
           
           const primaryUrl = getIPFSUrl(cleanHash)
@@ -785,18 +787,16 @@ export default function VerifierPage() {
           const urls = [primaryUrl, ...fallbackUrls].filter((url): url is string => url !== null)
           
           if (urls.length === 0) {
-            throw new Error(`Failed to generate IPFS URL for impact report. Hash: ${cleanHash}`)
+            return
           }
           
           setImpactDataUrl(urls[0])
           
           // Try each gateway until one works
           let data: any = null
-          let lastError: Error | null = null
           for (const url of urls) {
-            if (!url) continue // Skip null URLs
+            if (!url) continue
             try {
-              console.log(`Attempting to fetch impact report from: ${url}`)
               const response = await fetch(url, { 
                 mode: 'cors',
                 cache: 'no-cache',
@@ -806,66 +806,74 @@ export default function VerifierPage() {
               })
               if (response.ok) {
                 data = await response.json()
-                console.log('Successfully loaded impact report data from IPFS')
                 break
-              } else {
-                console.warn(`Failed to fetch from ${url}: ${response.status} ${response.statusText}`)
               }
             } catch (err) {
-              lastError = err instanceof Error ? err : new Error(String(err))
-              console.warn(`Error fetching from ${url}:`, err)
               continue
             }
           }
           
-          if (!data) {
-            throw lastError || new Error('Failed to fetch impact report data from IPFS')
-          }
-          
-          setImpactData(data)
-          // Store in map for easy access by cleanup ID
-          if (impactReportHash) {
+          if (data) {
+            setImpactData(data)
+            // Store in map for easy access
             setImpactDataMap(prev => {
               const newMap = new Map(prev)
               newMap.set(impactReportHash, data)
               return newMap
             })
           }
-        } catch (err: any) {
+        } catch (err) {
           console.error('Error fetching impact report data:', err)
-          setError(err.message || 'Failed to load impact report data')
-        } finally {
-          setLoading(false)
         }
       }
 
-      fetchImpactData()
-    }, [impactReportHash, reloadKey])
+      if (expanded) {
+        fetchImpactData()
+      }
+    }, [impactReportHash, expanded])
 
-    if (loading) {
+    // Simple indicator - just show if submitted or not
+    if (!impactReportHash || impactReportHash.trim() === '') {
       return (
-        <div className="mt-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-sm">
-          <p className="font-semibold text-green-300">Impact Report</p>
-          <p className="mt-2 text-gray-200">Loading impact report data…</p>
+        <div className="mt-3 rounded-xl border border-gray-500/30 bg-gray-500/10 p-3 text-sm">
+          <p className="font-semibold text-gray-400">Impact Report: Not submitted</p>
         </div>
       )
     }
 
-    if (error || !impactData) {
+    if (!expanded) {
       return (
-        <div className="mt-3 rounded-xl border border-yellow-500/40 bg-yellow-500/10 p-4 text-sm">
-          <p className="font-semibold text-yellow-200">Impact Report</p>
-          <p className="mt-2 text-gray-200">
-            {error || 'Impact report metadata is unavailable. Ask the submitter to re-open the cleanup and re-send the enhanced form if needed.'}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setReloadKey((prev) => prev + 1)}
-            className="mt-3 border-yellow-500/60 text-yellow-200 hover:bg-yellow-500/10"
-          >
-            Retry Load
-          </Button>
+        <div className="mt-3 rounded-xl border border-green-500/30 bg-green-500/10 p-3 text-sm">
+          <div className="flex items-center justify-between">
+            <p className="font-semibold text-green-300">Impact Report: Submitted</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExpanded(true)}
+              className="border-green-500/60 text-green-200 hover:bg-green-500/20"
+            >
+              View Details
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
+    if (!impactData) {
+      return (
+        <div className="mt-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-sm">
+          <div className="flex items-center justify-between">
+            <p className="font-semibold text-green-300">Impact Report: Submitted</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExpanded(false)}
+              className="border-green-500/60 text-green-200 hover:bg-green-500/20"
+            >
+              Hide Details
+            </Button>
+          </div>
+          <p className="mt-2 text-gray-300">Loading details...</p>
         </div>
       )
     }
@@ -874,16 +882,26 @@ export default function VerifierPage() {
       <div className="mt-3 rounded-xl border border-green-500/40 bg-green-500/5 p-4 text-sm text-gray-100">
         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <p className="font-semibold uppercase tracking-wide text-green-300">Impact Report Details</p>
-          {impactDataUrl && (
-            <a
-              href={impactDataUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-green-200 underline hover:text-green-100"
+          <div className="flex items-center gap-2">
+            {impactDataUrl && (
+              <a
+                href={impactDataUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-green-200 underline hover:text-green-100"
+              >
+                View raw IPFS JSON
+              </a>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExpanded(false)}
+              className="border-green-500/60 text-green-200 hover:bg-green-500/20"
             >
-              View raw IPFS JSON
-            </a>
-          )}
+              Hide Details
+            </Button>
+          </div>
         </div>
 
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -930,9 +948,15 @@ export default function VerifierPage() {
             </div>
           )}
           {impactData.contributors && impactData.contributors.length > 0 && (
-            <div>
+            <div className="sm:col-span-2">
               <dt className="text-xs uppercase text-gray-400">Contributors</dt>
-              <dd className="text-base text-white">{impactData.contributors.length} address(es)</dd>
+              <dd className="mt-1 space-y-1">
+                {impactData.contributors.map((contributor: string, index: number) => (
+                  <div key={index} className="font-mono text-sm text-white">
+                    {contributor}
+                  </div>
+                ))}
+              </dd>
             </div>
           )}
           {impactData.scopeOfWork && (
@@ -1459,6 +1483,12 @@ export default function VerifierPage() {
                       </div>
                     </div>
                   </div>
+                  
+                  {/* Impact Report Section - Always show, even if not submitted */}
+                  <div className="mt-4">
+                    <ImpactReportDetails impactReportHash={cleanup.impactReportHash} />
+                  </div>
+                  
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="text-sm text-gray-400">
                       Level will be assigned automatically based on user's current Impact Product level (next level up, max 10)
@@ -1696,6 +1726,12 @@ export default function VerifierPage() {
                       </div>
                     </div>
                   )}
+                  
+                  {/* Impact Report Section for Rejected Cleanups - Always show */}
+                  <div className="mt-4">
+                    <ImpactReportDetails impactReportHash={cleanup.impactReportHash} />
+                  </div>
+                  
                   <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/5 p-3">
                     <div className="flex items-center gap-2 text-sm text-red-400">
                       <XCircle className="h-4 w-4" />

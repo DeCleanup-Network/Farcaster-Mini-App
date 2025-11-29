@@ -86,32 +86,64 @@ function CleanupContent() {
   const [showReferralNotification, setShowReferralNotification] = useState(false)
   
   useEffect(() => {
-    if (mounted && searchParams) {
-      const ref = searchParams.get('ref')
-      if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
-        const referrerAddr = ref as Address
-        setReferrerAddress(referrerAddr)
-        // Show notification to user that they were referred
-        setShowReferralNotification(true)
-        // Persist referrer in localStorage so it's available when user submits
-        if (typeof window !== 'undefined') {
-          // Store referrer even before address is available
-          const referrerKey = `referrer_pending`
-          localStorage.setItem(referrerKey, referrerAddr)
-          console.log('Referrer address from URL saved:', referrerAddr)
-          
-          // If address is available, also store it scoped to address
-          if (address) {
-            const referrerKeyScoped = `referrer_${address.toLowerCase()}`
-            localStorage.setItem(referrerKeyScoped, referrerAddr)
-          }
+    if (!mounted || typeof window === 'undefined') return
+    
+    // Safari-compatible: Try multiple methods to get ref parameter
+    let ref: string | null = null
+    
+    // Method 1: Try useSearchParams (Next.js)
+    if (searchParams) {
+      ref = searchParams.get('ref')
+    }
+    
+    // Method 2: Fallback to window.location.search (Safari compatibility)
+    if (!ref) {
+      const urlParams = new URLSearchParams(window.location.search)
+      ref = urlParams.get('ref')
+    }
+    
+    // Method 3: Try window.location.hash (for some deep link scenarios)
+    if (!ref && window.location.hash) {
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '')
+        ref = hashParams.get('ref')
+      } catch (e) {
+        // Ignore hash parsing errors
+      }
+    }
+    
+    if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
+      const referrerAddr = ref as Address
+      setReferrerAddress(referrerAddr)
+      // Show notification to user that they were referred
+      setShowReferralNotification(true)
+      // Persist referrer in localStorage so it's available when user submits
+      // Store referrer even before address is available
+      const referrerKey = `referrer_pending`
+      try {
+        localStorage.setItem(referrerKey, referrerAddr)
+        console.log('✅ Referrer address from URL saved:', referrerAddr)
+      } catch (e) {
+        console.error('Failed to save referrer to localStorage:', e)
+      }
+      
+      // If address is available, also store it scoped to address
+      if (address) {
+        const referrerKeyScoped = `referrer_${address.toLowerCase()}`
+        try {
+          localStorage.setItem(referrerKeyScoped, referrerAddr)
+          console.log('✅ Referrer address saved for address:', address)
+        } catch (e) {
+          console.error('Failed to save scoped referrer:', e)
         }
-      } else if (typeof window !== 'undefined') {
-        // If no ref in URL, check localStorage for saved referrer
+      }
+    } else {
+      // If no ref in URL, check localStorage for saved referrer
+      try {
         const referrerKeyPending = localStorage.getItem('referrer_pending')
         if (referrerKeyPending && /^0x[a-fA-F0-9]{40}$/.test(referrerKeyPending)) {
           setReferrerAddress(referrerKeyPending as Address)
-          console.log('Referrer address from localStorage (pending):', referrerKeyPending)
+          console.log('✅ Referrer address from localStorage (pending):', referrerKeyPending)
         }
         
         if (address) {
@@ -119,9 +151,11 @@ function CleanupContent() {
           const savedReferrer = localStorage.getItem(referrerKey)
           if (savedReferrer && /^0x[a-fA-F0-9]{40}$/.test(savedReferrer)) {
             setReferrerAddress(savedReferrer as Address)
-            console.log('Referrer address from localStorage:', savedReferrer)
+            console.log('✅ Referrer address from localStorage:', savedReferrer)
           }
         }
+      } catch (e) {
+        console.error('Failed to read referrer from localStorage:', e)
       }
     }
   }, [mounted, searchParams, address])

@@ -64,7 +64,7 @@ const requiredBlockExplorerUrl = requiredChain.testnet
 const requiredRpcUrl = requiredChain.id === baseMainnet.id ? baseMainnetRpcUrl : baseSepoliaRpcUrl
 
 const APP_NAME = 'DeCleanup Rewards'
-const MINIAPP_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
+const MINIAPP_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 const APP_DESCRIPTION = 'Clean up, share proof, and earn tokenized environmental rewards on Base.'
 const APP_ICON_URL =
   process.env.NEXT_PUBLIC_MINIAPP_ICON_URL ||

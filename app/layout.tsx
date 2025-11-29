@@ -33,7 +33,7 @@ const EMBED_METADATA = {
     title: "Open DeCleanup Rewards",
     action: {
       type: "launch_frame",
-      url: "https://farcaster-mini-app-umber.vercel.app/",
+      url: "https://miniapp.decleanup.net/",
       name: "DeCleanup Rewards",
       splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png",
       splashBackgroundColor: "#000000",
@@ -42,7 +42,7 @@ const EMBED_METADATA = {
 };
 
 const OG_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png"
-const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://farcaster-mini-app-umber.vercel.app"
+const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://miniapp.decleanup.net"
 
 export const metadata: Metadata = {
   title: "DeCleanup Rewards - Tokenize Your Environmental Impact",
@@ -109,15 +109,15 @@ export default function RootLayout({
         <meta name="twitter:image:alt" content="DeCleanup Rewards - Tokenize Your Environmental Impact" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${bebasNeue.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${bebasNeue.variable} antialiased min-h-screen`}
       >
         <Providers>
           <FarcasterProvider>
             <AppHeader />
             <NetworkChecker />
-            <div className="pt-20 pb-16">
+            <main className="min-h-screen pt-20 pb-16">
               {children}
-            </div>
+            </main>
             <BottomNav />
           </FarcasterProvider>
         </Providers>

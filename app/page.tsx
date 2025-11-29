@@ -141,6 +141,13 @@ export default function Home() {
     }
   }, [mounted, isConnected, address])
 
+  // Scroll to top on mount
+  useEffect(() => {
+    if (mounted) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }, [mounted])
+
   return (
     <div className="min-h-screen bg-background">
       {/* Rejection Alert */}
@@ -183,7 +190,7 @@ export default function Home() {
               Self-tokenize environmental cleanup efforts
             </p>
             <p className="mx-auto mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base md:text-lg">
-              Apply with your cleanup results to receive a DeCleanup Impact Product, earn community token $DCU, and progress through levels.
+              Apply with your cleanup results to receive a DeCleanup Impact Product, earn community token $bDCU, and progress through levels.
             </p>
           </div>
 
@@ -415,7 +422,7 @@ export default function Home() {
                   Invite Friends
                 </h3>
                 <p className="text-xs text-muted-foreground sm:text-sm">
-                  Earn 3 $DCU when friends submit and verify their first cleanup
+                  Earn 3 $bDCU when friends submit and verify their first cleanup
                 </p>
               </div>
             </div>
@@ -428,10 +435,17 @@ export default function Home() {
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button
                   onClick={async () => {
-                    const { generateReferralLink, shareCast, formatReferralMessage } = await import('@/lib/farcaster')
-                    const farcasterLink = generateReferralLink(address, 'farcaster', false)
-                    const embedLink = generateReferralLink(address, 'web', true)
-                    await shareCast(formatReferralMessage(farcasterLink, 'farcaster'), embedLink)
+                    try {
+                      const { generateReferralLink, shareCast, formatReferralMessage } = await import('@/lib/farcaster')
+                      const farcasterLink = generateReferralLink(address, 'farcaster', false)
+                      const embedLink = generateReferralLink(address, 'web', true)
+                      const message = formatReferralMessage(farcasterLink, 'farcaster')
+                      console.log('Sharing to Farcaster:', { message, embedLink, farcasterLink })
+                      await shareCast(message, embedLink)
+                    } catch (error) {
+                      console.error('Failed to share to Farcaster:', error)
+                      alert('Failed to share. Please try again or copy the link manually.')
+                    }
                   }}
                   className="flex-1 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
                 >
@@ -442,7 +456,7 @@ export default function Home() {
                 <Button
                   onClick={async () => {
                     const { generateReferralLink, formatReferralMessage } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address, 'web', true)
+                    const referralLink = generateReferralLink(address, 'web', false)
                     const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(formatReferralMessage(referralLink, 'web'))}`
                     window.open(xUrl, '_blank')
                   }}
@@ -479,7 +493,7 @@ export default function Home() {
 
               <div className="mt-4 rounded-lg bg-gray-800/50 p-3">
                 <p className="text-xs text-gray-400">
-                  <strong className="text-brand-green">How it works:</strong> When someone uses your referral link to submit their first cleanup and it gets verified, you both earn <strong className="text-foreground">3 $DCU</strong>!
+                  <strong className="text-brand-green">How it works:</strong> When someone uses your referral link to submit their first cleanup and it gets verified, you both earn <strong className="text-foreground">3 $bDCU</strong>!
                 </p>
               </div>
             </div>
@@ -545,6 +559,9 @@ export default function Home() {
             </a>
             <a href="https://x.com/decleanupnet" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
               X
+            </a>
+            <a href="https://farcaster.xyz/decleanupnet" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
+              FARCASTER
             </a>
             <div className="flex items-center gap-2">
               <span>Powered by</span>

@@ -125,53 +125,38 @@ function getManualNetworkAddInstructions() {
 }
 
 async function ensureWalletOnRequiredChain(context = 'transaction', providedChainId?: number | null): Promise<void> {
-  // Always verify the actual chain ID from the wallet, don't just trust the hook value
-  // The hook value might be stale or incorrect
-  let currentChainId: number | null = await getCurrentChainId()
-  
-  // If we couldn't get chain ID, try using providedChainId as fallback
-  if (currentChainId === null && providedChainId !== undefined && providedChainId !== null) {
-    console.log(`[${context}] Could not get chain ID from wallet, using provided chainId: ${providedChainId}`)
-    currentChainId = providedChainId
-  }
-  
-  console.log(`[${context}] Current chain ID: ${currentChainId}, required: ${REQUIRED_CHAIN_ID}`)
-  
-  // If providedChainId matches but actual chain doesn't, we still need to switch
-  // This handles cases where the hook is stale but wallet is on wrong chain
-  if (currentChainId === REQUIRED_CHAIN_ID) {
-    console.log(`[${context}] ✅ Already on correct chain`)
+  // If providedChainId is valid and matches required, trust it and return early
+  if (providedChainId !== undefined && providedChainId !== null && providedChainId === REQUIRED_CHAIN_ID) {
+    console.log(`[${context}] ✅ Already on correct chain (from provided chainId: ${providedChainId})`)
     return
   }
 
+  // Use provided chainId if available, otherwise try to get it
+  let currentChainId: number | null = providedChainId !== undefined ? providedChainId : await getCurrentChainId()
+  console.log(`[${context}] Current chain ID: ${currentChainId}, required: ${REQUIRED_CHAIN_ID}`)
+
   // If we can't determine chain (e.g., WalletConnect), try to add the chain first
-  // This helps WalletConnect-MetaMask users who might not have the chain configured
   if (currentChainId === null) {
     console.log(`[${context}] Chain ID is null, attempting to add chain for WalletConnect...`)
     try {
       const added = await tryAddRequiredChain()
       if (added) {
-        // Wait a moment for the chain to be added
         await new Promise(resolve => setTimeout(resolve, 1000))
-        // Try to get chain ID again
         currentChainId = await getCurrentChainId()
         if (currentChainId === REQUIRED_CHAIN_ID) {
           console.log(`[${context}] ✅ Chain added and switched successfully`)
           return
         }
       }
-      // If we still can't determine chain after adding, proceed with transaction
-      // The wallet will validate the network when the transaction is sent
       console.log(`[${context}] ⚠️ Could not determine chain ID, but proceeding - wallet will validate on transaction`)
       return
     } catch (addError) {
       console.error(`[${context}] Failed to add chain:`, addError)
-      // Don't throw error here - let the transaction proceed and wallet will handle it
       return
     }
   }
 
-  // Already on correct chain - no need to switch
+  // Already on correct chain
   if (currentChainId === REQUIRED_CHAIN_ID) {
     console.log(`[${context}] ✅ Already on correct chain`)
     return
@@ -202,45 +187,28 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
 
   // Force switch if on wrong chain
   if (currentChainId !== REQUIRED_CHAIN_ID) {
-    console.log(
-      `[${context}] Wrong chain (${currentChainId}), attempting to switch to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})`
-    )
+    console.log(`[${context}] Wrong chain (${currentChainId}), attempting to switch to ${REQUIRED_CHAIN_NAME} (${REQUIRED_CHAIN_ID})`)
 
-    // First try direct provider request if available (MetaMask / injected wallets)
-    if (typeof window !== 'undefined') {
-      try {
-        const switched = await switchToRequiredChainViaProvider()
-        if (switched) {
-          await new Promise((resolve) => setTimeout(resolve, 500))
-          return
-        }
-      } catch (providerError) {
-        console.warn(`[${context}] Provider switch attempt failed:`, providerError)
-      }
-    }
-
-    // For WalletConnect and similar connectors, try adding the chain FIRST before switching
-    // This prevents "Chain not configured" errors
+    // ALWAYS try adding the chain FIRST before switching to prevent "Chain not configured" errors
     try {
-      console.log(`[${context}] Attempting to add chain first (for WalletConnect compatibility)...`)
-      const added = await tryAddRequiredChain()
+      console.log(`[${context}] Attempting to add chain first (required for WalletConnect compatibility)...`)
+      const added = await tryAddRequiredChain(REQUIRED_CHAIN_ID)
       if (added) {
-        // Wait a moment for the chain to be added
-        await new Promise(resolve => setTimeout(resolve, 1500))
-        // Check if we're now on the correct chain
+        await new Promise(resolve => setTimeout(resolve, 3000))
         const checkChainId = await getCurrentChainId()
         if (checkChainId === REQUIRED_CHAIN_ID) {
           console.log(`[${context}] ✅ Chain added and automatically switched`)
           return
         }
+        console.log(`[${context}] Chain added but not switched automatically, attempting manual switch...`)
       }
     } catch (addError) {
-      console.warn(`[${context}] Pre-add chain attempt failed (may not be needed):`, addError)
-      // Continue to try switching anyway
+      console.warn(`[${context}] Pre-add chain attempt failed:`, addError)
     }
 
     // Now try to switch
     try {
+      console.log(`[${context}] Attempting to switch chain - wallet should prompt...`)
       await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
 
       // Poll for chain update
@@ -250,20 +218,9 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
         const newChainId = await getCurrentChainId()
         if (newChainId === REQUIRED_CHAIN_ID) {
           console.log(`[${context}] ✅ Successfully switched to ${REQUIRED_CHAIN_NAME}`)
-          // Add a small delay to ensure wallet has fully updated before proceeding
-          await new Promise(resolve => setTimeout(resolve, 500))
           return
         }
         retries++
-      }
-
-      // If polling didn't confirm the switch, check one more time
-      const finalCheck = await getCurrentChainId()
-      if (finalCheck === REQUIRED_CHAIN_ID) {
-        console.log(`[${context}] ✅ Chain switch confirmed`)
-        // Add a small delay to ensure wallet has fully updated before proceeding
-        await new Promise(resolve => setTimeout(resolve, 500))
-        return
       }
 
       throw new Error(`Failed to switch network. Please manually switch to ${REQUIRED_CHAIN_NAME} in your wallet.`)
@@ -283,73 +240,66 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
         throw new Error('Network switch rejected. Please switch manually to continue.')
       }
 
-      // Try adding the chain again if switch failed with "not configured"
-      if (errorMessage.includes('Unrecognized chain') || 
-          errorMessage.includes('not configured') || 
-          errorMessage.includes('Chain not configured') ||
-          error?.code === 4902) {
-        console.log(`[${context}] Chain missing, attempting to add after switch failure...`)
-        
-        // Try multiple times with increasing delays
-        let added = false
-        for (let attempt = 0; attempt < 2; attempt++) {
-          try {
-            added = await tryAddRequiredChain(REQUIRED_CHAIN_ID)
-            if (added) {
-              // Wait longer for the chain to be added (especially for WalletConnect)
-              await new Promise(resolve => setTimeout(resolve, 2000 + (attempt * 1000)))
-              
-              // Try switching again
-              try {
-                await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
-                // Wait and check
-                await new Promise(resolve => setTimeout(resolve, 1500))
-                const newChainId = await getCurrentChainId()
-                if (newChainId === REQUIRED_CHAIN_ID) {
-                  console.log(`[${context}] ✅ Chain added and switched successfully`)
-                  // Add a small delay to ensure wallet has fully updated before proceeding
-                  await new Promise(resolve => setTimeout(resolve, 500))
-                  return
-                }
-              } catch (retryError: any) {
-                console.warn(`[${context}] Retry switch after add failed (attempt ${attempt + 1}):`, retryError)
-                // If user rejected, don't retry
-                if (retryError?.code === 4001 || retryError?.message?.includes('rejected')) {
-                  throw new Error('Network switch rejected. Please switch manually to continue.')
-                }
-              }
-            }
-          } catch (addError) {
-            console.warn(`[${context}] Add chain attempt ${attempt + 1} failed:`, addError)
-          }
-        }
-        
-        // If we still couldn't add/switch, provide helpful error message
-        // Check if we're using WalletConnect
+      // Handle "Chain not configured" errors
+      if (errorMessage.includes('Chain not configured') || error?.code === 4902) {
+        // For Safari/WalletConnect, we need to be more patient
+        const isSafari = typeof window !== 'undefined' && /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
         const account = await getAccount(config)
         const isWalletConnect = account.connector?.id?.includes('walletConnect') || 
                                 account.connector?.name?.toLowerCase().includes('walletconnect')
+        const isSafariWalletConnect = isSafari && isWalletConnect
         
-        const walletInstructions = isWalletConnect
-          ? `\n\nFor WalletConnect users:\n` +
-            `1. Open your wallet app (MetaMask, etc.)\n` +
-            `2. Go to Settings → Networks → Add Network\n` +
-            `3. Add ${REQUIRED_CHAIN_NAME} with the details below\n` +
-            `4. Return to this app and try again`
-          : `\n\nPlease add the network in your wallet and try again.`
+        // For Safari/WalletConnect, use longer delays
+        const addDelay = isSafariWalletConnect ? 3000 : 2000
+        const pollDelay = isSafariWalletConnect ? 2000 : 1000
         
-        throw new Error(
-          `${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) is not configured in your wallet.${walletInstructions}\n\n` +
-          `Network Details:\n` +
-          `• Network Name: ${REQUIRED_CHAIN_NAME}\n` +
-          `• RPC URL: ${REQUIRED_RPC_URL}\n` +
-          `• Chain ID: ${REQUIRED_CHAIN_ID}\n` +
-          `• Currency Symbol: ETH\n` +
-          `• Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}`
-        )
+        const added = await tryAddRequiredChain(REQUIRED_CHAIN_ID)
+        if (added) {
+          await new Promise(resolve => setTimeout(resolve, addDelay))
+          try {
+            await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
+            // Poll again with longer delays for Safari
+            let retries = 0
+            while (retries < 5) {
+              await new Promise(resolve => setTimeout(resolve, pollDelay))
+              const newChainId = await getCurrentChainId()
+              if (newChainId === REQUIRED_CHAIN_ID) {
+                console.log(`[${context}] ✅ Chain added and switched successfully`)
+                return
+              }
+              retries++
+            }
+          } catch (retryError: any) {
+            console.warn(`[${context}] Retry switch after add failed:`, retryError)
+            if (retryError?.code === 4001 || retryError?.message?.includes('rejected')) {
+              throw new Error('Network switch rejected. Please switch manually to continue.')
+            }
+          }
+        }
       }
 
-      throw new Error(`Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) to continue.`)
+      // If we still couldn't add/switch, provide helpful error message
+      const account = await getAccount(config)
+      const isWalletConnect = account.connector?.id?.includes('walletConnect') || 
+                              account.connector?.name?.toLowerCase().includes('walletconnect')
+      
+      const walletInstructions = isWalletConnect
+        ? `\n\nFor WalletConnect users:\n` +
+          `1. Open your wallet app (MetaMask, etc.)\n` +
+          `2. Go to Settings → Networks → Add Network\n` +
+          `3. Add ${REQUIRED_CHAIN_NAME} with the details below\n` +
+          `4. Return to this app and try again`
+        : `\n\nPlease add the network in your wallet and try again.`
+      
+      throw new Error(
+        `${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) is not configured in your wallet.${walletInstructions}\n\n` +
+        `Network Details:\n` +
+        `• Network Name: ${REQUIRED_CHAIN_NAME}\n` +
+        `• RPC URL: ${REQUIRED_RPC_URL}\n` +
+        `• Chain ID: ${REQUIRED_CHAIN_ID}\n` +
+        `• Currency Symbol: ETH\n` +
+        `• Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}`
+      )
     }
   }
 
@@ -903,8 +853,59 @@ export async function submitCleanup(
     console.log('[cleanup submission] ✅ Chain validated via providedChainId, skipping pre-tx check')
   }
 
+  // Safari/WalletConnect specific handling
+  const isSafari = typeof window !== 'undefined' && /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+  const account = await getAccount(config)
+  const isWalletConnect = account.connector?.id?.includes('walletConnect') || 
+                          account.connector?.name?.toLowerCase().includes('walletconnect')
+  const isSafariWalletConnect = isSafari && isWalletConnect
+
+  // For Safari/WalletConnect, add extra delay and verification before transaction
+  if (isSafariWalletConnect) {
+    console.log('[submitCleanup] Safari/WalletConnect detected, ensuring chain is ready...')
+    
+    // Verify WalletConnect provider is ready
+    try {
+      const connector = account.connector as any
+      const provider = await connector?.getProvider?.()
+      if (!provider) {
+        console.warn('[submitCleanup] Safari/WalletConnect: Provider not ready, waiting...')
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      }
+    } catch (providerError) {
+      console.warn('[submitCleanup] Safari/WalletConnect: Provider check failed:', providerError)
+    }
+    
+    // Add delay before transaction to ensure everything is ready
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // Double-check chain one more time for Safari/WalletConnect
+    const finalCheckChainId = await getCurrentChainId()
+    if (finalCheckChainId !== null && finalCheckChainId !== REQUIRED_CHAIN_ID) {
+      console.warn('[submitCleanup] Safari/WalletConnect: Chain mismatch detected, attempting final switch...')
+      try {
+        await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      } catch (switchError) {
+        console.warn('[submitCleanup] Final chain switch failed:', switchError)
+        throw new Error(
+          `Please switch to ${REQUIRED_CHAIN_NAME} in your wallet app before submitting. ` +
+          `Current chain: ${finalCheckChainId}, Required: ${REQUIRED_CHAIN_ID}`
+        )
+      }
+    }
+  }
+
   let hash: `0x${string}`
   try {
+    console.log('[submitCleanup] Sending transaction...', {
+      isSafari,
+      isWalletConnect,
+      isSafariWalletConnect,
+      chainId: await getCurrentChainId(),
+      address: CONTRACT_ADDRESSES.VERIFICATION
+    })
+
     hash = await writeContract(config as any, {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
@@ -921,11 +922,27 @@ export async function submitCleanup(
       value: value || BigInt(0), // Include fee if provided
       chain: targetChain,
     })
+
+    console.log('[submitCleanup] Transaction sent, hash:', hash)
   } catch (error: any) {
+    console.error('[submitCleanup] Transaction failed:', error)
+    
     // Check for WalletConnect stale session error
     if (isWalletConnectStaleSessionError(error)) {
       await handleWalletConnectStaleSession(error)
     }
+    
+    // For Safari/WalletConnect, provide more helpful error messages
+    if (isSafariWalletConnect) {
+      const errorMessage = getErrorMessage(error)
+      if (errorMessage.includes('User rejected') || error?.code === 4001) {
+        throw new Error('Transaction was rejected. Please check your wallet app and approve the transaction.')
+      }
+      if (errorMessage.includes('network') || errorMessage.includes('chain')) {
+        throw new Error(`Network issue detected. Please ensure you're on ${REQUIRED_CHAIN_NAME} in your wallet app and try again.`)
+      }
+    }
+    
     throw error // Re-throw if not a stale session error
   }
 

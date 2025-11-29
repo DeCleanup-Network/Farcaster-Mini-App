@@ -2,10 +2,10 @@ import { sdk } from '@farcaster/miniapp-sdk'
 
 const APP_NAME = 'DeCleanup Rewards'
 export const MINIAPP_URL =
-  process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
+  process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 const FARCASTER_HANDLE = '@base'
 const REFERRAL_COPY_FARCASTER =
-  'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on @base.base.eth\n\n'
+  'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on Base\n\n'
 const REFERRAL_COPY_WEB =
   'Join me in @decleanupnet Rewards! Clean up, share proof, earn tokens, and trade on @base.\n\n'
 const REFERRAL_COPY_COPY =
@@ -97,7 +97,17 @@ export const getFarcasterWalletProvider = (): EIP1193Provider | null => {
 // Check if running in Farcaster context
 export const isFarcasterContext = (): boolean => {
   try {
-    return typeof window !== 'undefined' && !!sdk.context
+    if (typeof window === 'undefined') {
+      return false
+    }
+    // Check if we're actually in Farcaster by checking for SDK context
+    // Also check for Farcaster-specific user agent or frame context
+    const hasSdkContext = !!sdk.context
+    const isInFrame = window.self !== window.top
+    const hasFarcasterUA = /farcaster|warpcast/i.test(navigator.userAgent)
+    
+    // Only return true if we have SDK context (most reliable indicator)
+    return hasSdkContext
   } catch {
     return false
   }
@@ -137,35 +147,105 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
           url,
         })
         return true
-      } catch (shareError) {
-        // User cancelled or share failed, fall back to other methods
-        console.log('Web Share API failed or cancelled, falling back:', shareError)
+      } catch (shareError: any) {
+        // User cancelled (code 0) is fine, but other errors should fall through
+        if (shareError?.code === 0 || shareError?.name === 'AbortError') {
+          return false // User cancelled
+        }
+        // Other errors, fall back to other methods
+        console.log('Web Share API failed, falling back:', shareError)
       }
     }
 
-    // Farcaster SDK doesn't have a direct cast action, but we can use openUrl
-    // to open the Farcaster compose interface with pre-filled text
-    const farcasterUrl = url
-      ? `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(url)}`
-      : `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
-
-    // Check if we are in Farcaster context
-    if (isFarcasterContext()) {
-      await openUrl(farcasterUrl)
-      return true
+    // Build Warpcast compose URL with pre-filled text and embed
+    // Warpcast compose URL format: https://warpcast.com/~/compose?text=...&embeds[]=...
+    let farcasterUrl: string
+    if (url) {
+      // Include both text and embed URL
+      farcasterUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(url)}`
+    } else {
+      // Just text, no embed
+      farcasterUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
     }
 
-    // If not in Farcaster, open in new tab
-    window.open(farcasterUrl, '_blank')
-    return true
+    // Check if we are in Farcaster context
+    let inFarcaster = false
+    try {
+      inFarcaster = isFarcasterContext()
+    } catch (error) {
+      console.log('Error checking Farcaster context, assuming browser:', error)
+      inFarcaster = false
+    }
+    
+    if (inFarcaster) {
+      try {
+        // In Farcaster, use SDK's openUrl
+        await openUrl(farcasterUrl)
+        return true
+      } catch (openUrlError) {
+        console.warn('openUrl failed in Farcaster context, trying window.open:', openUrlError)
+        // Fallback to window.open even in Farcaster context
+      }
+    }
+
+    // For browser (not in Farcaster), open Warpcast compose in new tab
+    if (typeof window !== 'undefined') {
+      console.log('Opening Warpcast compose in browser:', farcasterUrl)
+      try {
+        // Use window.open with noopener for security
+        const newWindow = window.open(farcasterUrl, '_blank', 'noopener,noreferrer')
+        if (newWindow) {
+          // Successfully opened
+          console.log('Successfully opened Warpcast compose window')
+          return true
+        } else {
+          // Popup blocked - fall through to clipboard
+          console.warn('Popup blocked by browser, falling back to clipboard')
+          throw new Error('Popup blocked')
+        }
+      } catch (openError) {
+        console.error('window.open failed:', openError)
+        throw new Error('Failed to open share window')
+      }
+    }
+
+    // Last resort: copy to clipboard
+    throw new Error('No sharing method available')
   } catch (error) {
     console.error('Failed to share cast:', error)
     // Fallback: try to copy to clipboard
     try {
-      await navigator.clipboard.writeText(text + (url ? ` ${url}` : ''))
-      return true
+      const fullText = text + (url ? ` ${url}` : '')
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(fullText)
+        if (typeof window !== 'undefined') {
+          alert('Share popup was blocked. Message copied to clipboard! Paste it into Warpcast to share.')
+        }
+        return true
+      } else {
+        throw new Error('Clipboard API not available')
+      }
     } catch (clipboardError) {
       console.error('Failed to copy to clipboard:', clipboardError)
+      if (typeof window !== 'undefined') {
+        // Show the text in an alert so user can copy manually
+        const shareText = `Failed to open share dialog. Please copy this manually:\n\n${text}${url ? ` ${url}` : ''}`
+        alert(shareText)
+        // Also try to select the text if possible
+        const textarea = document.createElement('textarea')
+        textarea.value = text + (url ? ` ${url}` : '')
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        try {
+          document.execCommand('copy')
+          document.body.removeChild(textarea)
+          alert('Text selected - press Ctrl+C (Cmd+C on Mac) to copy')
+        } catch (e) {
+          document.body.removeChild(textarea)
+        }
+      }
       return false
     }
   }
@@ -175,7 +255,7 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
 const FARCASTER_MINIAPP_URL =
   'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
 const WEB_APP_URL =
-  process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://farcaster-mini-app-umber.vercel.app'
+  process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 
 function buildUrl(base: string, path: string, params?: Record<string, string | number | undefined>) {
   const normalizedBase = base.endsWith('/') ? base : `${base}/`

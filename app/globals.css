@@ -119,9 +119,15 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
   
   /* Bebas Neue for all headings - ALL CAPS */

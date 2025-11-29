@@ -118,16 +118,44 @@ function ProfileContent() {
     setHasMounted(true)
   }, [])
 
-  // Capture referral codes from profile links as fallback
+  // Capture referral codes from profile links as fallback (Safari-compatible)
   useEffect(() => {
-    if (!hasMounted || !searchParams) return
-    const ref = searchParams.get('ref')
+    if (!hasMounted || typeof window === 'undefined') return
+    
+    // Safari-compatible: Try multiple methods to get ref parameter
+    let ref: string | null = null
+    
+    // Method 1: Try useSearchParams (Next.js)
+    if (searchParams) {
+      ref = searchParams.get('ref')
+    }
+    
+    // Method 2: Fallback to window.location.search (Safari compatibility)
+    if (!ref) {
+      const urlParams = new URLSearchParams(window.location.search)
+      ref = urlParams.get('ref')
+    }
+    
+    // Method 3: Try window.location.hash (for some deep link scenarios)
+    if (!ref && window.location.hash) {
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '')
+        ref = hashParams.get('ref')
+      } catch (e) {
+        // Ignore hash parsing errors
+      }
+    }
+    
     if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
-      if (typeof window !== 'undefined') {
+      try {
         localStorage.setItem('referrer_pending', ref)
+        console.log('✅ Profile: Referrer address saved (pending):', ref)
         if (address) {
           localStorage.setItem(`referrer_${address.toLowerCase()}`, ref)
+          console.log('✅ Profile: Referrer address saved for address:', address)
         }
+      } catch (e) {
+        console.error('Failed to save referrer to localStorage:', e)
       }
     }
   }, [hasMounted, searchParams, address])
