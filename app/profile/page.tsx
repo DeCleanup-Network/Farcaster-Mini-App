@@ -18,6 +18,7 @@ import {
   Share2,
   Copy,
 } from 'lucide-react'
+import { ImportTokenModal } from '@/components/wallet/ImportTokenModal'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import {
@@ -31,6 +32,7 @@ import {
   hasActiveStreak,
   getCleanupStatus,
   claimImpactProductFromVerification,
+  getClaimFee,
   CONTRACT_ADDRESSES,
 } from '@/lib/contracts'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
@@ -78,6 +80,39 @@ export default function ProfilePage() {
     <Suspense fallback={<ProfilePageFallback />}>
       <ProfileContent />
     </Suspense>
+  )
+}
+
+// Component to display claim fee
+function ClaimFeeDisplay() {
+  const [claimFee, setClaimFee] = useState<{ fee: bigint; enabled: boolean } | null>(null)
+  
+  useEffect(() => {
+    async function loadClaimFee() {
+      try {
+        const feeInfo = await getClaimFee()
+        setClaimFee(feeInfo)
+      } catch (error) {
+        console.error('Error loading claim fee:', error)
+        setClaimFee({ fee: BigInt(0), enabled: false })
+      }
+    }
+    loadClaimFee()
+  }, [])
+  
+  if (!claimFee || !claimFee.enabled || claimFee.fee === BigInt(0)) {
+    return null
+  }
+  
+  const feeInEth = Number(claimFee.fee) / 1e18
+  const feeInCents = feeInEth * 2800 // Approximate ETH price for display
+  
+  return (
+    <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-2">
+      <p className="text-xs text-gray-400">
+        Claim fee: ~{feeInCents.toFixed(2)} cents USD ({feeInEth.toFixed(8)} ETH)
+      </p>
+    </div>
   )
 }
 
@@ -578,6 +613,7 @@ function ProfileContent() {
               <h3 className="text-sm font-medium text-gray-400">
                 $bDCU
               </h3>
+              <ImportTokenModal type="token" onCopy={handleManualCopy} />
             </div>
             <p className="text-3xl font-bold text-white">
               {profileData.dcuBalance.toFixed(0)}
@@ -598,6 +634,9 @@ function ProfileContent() {
               <h3 className="text-sm font-medium text-gray-400">
                 Impact Product Level
               </h3>
+              {profileData.tokenId && (
+                <ImportTokenModal type="nft" tokenId={Number(profileData.tokenId)} onCopy={handleManualCopy} />
+              )}
             </div>
             <p className="text-3xl font-bold text-white">
               {profileData.level > 0 ? `Level ${profileData.level}` : 'No Level'}
@@ -690,12 +729,28 @@ function ProfileContent() {
                       🎉 Your cleanup has been verified! You can now claim your Impact Product NFT.
                     </p>
                   </div>
+                  <ClaimFeeDisplay />
                   <Button
                     onClick={async () => {
                       if (!cleanupStatus.cleanupId || isClaiming) return
 
                       try {
                         setIsClaiming(true)
+                        
+                        // Double-check cleanup status before claiming
+                        try {
+                          const { getCleanupStatus } = await import('@/lib/contracts')
+                          const status = await getCleanupStatus(cleanupStatus.cleanupId!)
+                          if (status.claimed) {
+                            alert('This Impact Product has already been claimed. Refreshing...')
+                            window.location.reload()
+                            return
+                          }
+                        } catch (statusCheckError) {
+                          console.warn('Could not check cleanup status before claim:', statusCheckError)
+                          // Continue anyway - the claim function will check
+                        }
+                        
                         // Pass chainId to avoid false chain detection
                         const hash = await claimImpactProductFromVerification(cleanupStatus.cleanupId, chainId)
                         alert(
@@ -705,15 +760,32 @@ function ProfileContent() {
                           `View on ${BLOCK_EXPLORER_NAME}: ${getExplorerTxUrl(hash)}`
                         )
 
-                        // Wait for transaction confirmation
+                        // Wait for transaction confirmation with better error handling
                         const { waitForTransactionReceipt } = await import('wagmi/actions')
                         const { config } = await import('@/lib/wagmi')
 
                         try {
-                          await waitForTransactionReceipt(config, { hash, timeout: 60000 })
+                          // Use a longer timeout and handle "block not found" errors gracefully
+                          await waitForTransactionReceipt(config, { 
+                            hash, 
+                            timeout: 120000, // 2 minutes
+                            retryCount: 10,
+                            retryDelay: 2000,
+                          })
                           console.log('✅ Claim transaction confirmed!')
-                        } catch (waitError) {
-                          console.warn('Transaction confirmation wait failed, but continuing:', waitError)
+                        } catch (waitError: any) {
+                          // "Block not found" errors are often temporary - transaction might still succeed
+                          const errorMessage = String(waitError?.message || waitError || '')
+                          if (
+                            errorMessage.includes('block not found') ||
+                            errorMessage.includes('Requested resource not found') ||
+                            errorMessage.includes('ResourceNotFound')
+                          ) {
+                            console.warn('Transaction receipt check failed (block not found - may be temporary):', waitError)
+                            console.log('Transaction was submitted. It may still be processing. Polling for status...')
+                          } else {
+                            console.warn('Transaction confirmation wait failed, but continuing:', waitError)
+                          }
                         }
 
                         // Poll for status update
@@ -753,7 +825,31 @@ function ProfileContent() {
                       } catch (error: any) {
                         console.error('Error claiming:', error)
                         const errorMessage = error?.message || String(error)
-                        alert(`Failed to claim: ${errorMessage}`)
+                        
+                        // Check if user rejected the transaction
+                        if (
+                          error?.code === 4001 ||
+                          errorMessage.includes('User rejected') ||
+                          errorMessage.includes('User denied') ||
+                          errorMessage.includes('rejected the request')
+                        ) {
+                          console.log('User cancelled transaction')
+                          // Don't show an error for user cancellation
+                        } else if (
+                          errorMessage.includes('already been claimed') ||
+                          errorMessage.includes('already claimed')
+                        ) {
+                          // Already claimed - refresh status and show message
+                          alert(
+                            'This Impact Product has already been claimed.\n\n' +
+                            'Refreshing your profile...'
+                          )
+                          // Refresh the page to show updated status
+                          window.location.reload()
+                        } else {
+                          // Show error for actual failures
+                          alert(`Failed to claim: ${errorMessage}`)
+                        }
                       } finally {
                         setIsClaiming(false)
                       }
@@ -922,86 +1018,6 @@ function ProfileContent() {
                   )}
                 </div>
                 <div className="mt-4 space-y-3">
-                  <p className="text-xs font-medium text-gray-400">
-                    View your NFT on-chain and load it into any wallet:
-                  </p>
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    {impactExplorerUrl && (
-                      <Link href={impactExplorerUrl} target="_blank" rel="noopener noreferrer" className="sm:flex-1">
-                        <Button
-                          variant="outline"
-                          className="w-full gap-2 border-brand-green bg-brand-green/10 text-brand-green hover:bg-brand-green/20"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          View on {BLOCK_EXPLORER_NAME}
-                        </Button>
-                      </Link>
-                    )}
-                  </div>
-                  {profileData.tokenId && (
-                    <div className="space-y-3 rounded-lg border border-gray-800 bg-black/50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                        Manual wallet import
-                      </p>
-                      <p className="text-sm text-gray-300">
-                        Wallets now require adding collectibles manually. Copy these details:
-                      </p>
-                      {CONTRACT_ADDRESSES.IMPACT_PRODUCT && (
-                        <div className="rounded-lg border border-gray-800 bg-gray-900/60 p-3">
-                          <div className="mb-1 flex items-center justify-between text-xs text-gray-400">
-                            <span>Contract Address</span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleManualCopy(CONTRACT_ADDRESSES.IMPACT_PRODUCT, 'Contract address')
-                              }
-                              className="flex items-center gap-1 text-brand-green hover:text-brand-yellow"
-                              disabled={copyingField === 'Contract address'}
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                              {copyingField === 'Contract address' ? 'Copied' : 'Copy'}
-                            </button>
-                          </div>
-                          {impactContractUrl ? (
-                            <a
-                              href={impactContractUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="break-all font-mono text-xs text-white underline-offset-2 hover:underline"
-                            >
-                              {CONTRACT_ADDRESSES.IMPACT_PRODUCT}
-                            </a>
-                          ) : (
-                            <p className="break-all font-mono text-xs text-white">
-                              {CONTRACT_ADDRESSES.IMPACT_PRODUCT}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      <div className="rounded-lg border border-gray-800 bg-gray-900/60 p-3">
-                        <div className="mb-1 flex items-center justify-between text-xs text-gray-400">
-                          <span>Collectible ID</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleManualCopy(profileData.tokenId?.toString() || '', 'Collectible ID')
-                            }
-                            className="flex items-center gap-1 text-brand-green hover:text-brand-yellow"
-                            disabled={copyingField === 'Collectible ID'}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                            {copyingField === 'Collectible ID' ? 'Copied' : 'Copy'}
-                          </button>
-                        </div>
-                        <p className="font-mono text-xs text-white">{profileData.tokenId?.toString()}</p>
-                      </div>
-                      <ol className="list-decimal space-y-1 pl-4 text-xs text-gray-400">
-                        <li>Open your wallet → NFTs / Collectibles → Import or Add manually.</li>
-                        <li>Paste the contract address above.</li>
-                        <li>Enter the collectible ID and confirm to view your Impact Product.</li>
-                      </ol>
-                    </div>
-                  )}
                   {/* Share buttons */}
                   {address && profileData.level > 0 && (
                     <div className="mt-3 space-y-2">

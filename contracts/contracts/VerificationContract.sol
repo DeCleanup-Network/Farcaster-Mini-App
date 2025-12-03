@@ -4,7 +4,6 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./ImpactProductNFT.sol";
-import "./RewardDistributor.sol";
 
 /**
  * @title VerificationContract
@@ -41,8 +40,8 @@ contract VerificationContract is Ownable, ReentrancyGuard {
     // Impact Product NFT contract
     ImpactProductNFT public impactProductNFT;
     
-    // Reward Distributor contract
-    RewardDistributor public rewardDistributor;
+    // Reward Distributor contract (can be RewardDistributor or bDCURewardDistributor)
+    address public rewardDistributor;
     
     // Optional submission fee (can be disabled by setting to 0)
     uint256 public submissionFee;
@@ -150,6 +149,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
      * @notice Verify cleanup (only verifier)
      * @param cleanupId Cleanup ID
      * @param level Level to assign (1-10)
+     * @dev User rewards are distributed when user claims, but verifier gets reward immediately
      */
     function verifyCleanup(uint256 cleanupId, uint8 level) external {
         require(verifiers[msg.sender] || msg.sender == owner(), "Not authorized");
@@ -163,28 +163,17 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         cleanup.verified = true;
         cleanup.level = level;
         
-        // Distribute rewards
-        address user = cleanup.user;
+        // Distribute verifier reward (1 $bDCU) - verifier gets reward immediately
+        // User rewards are distributed when user claims their Impact Product
+        try rewardDistributor.distributeVerifierReward(msg.sender, cleanupId) {} catch {}
         
-        // Distribute streak reward if applicable
-        rewardDistributor.distributeStreakReward(user);
-        
-        // Distribute referral reward if applicable
-        if (cleanup.referrer != address(0)) {
-            rewardDistributor.distributeReferralReward(cleanup.referrer, user);
-        }
-        
-        // Distribute impact form reward if applicable
-        if (cleanup.hasImpactForm) {
-            rewardDistributor.distributeImpactFormReward(user, cleanupId);
-        }
-        
-        emit CleanupVerified(cleanupId, user, level);
+        emit CleanupVerified(cleanupId, cleanup.user, level);
     }
     
     /**
      * @notice Reject cleanup (only verifier)
      * @param cleanupId Cleanup ID
+     * @dev Verifier gets reward even for rejections (1 $bDCU)
      */
     function rejectCleanup(uint256 cleanupId) external {
         require(verifiers[msg.sender] || msg.sender == owner(), "Not authorized");
@@ -196,12 +185,16 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         
         cleanup.rejected = true;
         
+        // Distribute verifier reward (1 $bDCU) - verifier gets reward for rejections too
+        try rewardDistributor.distributeVerifierReward(msg.sender, cleanupId) {} catch {}
+        
         emit CleanupRejected(cleanupId, cleanup.user);
     }
     
     /**
      * @notice Claim Impact Product after verification
      * @param cleanupId Cleanup ID
+     * @dev All rewards (referral, streak, impact form) are distributed here, not on verification
      */
     function claimImpactProduct(uint256 cleanupId) external nonReentrant {
         CleanupSubmission storage cleanup = cleanups[cleanupId];
@@ -212,11 +205,33 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         
         cleanup.claimed = true;
         
-        // Claim Impact Product level for the user (this will also distribute 10 DCU reward)
-        // Pass the user address so the NFT is minted/updated for the correct user
-        impactProductNFT.claimLevelForUser(cleanup.user, cleanupId, cleanup.level);
+        address user = cleanup.user;
         
-        emit ImpactProductClaimed(cleanupId, cleanup.user, cleanup.level);
+        // Distribute all rewards when user claims (not on verification)
+        // This ensures users only receive rewards after they claim their Impact Product
+        // Note: If rewards were already distributed (e.g., from old contract), they will fail silently
+        
+        // Distribute streak reward if applicable (may fail if already distributed, that's OK)
+        try rewardDistributor.distributeStreakReward(user) {} catch {}
+        
+        // Distribute referral reward if applicable (only once per user)
+        // May fail if already claimed, that's OK - user already got the reward
+        if (cleanup.referrer != address(0)) {
+            try rewardDistributor.distributeReferralReward(cleanup.referrer, user) {} catch {}
+        }
+        
+        // Distribute impact form reward if applicable
+        // May fail if already claimed (e.g., from old contract), that's OK
+        if (cleanup.hasImpactForm) {
+            try rewardDistributor.distributeImpactFormReward(user, cleanupId) {} catch {}
+        }
+        
+        // Claim Impact Product level for the user (this will also distribute 10 DCU level reward)
+        // Pass the user address so the NFT is minted/updated for the correct user
+        // This must succeed - if it fails, the whole claim fails
+        impactProductNFT.claimLevelForUser(user, cleanupId, cleanup.level);
+        
+        emit ImpactProductClaimed(cleanupId, user, cleanup.level);
     }
     
     /**

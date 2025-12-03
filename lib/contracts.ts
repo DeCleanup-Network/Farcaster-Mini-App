@@ -459,6 +459,7 @@ export const REWARD_DISTRIBUTOR_ABI = parseAbi([
   'function hasActiveStreak(address user) external view returns (bool)',
   'function getPointsBalance(address user) external view returns (uint256)',
   'function pointsBalance(address user) external view returns (uint256)',
+  'function totalPointsDistributed() external view returns (uint256)',
   // V2 upgradeable functions (may not exist in V1)
   'function getDCUBalance(address user) external view returns (uint256 balance, bool isTokenBalance)',
   'function migratePointsToToken() external returns (uint256)',
@@ -473,6 +474,12 @@ export const BDCU_REWARD_DISTRIBUTOR_ABI = parseAbi([
   'function getContractBalance() external view returns (uint256)',
   'function getTotalDistributed(address user) external view returns (uint256)',
   'function globalTotalDistributed() external view returns (uint256)',
+])
+
+// Reward Distributor ABI (points system)
+export const REWARD_DISTRIBUTOR_POINTS_ABI = parseAbi([
+  'function pointsBalance(address user) external view returns (uint256)',
+  'function totalPointsDistributed() external view returns (uint256)',
 ])
 
 

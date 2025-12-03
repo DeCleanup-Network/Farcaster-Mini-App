@@ -17,7 +17,7 @@ const {
   CONTRACT_ADDRESSES,
 } = contractsLib
 import { Address } from 'viem'
-import { waitForTransactionReceipt } from 'wagmi/actions'
+import { waitForTransactionReceipt, getEnsName } from 'wagmi/actions'
 import { config, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUIRED_CHAIN_ID, REQUIRED_RPC_URL } from '@/lib/wagmi'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
 import { getIPFSUrl, getIPFSFallbackUrls } from '@/lib/ipfs'
@@ -87,6 +87,20 @@ export default function VerifierPage() {
   const [isLoadingCleanups, setIsLoadingCleanups] = useState(false)
   const [isAddingNetwork, setIsAddingNetwork] = useState(false)
   const [copiedNetworkDetails, setCopiedNetworkDetails] = useState(false)
+  const [ensNames, setEnsNames] = useState<Map<string, string>>(new Map())
+  const [verifierStats, setVerifierStats] = useState<{
+    totalVerified: number
+    totalDistributed: string
+    verifierEarned: string
+    totalEarnings: string // All rewards combined (verifier + level + impact form + referral + streak)
+    isLoading: boolean
+  }>({
+    totalVerified: 0,
+    totalDistributed: '0',
+    verifierEarned: '0',
+    totalEarnings: '0',
+    isLoading: true,
+  })
 
   const { signMessageAsync, isPending: isSigning } = useSignMessage()
   const isWrongNetwork = Boolean(
@@ -298,6 +312,192 @@ export default function VerifierPage() {
     preloadImpactData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleanups]) // Only depend on isVerifier, not loading
+
+  // Fetch ENS names for all unique addresses in cleanups
+  useEffect(() => {
+    if (cleanups.length === 0) return
+
+    async function fetchEnsNames() {
+      const uniqueAddresses = new Set<string>()
+      cleanups.forEach(cleanup => {
+        uniqueAddresses.add(cleanup.user.toLowerCase())
+        if (cleanup.referrer && cleanup.referrer !== '0x0000000000000000000000000000000000000000') {
+          uniqueAddresses.add(cleanup.referrer.toLowerCase())
+        }
+      })
+
+      const newEnsNames = new Map<string, string>()
+      
+      // Fetch ENS names in parallel (but limit concurrency)
+      const addressArray = Array.from(uniqueAddresses)
+      const batchSize = 5
+      for (let i = 0; i < addressArray.length; i += batchSize) {
+        const batch = addressArray.slice(i, i + batchSize)
+        await Promise.all(
+          batch.map(async (addr) => {
+            try {
+              // Only fetch if not already cached
+              if (!ensNames.has(addr)) {
+                const name = await getEnsName(config, { 
+                  address: addr as `0x${string}`
+                })
+                if (name) {
+                  newEnsNames.set(addr, name)
+                }
+              }
+            } catch (error) {
+              // Silently fail - most addresses won't have ENS names
+              console.debug('ENS lookup failed for', addr, error)
+            }
+          })
+        )
+      }
+
+      if (newEnsNames.size > 0) {
+        setEnsNames(prev => {
+          const merged = new Map(prev)
+          newEnsNames.forEach((name, addr) => merged.set(addr, name))
+          return merged
+        })
+      }
+    }
+
+    fetchEnsNames()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleanups])
+
+  // Load verifier stats
+  useEffect(() => {
+    if (!isVerifier || !address || cleanups.length === 0) {
+      setVerifierStats({ totalVerified: 0, totalDistributed: '0', verifierEarned: '0', totalEarnings: '0', isLoading: false })
+      return
+    }
+
+    async function loadVerifierStats() {
+      try {
+        setVerifierStats(prev => ({ ...prev, isLoading: true }))
+        
+        // Count verified cleanups (both approved and rejected count as verifications)
+        const verifiedCount = cleanups.filter(c => c.verified || c.rejected).length
+        
+        // Calculate verifier rewards separately (1 $bDCU per verification)
+        // Note: totalDistributed[address] includes ALL rewards (verifier + level + impact form + referral + streak)
+        // So we calculate verifier rewards separately based on verification count
+        const verifierRewardsOnly = verifiedCount * 1 // 1 $bDCU per verification
+        const verifierEarned = verifierRewardsOnly.toFixed(2)
+        
+        // Also get total earnings (all rewards combined) for reference
+        let totalEarnings = '0'
+        if (address) {
+          try {
+            const contractsModule = await import('@/lib/contracts')
+            const totalEarningsFromContract = await contractsModule.getVerifierTokenEarnings(address)
+            console.log('Total earnings from contract (all rewards):', totalEarningsFromContract)
+            totalEarnings = parseFloat(totalEarningsFromContract).toFixed(2)
+            
+            // Log breakdown for debugging
+            const totalEarningsNum = parseFloat(totalEarningsFromContract)
+            if (totalEarningsNum > verifierRewardsOnly) {
+              const otherRewards = totalEarningsNum - verifierRewardsOnly
+              console.log(`Verifier rewards: ${verifierRewardsOnly} $bDCU, Other rewards: ${otherRewards.toFixed(2)} $bDCU (level claims, impact forms, referrals, streaks)`)
+            }
+          } catch (error) {
+            console.error('Error fetching total earnings:', error)
+            // If we can't fetch, assume total equals verifier rewards
+            totalEarnings = verifierEarned
+          }
+        } else {
+          totalEarnings = verifierEarned
+        }
+        
+        // Try to get total distributed from reward distributor (if using token system)
+        let totalDistributed = '0'
+        try {
+          const { readContract } = await import('wagmi/actions')
+          const { config } = await import('@/lib/wagmi')
+          const { CONTRACT_ADDRESSES, BDCU_REWARD_DISTRIBUTOR_ABI } = await import('@/lib/contracts')
+          
+          if (CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+            console.log('Fetching globalTotalDistributed from:', CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR)
+            const globalTotal = await readContract(config, {
+              address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
+              abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+              functionName: 'globalTotalDistributed',
+            }) as bigint
+            
+            console.log('Raw globalTotalDistributed value:', globalTotal.toString())
+            // Format as $bDCU (18 decimals)
+            totalDistributed = (Number(globalTotal) / 1e18).toFixed(2)
+            console.log('Formatted total distributed:', totalDistributed)
+          } else {
+            console.warn('BDCU_REWARD_DISTRIBUTOR address not set')
+            // Fallback to points system
+            const { CONTRACT_ADDRESSES: CONTRACT_ADDRS, REWARD_DISTRIBUTOR_ABI: REWARD_ABI } = await import('@/lib/contracts')
+            if (CONTRACT_ADDRS.REWARD_DISTRIBUTOR) {
+              const totalPoints = await readContract(config, {
+                address: CONTRACT_ADDRS.REWARD_DISTRIBUTOR,
+                abi: REWARD_ABI,
+                functionName: 'totalPointsDistributed',
+              }) as bigint
+              
+              totalDistributed = (Number(totalPoints) / 1e18).toFixed(2)
+            }
+          }
+        } catch (error: any) {
+          console.error('Error loading total distributed:', error)
+          console.error('Error details:', {
+            message: error?.message,
+            code: error?.code,
+            name: error?.name,
+          })
+          // Keep default '0' if query fails
+        }
+        
+        setVerifierStats({
+          totalVerified: verifiedCount,
+          totalDistributed,
+          verifierEarned,
+          totalEarnings,
+          isLoading: false,
+        })
+      } catch (error) {
+        console.error('Error loading verifier stats:', error)
+        setVerifierStats({ totalVerified: 0, totalDistributed: '0', verifierEarned: '0', totalEarnings: '0', isLoading: false })
+      }
+    }
+
+    loadVerifierStats()
+
+    // Listen for manual refresh events
+    const handleRefresh = () => {
+      loadVerifierStats()
+    }
+    window.addEventListener('verifier-stats-refresh', handleRefresh)
+
+    return () => {
+      window.removeEventListener('verifier-stats-refresh', handleRefresh)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVerifier, address, cleanups])
+
+  // Helper component to display address with ENS name
+  function AddressDisplay({ address }: { address: Address | string }) {
+    const addr = typeof address === 'string' ? address : address
+    const addrLower = addr.toLowerCase()
+    const ensName = ensNames.get(addrLower)
+    
+    return (
+      <span className="font-mono text-xs">
+        {ensName ? (
+          <span title={addr}>
+            {ensName} <span className="text-gray-500">({addr.slice(0, 6)}...{addr.slice(-4)})</span>
+          </span>
+        ) : (
+          <span>{addr}</span>
+        )}
+      </span>
+    )
+  }
 
   function checkStoredVerification() {
     try {
@@ -757,7 +957,30 @@ export default function VerifierPage() {
   function ImpactReportDetails({ impactReportHash }: { impactReportHash?: string | null }) {
     const [impactData, setImpactData] = useState<any>(null)
     const [impactDataUrl, setImpactDataUrl] = useState<string | null>(null)
-    const [expanded, setExpanded] = useState(false)
+    // Use a unique key based on hash to persist expanded state per cleanup
+    const expandedKey = `impact_expanded_${impactReportHash}`
+    const [expanded, setExpanded] = useState(() => {
+      if (typeof window === 'undefined') return false
+      try {
+        return localStorage.getItem(expandedKey) === 'true'
+      } catch {
+        return false
+      }
+    })
+    
+    // Persist expanded state to localStorage
+    const toggleExpanded = (newValue: boolean) => {
+      setExpanded(newValue)
+      try {
+        if (newValue) {
+          localStorage.setItem(expandedKey, 'true')
+        } else {
+          localStorage.removeItem(expandedKey)
+        }
+      } catch (e) {
+        console.warn('Failed to save expanded state:', e)
+      }
+    }
 
     useEffect(() => {
       async function fetchImpactData() {
@@ -849,7 +1072,7 @@ export default function VerifierPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setExpanded(true)}
+              onClick={() => toggleExpanded(true)}
               className="border-green-500/60 text-green-200 hover:bg-green-500/20"
             >
               View Details
@@ -867,7 +1090,7 @@ export default function VerifierPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setExpanded(false)}
+              onClick={() => toggleExpanded(false)}
               className="border-green-500/60 text-green-200 hover:bg-green-500/20"
             >
               Hide Details
@@ -896,7 +1119,7 @@ export default function VerifierPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setExpanded(false)}
+              onClick={() => toggleExpanded(false)}
               className="border-green-500/60 text-green-200 hover:bg-green-500/20"
             >
               Hide Details
@@ -1300,6 +1523,85 @@ export default function VerifierPage() {
           </div>
         </div>
 
+        {/* Verifier Stats */}
+        <div className="mb-8 rounded-lg border border-blue-500/50 bg-blue-500/10 p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold uppercase text-white">Verifier Statistics</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (isVerifier && address && cleanups.length > 0) {
+                  // Trigger stats reload
+                  const event = new Event('verifier-stats-refresh')
+                  window.dispatchEvent(event)
+                }
+              }}
+              disabled={verifierStats.isLoading}
+              className="text-gray-400 hover:text-white"
+              title="Refresh stats"
+            >
+              <RefreshCw className={`h-4 w-4 ${verifierStats.isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4">
+              <div className="text-sm text-gray-400">Total Verified by You</div>
+              <div className="mt-1 text-3xl font-bold text-blue-400">
+                {verifierStats.isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  verifierStats.totalVerified
+                )}
+              </div>
+              <div className="mt-1 text-xs text-gray-500">
+                Cleanups you have verified (approved or rejected)
+              </div>
+            </div>
+            <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4">
+              <div className="text-sm text-gray-400">Verifier Rewards</div>
+              <div className="mt-1 text-3xl font-bold text-green-400">
+                {verifierStats.isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  `${verifierStats.verifierEarned} $bDCU`
+                )}
+              </div>
+              <div className="mt-1 text-xs text-gray-500">
+                1 $bDCU per verification ({verifierStats.totalVerified} × 1 $bDCU)
+              </div>
+              {parseFloat(verifierStats.totalEarnings) > parseFloat(verifierStats.verifierEarned) && (
+                <div className="mt-2 text-xs text-blue-400">
+                  Total earnings: {verifierStats.totalEarnings} $bDCU (includes level claims, impact forms, referrals, streaks)
+                </div>
+              )}
+            </div>
+            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4">
+              <div className="text-sm text-gray-400">Total $bDCU Distributed</div>
+              <div className="mt-1 text-3xl font-bold text-blue-400">
+                {verifierStats.isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  `${verifierStats.totalDistributed} $bDCU`
+                )}
+              </div>
+              <div className="mt-1 text-xs text-gray-500">
+                Total tokens distributed to all users (all rewards combined)
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 rounded-lg border border-green-500/20 bg-green-500/5 p-3">
+            <p className="text-xs text-gray-400">
+              <strong className="text-green-300">Verifier Rewards:</strong> You receive <strong className="text-green-300">1 $bDCU</strong> for each cleanup you verify, whether you approve or reject it. 
+              This rewards your verification activity and helps maintain quality standards.
+            </p>
+            <p className="mt-2 text-xs text-gray-500">
+              <strong>Note:</strong> If you've also claimed Impact Products, submitted impact forms, received referrals, or maintained streaks using this wallet address, 
+              those rewards are included in your total earnings but shown separately above.
+            </p>
+          </div>
+        </div>
+
         {/* Pending Cleanups */}
         <div className="mb-8">
           <h2 className="mb-4 text-2xl font-bold uppercase text-white">Pending Verification</h2>
@@ -1320,7 +1622,7 @@ export default function VerifierPage() {
                       <div className="space-y-2 text-sm">
                         <div className="flex items-center gap-2 text-gray-400">
                           <User className="h-4 w-4" />
-                          <span className="font-mono text-xs">{cleanup.user}</span>
+                          <AddressDisplay address={cleanup.user} />
                         </div>
                         <div className="flex items-center gap-2 text-gray-400">
                           <Calendar className="h-4 w-4" />
@@ -1331,7 +1633,10 @@ export default function VerifierPage() {
                           <span>{formatCoordinates(cleanup.latitude, cleanup.longitude)}</span>
                         </div>
                         {cleanup.referrer !== '0x0000000000000000000000000000000000000000' && (
-                          <div className="text-xs text-yellow-400">Referred by: {cleanup.referrer.slice(0, 10)}...</div>
+                          <div className="text-xs text-yellow-400">
+                            <span className="font-semibold">Referred by:</span>{' '}
+                            <AddressDisplay address={cleanup.referrer} />
+                          </div>
                         )}
                         {cleanup.hasImpactForm && (
                           <div className="text-xs text-green-400">
@@ -1618,7 +1923,7 @@ export default function VerifierPage() {
                       <div className="space-y-2 text-sm">
                         <div className="flex items-center gap-2 text-gray-400">
                           <User className="h-4 w-4" />
-                          <span className="font-mono text-xs">{cleanup.user}</span>
+                          <AddressDisplay address={cleanup.user} />
                         </div>
                         <div className="flex items-center gap-2 text-gray-400">
                           <Calendar className="h-4 w-4" />
