@@ -1521,14 +1521,6 @@ export default function VerifierPage() {
                   `${verifierStats.verifierEarned} $bDCU`
                 )}
               </div>
-              <div className="mt-1 text-xs text-gray-500">
-                1 $bDCU per verification ({verifierStats.totalVerified} × 1 $bDCU)
-              </div>
-              {parseFloat(verifierStats.totalEarnings) > parseFloat(verifierStats.verifierEarned) && (
-                <div className="mt-2 text-xs text-blue-400">
-                  Total earnings: {verifierStats.totalEarnings} $bDCU (includes level claims, impact forms, referrals, streaks)
-                </div>
-              )}
             </div>
           </div>
           <div className="mt-4 rounded-lg border border-green-500/20 bg-green-500/5 p-3">
