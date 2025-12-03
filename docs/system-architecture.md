@@ -58,11 +58,16 @@ This document mirrors the level of depth and structure we admire in Green Goodsâ
 2. Transaction hash surfaces instantly with Basescan deep link; we wait for receipt (best-effort) and poll the contract for claim completion.  
 3. Profile page reloads on success to refresh level, NFT metadata, and dynamic art.
 
-### 3.5 $bDCU Token/Points Tracking
-* **Current**: $bDCU points are tracked on-chain via `RewardDistributor.getPointsBalance()`
-* **After Clanker Launch**: Direct ERC20 token balance from Clanker token contract
-* **Fallback**: `lib/points.ts` provides local storage fallback for dev/test
-* **Distribution**: `bDCURewardDistributor` contract automatically distributes $bDCU tokens on user actions
+### 3.5 $bDCU Token Tracking
+* **Current**: $bDCU tokens are ERC20 tokens distributed automatically by `bDCURewardDistributor` contract
+* **Token Reading**: Direct ERC20 token balance from $bDCU token contract (Clanker)
+* **Fallback**: `lib/points.ts` provides local storage fallback for dev/test only
+* **Distribution**: `bDCURewardDistributor` contract automatically distributes $bDCU tokens on user actions:
+  - Level claims: 10 $bDCU
+  - Streak maintenance: 2 $bDCU
+  - Referrals: 3 $bDCU (both referrer and referee)
+  - Impact forms: 5 $bDCU
+  - Verifier rewards: 1 $bDCU per verification
 
 ---
 
@@ -71,10 +76,9 @@ This document mirrors the level of depth and structure we admire in Green Goodsâ
 | Contract | ABI entry points used | Notes |
 | --- | --- | --- |
 | Impact Product NFT | `claimLevelForUser`, `userCurrentLevel`, `getUserTokenId`, `tokenURI`, `getTokenURIForLevel` | Levels map to on-chain metadata (IPFS CIDs). Verification contract address is also readable/settable. |
-| Verification | `submitCleanup`, `verifyCleanup`, `rejectCleanup`, `claimImpactProduct`, `getCleanupStatus`, `cleanupCounter`, `getSubmissionFee` | Submission fees optional; when enabled we pass `value` from `getSubmissionFee`. |
-| Reward Distributor | `getPointsBalance`, `getStreakCount`, `hasActiveStreak` | Used for leaderboard + profile view. Legacy points system. |
-| bDCU Reward Distributor | `distributeLevelReward`, `distributeStreakReward`, `distributeReferralReward`, `distributeImpactFormReward` | New contract for automatic $bDCU token distributions (Clanker integration). |
-| $bDCU Token (Clanker) | `balanceOf` (ERC20) | Direct token balance reading after Clanker launch. |
+| Verification | `submitCleanup`, `verifyCleanup`, `rejectCleanup`, `claimImpactProduct`, `getCleanupStatus`, `cleanupCounter`, `getSubmissionFee`, `getClaimFee` | Submission and claim fees optional; when enabled we pass `value` from fee functions. |
+| bDCURewardDistributor | `distributeLevelReward`, `distributeStreakReward`, `distributeReferralReward`, `distributeImpactFormReward`, `distributeVerifierReward`, `totalDistributed`, `globalTotalDistributed`, `getContractBalance` | Automatic $bDCU token distributions. Tracks all distributions per user and globally. |
+| $bDCU Token (Clanker) | `balanceOf`, `decimals`, `symbol`, `name` (ERC20) | Direct token balance reading. Primary source for user $bDCU balance. |
 
 Environment coordination happens through `NEXT_PUBLIC_*` vars (see Section 6).
 

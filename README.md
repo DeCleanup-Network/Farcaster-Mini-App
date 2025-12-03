@@ -1,6 +1,8 @@
 # DeCleanup Rewards - Farcaster Mini App
 
-> **A mobile-first Farcaster Mini App that gamifies environmental cleanup through Impact Product NFTs - onchain commodities, community token (coming soon) and engagement.**
+> **A mobile-first Farcaster Mini App that gamifies environmental cleanup through Impact Product NFTs, $bDCU token rewards, and on-chain engagement on Base.**
+
+**🌐 [Try the Farcaster Mini App](https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards)** | **🌍 [Web Version](https://farcaster-mini-app-umber.vercel.app)** | **📖 [System Architecture](docs/system-architecture.md)**
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
@@ -38,29 +40,29 @@ Reach Web3 users where they already are, leverage Farcaster's social graph for o
 
 ---
 
-## Features Available for Testing
+## Features
 
 ### **Core Cleanup**
-- **Submit Cleanup**: Upload before/after photos with automatic geotagging
-- **Enhanced Impact Report**: Optional detailed metrics (+5 $DCU bonus)
+- **Submit Cleanup**: Upload before/after photos with automatic geotagging (max 10MB per image)
+- **Enhanced Impact Report**: Optional detailed metrics (+5 $bDCU bonus)
 
 ### **Rewards & Gamification**
 - **Impact Products** (dynamic NFTs): 10 progressive levels (Newbie → Guardian) that evolve based on cleanup activity
-- **$DCU Points**: Earn points for verified cleanups, enhanced reports, and referrals - exchangeable to $DCU token after TGE
-- **Level Claiming**: Claim Impact Product level after verification
+- **$bDCU Tokens**: Automatic token distribution for verified cleanups, enhanced reports, referrals, and verifier activity
+- **Level Claiming**: Claim Impact Product level after verification (10 $bDCU per level)
 
 ### **Social & Community**
-- **Referral System**: Generate referral links, earn 3 $DCU per verified referral
-- **Leaderboard**: Weighted scoring system ranking top contributors
-- **User Profile**: Track $DCU balance, Impact Product level, streak, referrals, and leaderboard score
+- **Referral System**: Generate referral links, earn 3 $bDCU per verified referral (both parties)
+- **User Profile**: Track $bDCU balance, Impact Product level, referrals, and cleanup history
+- **Verifier Dashboard**: Verify cleanups and earn 1 $bDCU per verification
 
 ### **Engagement**
-- **Streak System**: Maintain cleanup streaks that contribute to leaderboard score
 - **Farcaster Integration**: Native wallet connection and user context
+- **Social Sharing**: Share cleanups and Impact Products on Farcaster and X
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 This repo follows the Base Mini App template structure (manifest in `.well-known`, Farcaster SDK helpers, etc.). To run it locally:
 
@@ -159,18 +161,24 @@ Contributions are welcome! Fork the repository, create a feature branch, and ope
 
 ---
 
-## Documentation
+## 🌐 Live Applications
 
-- [System Architecture](docs/system-architecture.md) – Contract/data flow diagram, verifier roles, Farcaster integration
+- **Farcaster Mini App**: [Open in Warpcast](https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards) – Native Farcaster experience
+- **Web Version**: [https://farcaster-mini-app-umber.vercel.app](https://farcaster-mini-app-umber.vercel.app) – Browser-accessible version
+
+## 📚 Documentation
+
+- [System Architecture](docs/system-architecture.md) – Complete technical overview: contract/data flow, verifier roles, Farcaster integration, and architecture diagrams
 - [Base Mini App Setup](docs/base-miniapp-setup.md) – Configure manifests, Base Build `accountAssociation`, and Warpcast options
 - [Verifier Rewards Implementation](docs/verifier-rewards-implementation.md) – Verifier reward system and $bDCU token distribution
+- [Multisig Token Deposit Guide](docs/multisig-token-deposit-guide.md) – How to fund the bDCURewardDistributor contract
 
-## Resources
+## 🔗 Resources
 
-- [DeCleanup Rewards GitHub](https://github.com/DeCleanup-Network)
-- [Farcaster Mini Apps Docs](https://docs.farcaster.xyz/developers/mini-apps)
-- [Base Documentation](https://docs.base.org)
-- [Base Mini App Guide](https://docs.base.org/miniapp)
+- [DeCleanup Rewards GitHub](https://github.com/DeCleanup-Network) – Source code and contributions
+- [Farcaster Mini Apps Docs](https://docs.farcaster.xyz/developers/mini-apps) – Official Farcaster documentation
+- [Base Documentation](https://docs.base.org) – Base network documentation
+- [Base Mini App Guide](https://docs.base.org/miniapp) – Base Mini App development guide
 
 ---
 
