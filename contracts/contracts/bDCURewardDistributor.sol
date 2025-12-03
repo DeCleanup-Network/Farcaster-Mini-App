@@ -29,6 +29,7 @@ contract bDCURewardDistributor is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant STREAK_REWARD = 2 * 10**18;      // 2 $bDCU per week streak
     uint256 public constant REFERRAL_REWARD = 3 * 10**18;     // 3 $bDCU for both referrer and referee
     uint256 public constant IMPACT_FORM_REWARD = 5 * 10**18; // 5 $bDCU per enhanced form
+    uint256 public constant VERIFIER_REWARD = 1 * 10**18;     // 1 $bDCU per verification (approved or rejected)
     
     // Authorized contracts
     address public impactProductNFT;
@@ -44,6 +45,7 @@ contract bDCURewardDistributor is Ownable, ReentrancyGuard, Pausable {
     event StreakRewardDistributed(address indexed user, uint256 amount);
     event ReferralRewardDistributed(address indexed referrer, address indexed referee, uint256 amount);
     event ImpactFormRewardDistributed(address indexed user, uint256 cleanupId, uint256 amount);
+    event VerifierRewardDistributed(address indexed verifier, uint256 cleanupId, uint256 amount);
     event TokensDeposited(uint256 amount);
     event TokensWithdrawn(uint256 amount);
     event ImpactProductNFTUpdated(address indexed newAddress);
@@ -145,13 +147,58 @@ contract bDCURewardDistributor is Ownable, ReentrancyGuard, Pausable {
     }
     
     /**
+     * @notice Distribute verifier reward (1 $bDCU)
+     * Called by VerificationContract when verifier approves or rejects a cleanup
+     * @param verifierAddress Verifier address to receive tokens
+     * @param cleanupId Cleanup ID that was verified/rejected
+     */
+    function distributeVerifierReward(address verifierAddress, uint256 cleanupId) external whenNotPaused nonReentrant {
+        require(msg.sender == verificationContract, "Not authorized");
+        require(verifierAddress != address(0), "Invalid address");
+        
+        uint256 contractBalance = bDCUToken.balanceOf(address(this));
+        require(contractBalance >= VERIFIER_REWARD, "Insufficient token balance");
+        
+        require(bDCUToken.transfer(verifierAddress, VERIFIER_REWARD), "Transfer failed");
+        
+        totalDistributed[verifierAddress] += VERIFIER_REWARD;
+        globalTotalDistributed += VERIFIER_REWARD;
+        
+        emit VerifierRewardDistributed(verifierAddress, cleanupId, VERIFIER_REWARD);
+    }
+    
+    /**
      * @notice Deposit tokens to contract (owner only)
      * Use this to fund the contract with tokens from dev buy
+     * Requires approval from token holder first
      * @param amount Amount of tokens to deposit
      */
     function depositTokens(uint256 amount) external onlyOwner {
         require(amount > 0, "Amount must be greater than 0");
         require(bDCUToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        emit TokensDeposited(amount);
+    }
+    
+    /**
+     * @notice Receive tokens directly (anyone can call)
+     * Multisig can use this to transfer tokens directly to the contract
+     * This is the preferred method for multisig deposits (no approval needed)
+     * Multisig should call: token.transfer(rewardDistributorAddress, amount)
+     * The tokens will automatically be received by this contract
+     */
+    // ERC20 tokens sent directly to this contract will be received automatically
+    // No special function needed - just transfer tokens to this contract address
+    
+    /**
+     * @notice Deposit tokens from multisig or any address
+     * Alternative to direct transfer - allows depositing on behalf of another address
+     * Requires approval from token holder first
+     * @param from Address to transfer tokens from (must have approved this contract)
+     * @param amount Amount of tokens to deposit
+     */
+    function depositTokensFrom(address from, uint256 amount) external {
+        require(amount > 0, "Amount must be greater than 0");
+        require(bDCUToken.transferFrom(from, address(this), amount), "Transfer failed");
         emit TokensDeposited(amount);
     }
     

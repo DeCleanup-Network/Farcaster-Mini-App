@@ -125,7 +125,7 @@ export default async function SharePage({
   const redirectUrl = (() => {
     const url = new URL(SITE_URL)
 
-    if (type === 'referral' && ref) {
+  if (type === 'referral' && ref) {
       url.pathname = '/cleanup'
       url.searchParams.set('ref', ref)
       return url.toString()

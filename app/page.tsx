@@ -10,7 +10,7 @@ import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
 import type { Connector } from 'wagmi'
 import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, X } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
-import { claimImpactProductFromVerification } from '@/lib/contracts'
+import { claimImpactProductFromVerification, getClaimFee, getUserLevel } from '@/lib/contracts'
 import { isFarcasterContext, formatReferralMessage } from '@/lib/farcaster'
 import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
 
@@ -36,6 +36,7 @@ export default function Home() {
     level?: number
     rejected?: boolean
   } | null>(null)
+  const [userLevel, setUserLevel] = useState<number | null>(null)
   const [showRejectionAlert, setShowRejectionAlert] = useState(false)
   const [isClaiming, setIsClaiming] = useState(false)
   const [isInFarcaster, setIsInFarcaster] = useState(false)
@@ -86,10 +87,11 @@ export default function Home() {
   // Note: Chain switching is handled by ensureWalletOnRequiredChain() in contract functions
   // No need for auto-switch here - it will be handled when user tries to interact (claim, etc.)
 
-  // Check cleanup status when connected (optimized single call)
+  // Check cleanup status and user level when connected
   useEffect(() => {
     if (!mounted || !isConnected || !address) {
       setCleanupStatus(null)
+      setUserLevel(null)
       return
     }
 
@@ -99,9 +101,13 @@ export default function Home() {
     async function checkStatus() {
       if (!address || !isMounted) return
       try {
-        const status = await getUserCleanupStatus(address)
+        const [status, level] = await Promise.all([
+          getUserCleanupStatus(address),
+          getUserLevel(address).catch(() => 0),
+        ])
         if (isMounted) {
           setCleanupStatus(status)
+          setUserLevel(level)
           
           // Show rejection alert if cleanup was rejected
           if (status.rejected) {
@@ -258,26 +264,34 @@ export default function Home() {
               )}
 
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-                <Link href="/cleanup" className="w-full sm:w-auto">
-                  <Button
-                    size="lg"
-                    disabled={cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim || false}
-                    className={`w-full gap-2 sm:w-auto ${cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim
-                      ? 'border-muted bg-muted text-muted-foreground cursor-not-allowed'
-                      : 'bg-brand-yellow text-black hover:bg-[#e6e600]'
-                      }`}
-                    title={
-                      cleanupStatus?.hasPendingCleanup
-                        ? 'You have a cleanup pending verification. Please wait for verification before submitting a new cleanup.'
-                        : cleanupStatus?.canClaim
-                          ? 'Please claim your Impact Product before submitting a new cleanup.'
-                          : ''
-                    }
-                  >
-                    <Leaf className="h-5 w-5" />
-                    SUBMIT CLEANUP
-                  </Button>
-                </Link>
+                {userLevel === 10 ? (
+                  <div className="w-full rounded-lg border border-brand-yellow/50 bg-brand-yellow/10 p-4 text-center">
+                    <p className="text-sm font-medium text-brand-yellow">
+                      🎉 Currently you passed all the levels, stay updated for more...
+                    </p>
+                  </div>
+                ) : (
+                  <Link href="/cleanup" className="w-full sm:w-auto">
+                    <Button
+                      size="lg"
+                      disabled={cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim || false}
+                      className={`w-full gap-2 sm:w-auto ${cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim
+                        ? 'border-muted bg-muted text-muted-foreground cursor-not-allowed'
+                        : 'bg-brand-yellow text-black hover:bg-[#e6e600]'
+                        }`}
+                      title={
+                        cleanupStatus?.hasPendingCleanup
+                          ? 'You have a cleanup pending verification. Please wait for verification before submitting a new cleanup.'
+                          : cleanupStatus?.canClaim
+                            ? 'Please claim your Impact Product before submitting a new cleanup.'
+                            : ''
+                      }
+                    >
+                      <Leaf className="h-5 w-5" />
+                      SUBMIT CLEANUP
+                    </Button>
+                  </Link>
+                )}
                 <Button
                   size="lg"
                   disabled={!cleanupStatus?.canClaim || isClaiming}
@@ -286,18 +300,68 @@ export default function Home() {
 
                     try {
                       setIsClaiming(true)
+                      
+                      // Double-check cleanup status before claiming
+                      try {
+                        const { getCleanupStatus } = await import('@/lib/contracts')
+                        const status = await getCleanupStatus(cleanupStatus.cleanupId)
+                        if (status.claimed) {
+                          alert('This Impact Product has already been claimed. Refreshing...')
+                          // Refresh status
+                          if (address) {
+                            const updatedStatus = await getUserCleanupStatus(address)
+                            setCleanupStatus(updatedStatus)
+                          }
+                          setIsClaiming(false)
+                          return
+                        }
+                      } catch (statusCheckError) {
+                        console.warn('Could not check cleanup status before claim:', statusCheckError)
+                        // Continue anyway - the claim function will check
+                      }
+                      
+                      // Check claim fee before claiming
+                      let claimFeeInfo: { fee: bigint; enabled: boolean } | null = null
+                      try {
+                        claimFeeInfo = await getClaimFee()
+                        if (claimFeeInfo.enabled && claimFeeInfo.fee > 0) {
+                          const feeInEth = Number(claimFeeInfo.fee) / 1e18
+                          const feeInCents = feeInEth * 2800 // Approximate ETH price
+                          console.log(`Claim fee: ${feeInCents.toFixed(2)} cents USD (${feeInEth.toFixed(8)} ETH)`)
+                        }
+                      } catch (feeError) {
+                        console.warn('Could not fetch claim fee:', feeError)
+                      }
+                      
                       // Pass chainId to avoid false chain detection
                       const hash = await claimImpactProductFromVerification(cleanupStatus.cleanupId, chainId)
 
-                      // Wait for transaction confirmation
+                      // Wait for transaction confirmation with better error handling
                       const { waitForTransactionReceipt } = await import('wagmi/actions')
                       const { config } = await import('@/lib/wagmi')
 
                       try {
-                        await waitForTransactionReceipt(config, { hash, timeout: 60000 })
+                        // Use a longer timeout and handle "block not found" errors gracefully
+                        await waitForTransactionReceipt(config, { 
+                          hash, 
+                          timeout: 120000, // 2 minutes
+                          retryCount: 10,
+                          retryDelay: 2000,
+                        })
                         console.log('✅ Claim transaction confirmed!')
-                      } catch (waitError) {
-                        console.warn('Transaction confirmation wait failed, but continuing:', waitError)
+                      } catch (waitError: any) {
+                        // "Block not found" errors are often temporary - transaction might still succeed
+                        const errorMessage = String(waitError?.message || waitError || '')
+                        if (
+                          errorMessage.includes('block not found') ||
+                          errorMessage.includes('Requested resource not found') ||
+                          errorMessage.includes('ResourceNotFound')
+                        ) {
+                          console.warn('Transaction receipt check failed (block not found - may be temporary):', waitError)
+                          console.log('Transaction was submitted. It may still be processing. Polling for status...')
+                        } else {
+                          console.warn('Transaction confirmation wait failed, but continuing:', waitError)
+                        }
                       }
 
                       // Poll for status update (transaction confirmed, but state might take a moment)
@@ -359,6 +423,24 @@ export default function Home() {
                       ) {
                         console.log('User cancelled transaction')
                         // Don't show an error for user cancellation
+                      } else if (
+                        errorMessage.includes('already been claimed') ||
+                        errorMessage.includes('already claimed')
+                      ) {
+                        // Already claimed - refresh status and show message
+                        alert(
+                          'This Impact Product has already been claimed.\n\n' +
+                          'If you don\'t see it in your profile, please refresh the page.'
+                        )
+                        // Refresh cleanup status
+                        if (address) {
+                          try {
+                            const status = await getUserCleanupStatus(address)
+                            setCleanupStatus(status)
+                          } catch (e) {
+                            console.error('Error refreshing status:', e)
+                          }
+                        }
                       } else {
                         // Show error for actual failures
                         alert(`Failed to claim: ${errorMessage}`)

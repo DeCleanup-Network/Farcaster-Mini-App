@@ -278,9 +278,14 @@ contract ImpactProductNFT is ERC721URIStorage, Ownable, ReentrancyGuard {
 }
 
 /**
- * @notice Interface for Reward Distributor
+ * @notice Interface for Reward Distributor (supports both old points and new token systems)
  */
 interface IRewardDistributor {
     function distributeLevelReward(address user) external;
+    function distributeStreakReward(address user) external;
+    function distributeReferralReward(address referrer, address referee) external;
+    function distributeImpactFormReward(address user, uint256 cleanupId) external;
+    function distributeVerifierReward(address verifier, uint256 cleanupId) external;
+    function setReferrer(address referee, address referrer) external; // Only in old RewardDistributor
 }
 

@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "./ImpactProductNFT.sol";
+import "./ImpactProductNFT.sol"; // This includes IRewardDistributor interface
 
 /**
  * @title VerificationContract
@@ -47,12 +47,18 @@ contract VerificationContract is Ownable, ReentrancyGuard {
     uint256 public submissionFee;
     bool public feeEnabled;
     
+    // Optional claim fee (can be disabled by setting to 0)
+    // Default: 2 cents USD equivalent in ETH (~7,142,857,142,857 wei at $2,800/ETH)
+    uint256 public claimFee;
+    bool public claimFeeEnabled;
+    
     // Events
     event CleanupSubmitted(uint256 indexed cleanupId, address indexed user, uint256 timestamp);
     event CleanupVerified(uint256 indexed cleanupId, address indexed user, uint8 level);
     event CleanupRejected(uint256 indexed cleanupId, address indexed user);
     event ImpactProductClaimed(uint256 indexed cleanupId, address indexed user, uint8 level);
     event SubmissionFeeUpdated(uint256 newFee, bool enabled);
+    event ClaimFeeUpdated(uint256 newFee, bool enabled);
     event VerifierAdded(address indexed verifier);
     event VerifierRemoved(address indexed verifier);
     
@@ -67,7 +73,9 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         address _impactProductNFT,
         address _rewardDistributor,
         uint256 _submissionFee,
-        bool _feeEnabled
+        bool _feeEnabled,
+        uint256 _claimFee,
+        bool _claimFeeEnabled
     ) Ownable(msg.sender) {
         require(_impactProductNFT != address(0), "Invalid Impact Product NFT address");
         require(_rewardDistributor != address(0), "Invalid Reward Distributor address");
@@ -80,9 +88,11 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         }
         
         impactProductNFT = ImpactProductNFT(_impactProductNFT);
-        rewardDistributor = RewardDistributor(_rewardDistributor);
+        rewardDistributor = _rewardDistributor;
         submissionFee = _submissionFee;
         feeEnabled = _feeEnabled;
+        claimFee = _claimFee;
+        claimFeeEnabled = _claimFeeEnabled;
         cleanupCounter = 1; // Start from cleanupId 1
     }
     
@@ -135,9 +145,10 @@ contract VerificationContract is Ownable, ReentrancyGuard {
             impactReportHash: impactReportHash
         });
         
-        // Set referrer if provided
+        // Set referrer if provided (only works with old RewardDistributor, not bDCURewardDistributor)
+        // Note: bDCURewardDistributor doesn't have setReferrer, referral is handled in claimImpactProduct
         if (referrerAddress != address(0) && referrerAddress != msg.sender) {
-            rewardDistributor.setReferrer(msg.sender, referrerAddress);
+            try IRewardDistributor(rewardDistributor).setReferrer(msg.sender, referrerAddress) {} catch {}
         }
         
         emit CleanupSubmitted(cleanupId, msg.sender, block.timestamp);
@@ -165,7 +176,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         
         // Distribute verifier reward (1 $bDCU) - verifier gets reward immediately
         // User rewards are distributed when user claims their Impact Product
-        try rewardDistributor.distributeVerifierReward(msg.sender, cleanupId) {} catch {}
+        try IRewardDistributor(rewardDistributor).distributeVerifierReward(msg.sender, cleanupId) {} catch {}
         
         emit CleanupVerified(cleanupId, cleanup.user, level);
     }
@@ -186,7 +197,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         cleanup.rejected = true;
         
         // Distribute verifier reward (1 $bDCU) - verifier gets reward for rejections too
-        try rewardDistributor.distributeVerifierReward(msg.sender, cleanupId) {} catch {}
+        try IRewardDistributor(rewardDistributor).distributeVerifierReward(msg.sender, cleanupId) {} catch {}
         
         emit CleanupRejected(cleanupId, cleanup.user);
     }
@@ -196,12 +207,18 @@ contract VerificationContract is Ownable, ReentrancyGuard {
      * @param cleanupId Cleanup ID
      * @dev All rewards (referral, streak, impact form) are distributed here, not on verification
      */
-    function claimImpactProduct(uint256 cleanupId) external nonReentrant {
+    function claimImpactProduct(uint256 cleanupId) external payable nonReentrant {
         CleanupSubmission storage cleanup = cleanups[cleanupId];
         require(cleanup.user != address(0), "Cleanup does not exist");
         require(cleanup.user == msg.sender, "Not your cleanup");
         require(cleanup.verified, "Cleanup not verified");
         require(!cleanup.claimed, "Already claimed");
+        
+        // Check and collect claim fee if enabled
+        if (claimFeeEnabled && claimFee > 0) {
+            require(msg.value >= claimFee, "Insufficient claim fee");
+            // Fee is automatically sent to contract, owner can withdraw
+        }
         
         cleanup.claimed = true;
         
@@ -212,18 +229,18 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         // Note: If rewards were already distributed (e.g., from old contract), they will fail silently
         
         // Distribute streak reward if applicable (may fail if already distributed, that's OK)
-        try rewardDistributor.distributeStreakReward(user) {} catch {}
+        try IRewardDistributor(rewardDistributor).distributeStreakReward(user) {} catch {}
         
         // Distribute referral reward if applicable (only once per user)
         // May fail if already claimed, that's OK - user already got the reward
         if (cleanup.referrer != address(0)) {
-            try rewardDistributor.distributeReferralReward(cleanup.referrer, user) {} catch {}
+            try IRewardDistributor(rewardDistributor).distributeReferralReward(cleanup.referrer, user) {} catch {}
         }
         
         // Distribute impact form reward if applicable
         // May fail if already claimed (e.g., from old contract), that's OK
         if (cleanup.hasImpactForm) {
-            try rewardDistributor.distributeImpactFormReward(user, cleanupId) {} catch {}
+            try IRewardDistributor(rewardDistributor).distributeImpactFormReward(user, cleanupId) {} catch {}
         }
         
         // Claim Impact Product level for the user (this will also distribute 10 DCU level reward)
@@ -320,7 +337,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
      */
     function setRewardDistributor(address _rewardDistributor) external onlyOwner {
         require(_rewardDistributor != address(0), "Invalid address");
-        rewardDistributor = RewardDistributor(_rewardDistributor);
+        rewardDistributor = _rewardDistributor;
     }
     
     /**
@@ -332,6 +349,24 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         submissionFee = _fee;
         feeEnabled = _enabled;
         emit SubmissionFeeUpdated(_fee, _enabled);
+    }
+    
+    /**
+     * @notice Set claim fee (only owner)
+     * @param _fee Fee amount in wei (set to 0 to disable)
+     * @param _enabled Whether fee is enabled
+     */
+    function setClaimFee(uint256 _fee, bool _enabled) external onlyOwner {
+        claimFee = _fee;
+        claimFeeEnabled = _enabled;
+        emit ClaimFeeUpdated(_fee, _enabled);
+    }
+    
+    /**
+     * @notice Get current claim fee
+     */
+    function getClaimFee() external view returns (uint256 fee, bool enabled) {
+        return (claimFee, claimFeeEnabled);
     }
     
     /**

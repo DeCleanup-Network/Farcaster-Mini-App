@@ -47,7 +47,14 @@ function isWalletConnectStaleSessionError(error: any): boolean {
     errorMessage.includes('no matching key') ||
     errorMessage.includes('session topic') ||
     errorString.includes('session topic doesn\'t exist') ||
-    errorString.includes('no matching key')
+    errorString.includes('no matching key') ||
+    // Additional patterns for WalletConnect v2 errors
+    errorMessage.includes('session topic') ||
+    errorString.includes('session topic') ||
+    // Check error code or reason fields
+    (error?.code === 3000 && errorMessage.includes('unauthorized')) ||
+    (error?.reason?.toLowerCase().includes('session topic')) ||
+    (error?.reason?.toLowerCase().includes('no matching key'))
 }
 
 // Helper to handle WalletConnect stale session errors
@@ -430,13 +437,14 @@ export const VERIFICATION_ABI = parseAbi([
   'function submitCleanup(string memory beforePhotoHash, string memory afterPhotoHash, uint256 latitude, uint256 longitude, address referrerAddress, bool hasImpactForm, string memory impactReportHash) external payable returns (uint256)',
   'function verifyCleanup(uint256 cleanupId, uint8 level) external',
   'function rejectCleanup(uint256 cleanupId) external',
-  'function claimImpactProduct(uint256 cleanupId) external',
+  'function claimImpactProduct(uint256 cleanupId) external payable',
   'function getCleanupStatus(uint256 cleanupId) external view returns (address user, bool verified, bool claimed, uint8 level)',
   'function getCleanup(uint256 cleanupId) external view returns ((address user, string beforePhotoHash, string afterPhotoHash, uint256 timestamp, uint256 latitude, uint256 longitude, bool verified, bool claimed, bool rejected, uint8 level, address referrer, bool hasImpactForm, string impactReportHash))',
   'function cleanupCounter() external view returns (uint256)',
   'function verifier() external view returns (address)', // Deprecated, returns address(0)
   'function isVerifier(address) external view returns (bool)',
   'function getSubmissionFee() external view returns (uint256 fee, bool enabled)',
+  'function getClaimFee() external view returns (uint256 fee, bool enabled)',
   'function isRejected(uint256 cleanupId) external view returns (bool)',
 ])
 
@@ -474,6 +482,8 @@ export const BDCU_REWARD_DISTRIBUTOR_ABI = parseAbi([
   'function getContractBalance() external view returns (uint256)',
   'function getTotalDistributed(address user) external view returns (uint256)',
   'function globalTotalDistributed() external view returns (uint256)',
+  'function totalDistributed(address user) external view returns (uint256)', // Mapping for verifier earnings
+  'function verificationContract() external view returns (address)',
 ])
 
 // Reward Distributor ABI (points system)
@@ -718,6 +728,43 @@ export async function getSubmissionFee(): Promise<{ fee: bigint; enabled: boolea
     
     if (!isExpectedError) {
       console.error('Error getting submission fee:', error)
+    }
+    return { fee: BigInt(0), enabled: false }
+  }
+}
+
+/**
+ * Get claim fee info
+ */
+export async function getClaimFee(): Promise<{ fee: bigint; enabled: boolean }> {
+  if (!CONTRACT_ADDRESSES.VERIFICATION) {
+    return { fee: BigInt(0), enabled: false }
+  }
+
+  try {
+    const result = await readContract(config, {
+      address: CONTRACT_ADDRESSES.VERIFICATION,
+      abi: VERIFICATION_ABI,
+      functionName: 'getClaimFee',
+    })
+
+    if (Array.isArray(result)) {
+      return {
+        fee: result[0] as bigint,
+        enabled: result[1] as boolean,
+      }
+    }
+
+    return result as unknown as { fee: bigint; enabled: boolean }
+  } catch (error: any) {
+    // If function doesn't exist (old contract), return defaults silently
+    const isExpectedError = 
+      error?.message?.includes('revert') || 
+      error?.message?.includes('function') || 
+      error?.name === 'ContractFunctionExecutionError'
+    
+    if (!isExpectedError) {
+      console.error('Error getting claim fee:', error)
     }
     return { fee: BigInt(0), enabled: false }
   }
@@ -1035,20 +1082,87 @@ export async function claimImpactProductFromVerification(
 
   await ensureWalletOnRequiredChain('claim impact product', providedChainId)
 
+  // Check cleanup status before attempting to claim
+  try {
+    const status = await getCleanupStatus(cleanupId)
+    if (status.claimed) {
+      throw new Error('This Impact Product has already been claimed. Please check your profile.')
+    }
+    if (!status.verified) {
+      throw new Error('This cleanup has not been verified yet. Please wait for verification.')
+    }
+    if (status.rejected) {
+      throw new Error('This cleanup was rejected and cannot be claimed.')
+    }
+  } catch (statusError: any) {
+    // If status check fails, still try to claim (might be a read error)
+    // But if it's a clear "already claimed" error, throw it
+    if (statusError?.message?.includes('already been claimed') || 
+        statusError?.message?.includes('already claimed')) {
+      throw statusError
+    }
+    console.warn('Could not check cleanup status before claim, proceeding anyway:', statusError)
+  }
+
   const targetChain = getRequiredChain()
   if (!targetChain) {
     throw new Error(`${REQUIRED_CHAIN_NAME} chain is not configured.`)
   }
 
-  const hash = await writeContract(config as any, {
-    address: CONTRACT_ADDRESSES.VERIFICATION,
-    abi: VERIFICATION_ABI,
-    functionName: 'claimImpactProduct',
-    args: [cleanupId],
-    chain: targetChain,
-  })
+  // Get claim fee if enabled
+  let claimFeeValue: bigint = BigInt(0)
+  try {
+    const claimFeeInfo = await getClaimFee()
+    if (claimFeeInfo.enabled && claimFeeInfo.fee > 0) {
+      claimFeeValue = claimFeeInfo.fee
+    }
+  } catch (error) {
+    console.warn('Could not fetch claim fee, proceeding without fee:', error)
+  }
 
-  return hash
+  try {
+    const hash = await writeContract(config as any, {
+      address: CONTRACT_ADDRESSES.VERIFICATION,
+      abi: VERIFICATION_ABI,
+      functionName: 'claimImpactProduct',
+      args: [cleanupId],
+      value: claimFeeValue,
+      chain: targetChain,
+    })
+
+    return hash
+  } catch (error: any) {
+    const errorMessage = getErrorMessage(error)
+    
+    // Check for specific "already claimed" errors
+    if (
+      errorMessage.includes('already claimed') ||
+      errorMessage.includes('Impact form reward already claimed') ||
+      errorMessage.includes('Already claimed') ||
+      errorMessage.includes('already been claimed')
+    ) {
+      throw new Error(
+        'This Impact Product has already been claimed. ' +
+        'If you don\'t see it in your profile, please refresh the page or check the transaction history.'
+      )
+    }
+    
+    // Check for other common errors
+    if (errorMessage.includes('Not your cleanup') || errorMessage.includes('not your cleanup')) {
+      throw new Error('This cleanup does not belong to your wallet address.')
+    }
+    
+    if (errorMessage.includes('Cleanup not verified') || errorMessage.includes('not verified')) {
+      throw new Error('This cleanup has not been verified yet. Please wait for verification.')
+    }
+    
+    if (errorMessage.includes('Cleanup does not exist') || errorMessage.includes('does not exist')) {
+      throw new Error(`Cleanup #${cleanupId.toString()} does not exist.`)
+    }
+    
+    // Re-throw with better error message
+    throw new Error(`Failed to claim Impact Product: ${errorMessage}`)
+  }
 }
 
 /**
@@ -1604,6 +1718,110 @@ export async function hasActiveStreak(userAddress: Address): Promise<boolean> {
     functionName: 'hasActiveStreak',
     args: [userAddress],
   })
+}
+
+/**
+ * Get verifier's actual $bDCU token earnings from bDCURewardDistributor
+ * Returns the total tokens distributed to the verifier address
+ */
+export async function getVerifierTokenEarnings(verifierAddress: Address): Promise<string> {
+  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+    console.warn('getVerifierTokenEarnings: BDCU_REWARD_DISTRIBUTOR address not set')
+    return '0'
+  }
+
+  try {
+    console.log('Fetching verifier token earnings for:', verifierAddress)
+    console.log('Using contract address:', CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR)
+    
+    const totalDistributed = await readContract(config, {
+      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
+      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'totalDistributed',
+      args: [verifierAddress],
+    })
+    
+    console.log('Raw totalDistributed value:', totalDistributed)
+    
+    // Convert from wei (18 decimals) to tokens
+    const { formatUnits } = await import('viem')
+    const formatted = formatUnits(totalDistributed as bigint, 18)
+    console.log('Formatted verifier earnings:', formatted)
+    return formatted
+  } catch (error: any) {
+    console.error('Error fetching verifier token earnings:', error)
+    console.error('Error details:', {
+      message: error?.message,
+      code: error?.code,
+      name: error?.name,
+      cause: error?.cause,
+    })
+    return '0'
+  }
+}
+
+/**
+ * Check if VerificationContract is linked to bDCURewardDistributor
+ */
+export async function checkVerificationContractLinked(): Promise<{ linked: boolean; verificationContractAddress: Address | null }> {
+  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+    return { linked: false, verificationContractAddress: null }
+  }
+
+  try {
+    const verificationContractAddress = await readContract(config, {
+      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
+      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'verificationContract',
+    }) as Address
+
+    const isLinked = verificationContractAddress !== '0x0000000000000000000000000000000000000000' &&
+      verificationContractAddress.toLowerCase() === CONTRACT_ADDRESSES.VERIFICATION?.toLowerCase()
+
+    console.log('VerificationContract linking check:', {
+      linked: isLinked,
+      distributorAddress: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
+      verificationContractInDistributor: verificationContractAddress,
+      expectedVerificationContract: CONTRACT_ADDRESSES.VERIFICATION,
+    })
+
+    return { linked: isLinked, verificationContractAddress }
+  } catch (error) {
+    console.error('Error checking VerificationContract link:', error)
+    return { linked: false, verificationContractAddress: null }
+  }
+}
+
+/**
+ * Check if bDCURewardDistributor has tokens (is funded)
+ */
+export async function checkRewardDistributorFunded(): Promise<{ funded: boolean; balance: string }> {
+  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+    return { funded: false, balance: '0' }
+  }
+
+  try {
+    const balance = await readContract(config, {
+      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
+      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'getContractBalance',
+    }) as bigint
+
+    const { formatUnits } = await import('viem')
+    const formattedBalance = formatUnits(balance, 18)
+    const isFunded = balance > BigInt(0)
+
+    console.log('Reward distributor funding check:', {
+      funded: isFunded,
+      balance: formattedBalance,
+      rawBalance: balance.toString(),
+    })
+
+    return { funded: isFunded, balance: formattedBalance }
+  } catch (error) {
+    console.error('Error checking reward distributor funding:', error)
+    return { funded: false, balance: '0' }
+  }
 }
 
 

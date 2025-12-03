@@ -893,30 +893,52 @@ function ProfileContent() {
               </h2>
             </div>
             <div className="rounded-lg border border-gray-800 p-4">
-              <div className="mb-4 aspect-square w-full max-w-xs mx-auto rounded-lg bg-gray-800 overflow-hidden">
+              <div className="mb-4 aspect-square w-full max-w-xs mx-auto rounded-lg bg-gray-800 flex items-center justify-center">
                 {profileData.animationUrl && profileData.level === 10 ? (
-                  <video
-                    src={profileData.animationUrl}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="h-full w-full object-cover"
-                    onError={(e) => {
-                      // Fallback to image if video fails
-                      if (profileData.imageUrl) {
-                        const img = document.createElement('img')
-                        img.src = profileData.imageUrl
-                        img.className = 'h-full w-full object-cover'
-                        e.currentTarget.parentElement?.replaceChild(img, e.currentTarget)
-                      }
-                    }}
-                  />
+                  // Check if it's a GIF or MP4
+                  profileData.animationUrl.toLowerCase().endsWith('.gif') ? (
+                    <img
+                      src={profileData.animationUrl}
+                      alt={`Level ${profileData.level} Impact Product`}
+                      className="h-full w-full object-contain"
+                      onError={(e) => {
+                        // Fallback to video if GIF fails
+                        if (profileData.imageUrl) {
+                          const video = document.createElement('video')
+                          video.src = profileData.animationUrl
+                          video.className = 'h-full w-full object-contain'
+                          video.setAttribute('autoplay', '')
+                          video.setAttribute('loop', '')
+                          video.setAttribute('muted', '')
+                          video.setAttribute('playsinline', '')
+                          e.currentTarget.parentElement?.replaceChild(video, e.currentTarget)
+                        }
+                      }}
+                    />
+                  ) : (
+                    <video
+                      src={profileData.animationUrl}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="h-full w-full object-contain"
+                      onError={(e) => {
+                        // Fallback to image if video fails
+                        if (profileData.imageUrl) {
+                          const img = document.createElement('img')
+                          img.src = profileData.imageUrl
+                          img.className = 'h-full w-full object-contain'
+                          e.currentTarget.parentElement?.replaceChild(img, e.currentTarget)
+                        }
+                      }}
+                    />
+                  )
                 ) : profileData.imageUrl ? (
                   <img
                     src={profileData.imageUrl}
                     alt={`Level ${profileData.level} Impact Product`}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-contain"
                     onError={(e) => {
                       const img = e.currentTarget as HTMLImageElement
 
@@ -1012,8 +1034,8 @@ function ProfileContent() {
                   )}
                   {profileData.dcuReward && (
                     <div className="rounded-lg border border-gray-800 bg-gray-800/60 p-3">
-                      <p className="text-xs text-gray-400">DCU Reward</p>
-                      <p className="text-lg font-semibold text-white">{profileData.dcuReward} DCU</p>
+                      <p className="text-xs text-gray-400">Token Reward</p>
+                      <p className="text-lg font-semibold text-white">{profileData.dcuReward} $bDCU</p>
                     </div>
                   )}
                 </div>
@@ -1022,7 +1044,7 @@ function ProfileContent() {
                   {address && profileData.level > 0 && (
                     <div className="mt-3 space-y-2">
                       <p className="text-xs font-medium text-gray-400">
-                        Share your Impact Product and invite friends:
+                        Share your Impact Product and invite friends and earn 3 $bDCU each:
                       </p>
                       <div className="flex flex-col gap-2 sm:flex-row">
                         <Button
@@ -1119,15 +1141,6 @@ function ProfileContent() {
           </section>
         )}
 
-        {/* Actions */}
-        <div className="flex flex-col gap-4">
-          <Link href="/cleanup">
-            <Button className="w-full gap-2 bg-brand-yellow text-black hover:bg-[#e6e600]">
-              <Leaf className="h-4 w-4" />
-              Submit New Cleanup
-            </Button>
-          </Link>
-        </div>
       </div>
     </div>
   )

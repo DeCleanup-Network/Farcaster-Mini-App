@@ -9,12 +9,27 @@ async function main() {
   const balance = await ethers.provider.getBalance(deployer.address);
   console.log("Account balance:", ethers.formatEther(balance), "CELO\n");
   
-  // Get contract addresses from environment
-  const IMPACT_PRODUCT_ADDRESS = process.env.IMPACT_PRODUCT_CONTRACT_ADDRESS;
-  const REWARD_DISTRIBUTOR_ADDRESS = process.env.REWARD_DISTRIBUTOR_CONTRACT_ADDRESS;
-  const VERIFIER_ADDRESSES = process.env.VERIFIER_ADDRESSES 
-    ? process.env.VERIFIER_ADDRESSES.split(',').map(addr => addr.trim())
-    : [deployer.address];
+  // Get contract addresses from environment (check multiple variable names)
+  const IMPACT_PRODUCT_ADDRESS = 
+    process.env.IMPACT_PRODUCT_CONTRACT_ADDRESS ||
+    process.env.NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT ||
+    process.env.NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS ||
+    process.env.NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT_ADDRESS;
+  const REWARD_DISTRIBUTOR_ADDRESS = 
+    process.env.REWARD_DISTRIBUTOR_CONTRACT_ADDRESS ||
+    process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_CONTRACT ||
+    process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_ADDRESS;
+  // Build verifier list (check multiple variable names)
+  let VERIFIER_ADDRESSES = [];
+  if (process.env.VERIFIER_ADDRESSES) {
+    VERIFIER_ADDRESSES = process.env.VERIFIER_ADDRESSES.split(',').map(addr => addr.trim()).filter(Boolean);
+  } else if (process.env.VERIFIER_TO_ADD) {
+    VERIFIER_ADDRESSES = [process.env.VERIFIER_TO_ADD.trim()];
+  } else if (process.env.VERIFIER_ADDRESS) {
+    VERIFIER_ADDRESSES = [process.env.VERIFIER_ADDRESS.trim()];
+  } else {
+    VERIFIER_ADDRESSES = [deployer.address]; // Fallback to deployer
+  }
   const SUBMISSION_FEE = process.env.SUBMISSION_FEE || "0";
   const FEE_ENABLED = process.env.FEE_ENABLED === "true";
   

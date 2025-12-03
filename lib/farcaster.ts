@@ -40,13 +40,13 @@ export const formatImpactShareMessage = (
       : null
   const hasLevel = typeof parsedLevel === 'number' && Number.isFinite(parsedLevel) && parsedLevel > 0
   const levelLabel = hasLevel ? `Level ${parsedLevel} Impact Product` : 'an Impact Product'
-
+  
   if (type === 'farcaster') {
-    return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on @base.base.eth\n\n${normalizedLink}`
+    return `Just minted ${levelLabel} by @decleanupnet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
   } else if (type === 'web') {
-    return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on @base:\n\n${normalizedLink}`
+    return `Just minted ${levelLabel} by @DeCleanupNet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
   }
-  return `Just minted ${levelLabel}! Earn tokens for cleanups and trade on @base:\n\n${normalizedLink}`
+  return `Just minted ${levelLabel} by @DeCleanupNet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
 }
 
 // EIP-1193 Provider type (for wallet integration)
@@ -180,8 +180,8 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
     if (inFarcaster) {
       try {
         // In Farcaster, use SDK's openUrl
-        await openUrl(farcasterUrl)
-        return true
+      await openUrl(farcasterUrl)
+      return true
       } catch (openUrlError) {
         console.warn('openUrl failed in Farcaster context, trying window.open:', openUrlError)
         // Fallback to window.open even in Farcaster context
@@ -197,7 +197,7 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
         if (newWindow) {
           // Successfully opened
           console.log('Successfully opened Warpcast compose window')
-          return true
+    return true
         } else {
           // Popup blocked - fall through to clipboard
           console.warn('Popup blocked by browser, falling back to clipboard')
@@ -221,7 +221,7 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
         if (typeof window !== 'undefined') {
           alert('Share popup was blocked. Message copied to clipboard! Paste it into Warpcast to share.')
         }
-        return true
+      return true
       } else {
         throw new Error('Clipboard API not available')
       }

@@ -20,13 +20,13 @@ export function ShareRedirect({ redirectUrl }: ShareRedirectProps) {
     if (!isCrawler) {
       // Only redirect actual users, not crawlers
       // For Safari, use window.location.replace to preserve referrer info
-      const timer = setTimeout(() => {
+    const timer = setTimeout(() => {
         // Use replace instead of href to avoid adding to history
         // This helps preserve URL parameters in Safari
         window.location.replace(redirectUrl)
       }, 3000) // 3 seconds to give crawlers time
 
-      return () => clearTimeout(timer)
+    return () => clearTimeout(timer)
     }
     // For crawlers, don't redirect - let them read the metadata
   }, [redirectUrl])

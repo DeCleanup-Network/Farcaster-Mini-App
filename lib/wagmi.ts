@@ -1,6 +1,6 @@
 import { base, baseSepolia } from 'wagmi/chains'
 import { createConfig, http } from 'wagmi'
-import { walletConnect, coinbaseWallet, injected } from 'wagmi/connectors'
+import { walletConnect, injected } from 'wagmi/connectors'
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector'
 import { defineChain, type Chain } from 'viem'
 
@@ -75,19 +75,16 @@ const APP_ICON_URL =
 // All wallet connectors require browser APIs and will fail during server-side rendering
 const connectors = typeof window !== 'undefined'
   ? [
-  farcasterMiniApp(),
-      coinbaseWallet({
-        appName: APP_NAME,
-      }),
+      farcasterMiniApp(),
       // Add injected connector (Browser wallet/MetaMask) for desktop users
-      // This will be filtered out on mobile in WalletConnect component
       injected({
         shimDisconnect: true, // Keep connection state after disconnect
       }),
-]
+    ]
   : []
 
 // Only add WalletConnect if Project ID is configured and on client side
+// WalletConnect shows wallet list with "open wallet" button (not QR code)
 // Use dynamic URL to avoid metadata mismatch warnings (localhost vs production)
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 if (typeof window !== 'undefined' && walletConnectProjectId && walletConnectProjectId.trim() !== '') {
@@ -105,7 +102,10 @@ if (typeof window !== 'undefined' && walletConnectProjectId && walletConnectProj
           url: currentUrl, // Use current URL (localhost in dev, production in prod)
           icons: [APP_ICON_URL],
         },
-        showQrModal: true, // Show QR code for mobile wallet connections
+        // showQrModal controls whether to show QR code or wallet list
+        // true = QR code modal, false = wallet list modal
+        // Setting to true to ensure modal opens, then we can adjust
+        showQrModal: true,
       }) as any // Type assertion needed due to WalletConnect type incompatibility
     )
   } catch (error) {

@@ -136,7 +136,7 @@ These contracts are production-ready; swap the env vars to Base mainnet once you
 
 - **Impact Product NFT**: Dynamic NFT with 10 progressive levels
 - **Verification Contract**: Handles cleanup submissions and verification
-- **Reward Distributor**: Distributes DCU points, streak, referral, and impact-form bonuses (see [Migration Plan](docs/dcu-token-migration.md))
+- **Reward Distributor**: Distributes $bDCU tokens, streak, referral, and impact-form bonuses
 
 ### Upgradeable Contracts
 
@@ -146,12 +146,10 @@ All contracts are **upgradeable** using OpenZeppelin's UUPS pattern, allowing:
 - ✅ Seamless migration from points to tokens
 - ✅ No data loss during upgrades
 
-### DCU Token Migration
+### $bDCU Token Integration
 
-**Current Status**: Using points system  
-**Future**: Points will migrate to DCU tokens after TGE
-
-See [DCU Token Migration Plan](docs/dcu-token-migration.md) for details.
+**Current Status**: Using $bDCU token system with automatic distribution  
+**Rewards**: Level claims (10 $bDCU), streaks (2 $bDCU), referrals (3 $bDCU), impact forms (5 $bDCU), verifier rewards (1 $bDCU)
 
 ---
 
@@ -165,7 +163,7 @@ Contributions are welcome! Fork the repository, create a feature branch, and ope
 
 - [System Architecture](docs/system-architecture.md) – Contract/data flow diagram, verifier roles, Farcaster integration
 - [Base Mini App Setup](docs/base-miniapp-setup.md) – Configure manifests, Base Build `accountAssociation`, and Warpcast options
-- [DCU Token Migration](docs/dcu-token-migration.md) – How points convert to $DCU token post-TGE
+- [Verifier Rewards Implementation](docs/verifier-rewards-implementation.md) – Verifier reward system and $bDCU token distribution
 
 ## Resources
 

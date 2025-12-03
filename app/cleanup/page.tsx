@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
 import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle, Users } from 'lucide-react'
 import { uploadToIPFS, uploadJSONToIPFS, getIPFSUrl } from '@/lib/ipfs'
-import { submitCleanup, getSubmissionFee, getCleanupStatus, CONTRACT_ADDRESSES } from '@/lib/contracts'
+import { submitCleanup, getSubmissionFee, getCleanupStatus, getUserLevel, CONTRACT_ADDRESSES } from '@/lib/contracts'
 import { clearPendingCleanupData, resetSubmissionCounting } from '@/lib/clear-cleanup-data'
 import type { Address } from 'viem'
 import { tryAddRequiredChain } from '@/lib/network'
@@ -73,6 +73,7 @@ function CleanupContent() {
   } | null>(null)
   const [checkingPending, setCheckingPending] = useState(true)
   const [clearingPending, setClearingPending] = useState(false)
+  const [userLevel, setUserLevel] = useState<number | null>(null)
   
   // Fix hydration error by only rendering after mount
   useEffect(() => {
@@ -112,33 +113,33 @@ function CleanupContent() {
       }
     }
     
-    if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
-      const referrerAddr = ref as Address
-      setReferrerAddress(referrerAddr)
-      // Show notification to user that they were referred
-      setShowReferralNotification(true)
-      // Persist referrer in localStorage so it's available when user submits
-      // Store referrer even before address is available
-      const referrerKey = `referrer_pending`
+      if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
+        const referrerAddr = ref as Address
+        setReferrerAddress(referrerAddr)
+        // Show notification to user that they were referred
+        setShowReferralNotification(true)
+        // Persist referrer in localStorage so it's available when user submits
+          // Store referrer even before address is available
+          const referrerKey = `referrer_pending`
       try {
-        localStorage.setItem(referrerKey, referrerAddr)
+          localStorage.setItem(referrerKey, referrerAddr)
         console.log('✅ Referrer address from URL saved:', referrerAddr)
       } catch (e) {
         console.error('Failed to save referrer to localStorage:', e)
       }
-      
-      // If address is available, also store it scoped to address
-      if (address) {
-        const referrerKeyScoped = `referrer_${address.toLowerCase()}`
+          
+          // If address is available, also store it scoped to address
+          if (address) {
+            const referrerKeyScoped = `referrer_${address.toLowerCase()}`
         try {
-          localStorage.setItem(referrerKeyScoped, referrerAddr)
+            localStorage.setItem(referrerKeyScoped, referrerAddr)
           console.log('✅ Referrer address saved for address:', address)
         } catch (e) {
           console.error('Failed to save scoped referrer:', e)
+          }
         }
-      }
     } else {
-      // If no ref in URL, check localStorage for saved referrer
+        // If no ref in URL, check localStorage for saved referrer
       try {
         const referrerKeyPending = localStorage.getItem('referrer_pending')
         if (referrerKeyPending && /^0x[a-fA-F0-9]{40}$/.test(referrerKeyPending)) {
@@ -241,6 +242,26 @@ function CleanupContent() {
       getLocation()
     }
     
+  }, [isConnected, address])
+
+  // Fetch user level
+  useEffect(() => {
+    if (!isConnected || !address) {
+      setUserLevel(null)
+      return
+    }
+
+    async function fetchUserLevel() {
+      try {
+        const level = await getUserLevel(address)
+        setUserLevel(level)
+      } catch (error) {
+        console.error('Error fetching user level:', error)
+        setUserLevel(null)
+      }
+    }
+
+    fetchUserLevel()
   }, [isConnected, address])
 
   // Check for pending cleanup submissions
@@ -894,8 +915,8 @@ function CleanupContent() {
               <p className="mb-3 text-sm text-gray-300">
                 You're on Chain ID {chainId} ({describeChain(chainId)}).
                 {isCelo
-                  ? ' This looks like Celo Sepolia. Switch to Base Sepolia Testnet to continue.'
-                  : ' Please switch to the required network before submitting a cleanup.'}
+                    ? ' This looks like Celo Sepolia. Switch to Base Sepolia Testnet to continue.'
+                    : ' Please switch to the required network before submitting a cleanup.'}
               </p>
               <Button
                 onClick={async () => {
@@ -1031,16 +1052,30 @@ function CleanupContent() {
           <ReferralNotification />
           <CooldownBanner />
           
-          <div className="mb-6 text-center">
-            <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
-              Upload Before Photo
-            </h1>
-            <p className="text-sm text-gray-400">
-              Upload before and after cleanup photos with geotag. Supported formats: JPEG, JPG, HEIC. Maximum size per image: 10 MB.
-            </p>
-          </div>
+          {userLevel === 10 && (
+            <div className="mb-6 rounded-lg border border-brand-yellow/50 bg-brand-yellow/10 p-4 text-center">
+              <p className="text-sm font-medium text-brand-yellow">
+                🎉 Currently you passed all the levels, stay updated for more...
+              </p>
+            </div>
+          )}
+          
+          {userLevel === 10 ? (
+            <div className="mb-6 text-center">
+              <p className="text-gray-400">You've reached the maximum level. Thank you for your contributions!</p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-6 text-center">
+                <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
+                  Upload Before Photo
+                </h1>
+                <p className="text-sm text-gray-400">
+                  Upload before and after cleanup photos with geotag. Supported formats: JPEG, JPG, HEIC. Maximum size per image: 10 MB.
+                </p>
+              </div>
 
-          <div className="mb-6">
+              <div className="mb-6">
             <p className="mb-4 text-sm font-medium text-gray-300">
               Step 1: Snap a photo of the area before you start. Show the impact your cleanup will make!
             </p>
@@ -1166,23 +1201,25 @@ function CleanupContent() {
             )}
           </div>
 
-          <Button
-            onClick={handleBeforeNext}
-            disabled={!beforePhoto || isSubmitting || isGettingLocation}
-            className="w-full gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                Save and Next
-                <ArrowRight className="h-4 w-4" />
-              </>
-            )}
-          </Button>
+              <Button
+                onClick={handleBeforeNext}
+                disabled={!beforePhoto || isSubmitting || isGettingLocation || userLevel === 10}
+                className="w-full gap-2 bg-brand-green text-black hover:bg-[#4a9a26] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    Save and Next
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </>
+          )}
         </div>
       </div>
     )

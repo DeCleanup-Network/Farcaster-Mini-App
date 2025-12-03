@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from 'wagmi'
 import { getEnsName } from 'wagmi/actions'
 import type { Connector } from 'wagmi'
 import { Button } from '@/components/ui/button'
-import { Wallet, LogOut, QrCode, X } from 'lucide-react'
+import { Wallet, LogOut, QrCode, X, ChevronDown } from 'lucide-react'
 import { isFarcasterContext, MINIAPP_URL } from '@/lib/farcaster'
 import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_RPC_URL, REQUIRED_BLOCK_EXPLORER_URL, config } from '@/lib/wagmi'
 import { tryAddRequiredChain, switchToRequiredChainViaProvider } from '@/lib/network'
@@ -15,16 +15,17 @@ export function WalletConnect() {
   const { address, isConnected, connector } = useAccount()
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingNetwork } = useSwitchChain()
-  const { connectAsync, connectors, isPending } = useConnect()
+  const { connect, connectors, isPending, error: connectError } = useConnect()
   const { disconnect } = useDisconnect()
   const [isInFarcaster, setIsInFarcaster] = useState(false)
   const [isAutoSwitching, setIsAutoSwitching] = useState(false)
   const [showFarcasterQR, setShowFarcasterQR] = useState(false)
-  const [autoConnectAttempted, setAutoConnectAttempted] = useState(false)
   const [ensName, setEnsName] = useState<string | null>(null)
+  const [showWalletMenu, setShowWalletMenu] = useState(false)
 
   // Get Farcaster connector and external wallet connectors
-  // The farcasterMiniApp connector might have different names, so we check by ID or type
+  // According to Farcaster docs: farcasterMiniApp connector automatically connects if wallet is already connected
+  // The connector ID is typically 'farcasterMiniApp' or similar
   const farcasterConnector = connectors.find(
     c => {
       const name = c.name.toLowerCase()
@@ -46,23 +47,49 @@ export function WalletConnect() {
   
   // Detect Safari (has WebSocket issues with WalletConnect)
   const isSafari = typeof window !== 'undefined' && /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+  
+  // Detect Chrome (may have connection issues with WalletConnect)
+  const isChrome = typeof window !== 'undefined' && /chrome/i.test(navigator.userAgent) && !/edg/i.test(navigator.userAgent)
 
   // Get all external connectors (Browser Wallet, WalletConnect)
-  // According to Farcaster docs: filter out Farcaster connector when not in Farcaster context
+  // Filter logic:
+  // - Farcaster connector: Only show in Farcaster context
+  // - Browser wallet: Show on desktop, hide in Farcaster (mobile)
+  // - WalletConnect: Show everywhere (mobile-friendly wallet list)
+  // - Exclude Coinbase wallet
   const externalConnectors = connectors
     .filter(c => {
       const name = c.name.toLowerCase()
       const id = c.id?.toLowerCase() || ''
       const isFarcaster = name.includes('farcaster') || name.includes('frame') || name.includes('miniapp') ||
         id.includes('farcaster') || id.includes('frame') || id.includes('miniapp')
+      const isInjected = name === 'injected' || id === 'injected' || 
+        name.includes('browser') || id.includes('browser')
+      const isWalletConnect = name.includes('walletconnect') || id.includes('walletconnect')
+      const isCoinbase = name.includes('coinbase') || id.includes('coinbase')
+      
+      // Exclude Coinbase wallet
+      if (isCoinbase) {
+        return false
+      }
       
       // Only show Farcaster connector if we're in Farcaster context
       if (isFarcaster) {
         return isInFarcaster
       }
       
-      // Show all other connectors (Browser Wallet, WalletConnect)
-      return true
+      // In Farcaster (mobile): Hide browser wallet, show WalletConnect
+      if (isInFarcaster) {
+        if (isInjected) return false // Hide browser wallet in Farcaster
+        if (isWalletConnect) return true // Show WalletConnect in Farcaster
+        return false
+      }
+      
+      // On desktop (not Farcaster): Show browser wallet and WalletConnect
+      if (isInjected) return true // Show browser wallet on desktop
+      if (isWalletConnect) return true // Show WalletConnect on desktop too
+      
+      return false
     })
     .sort((a, b) => {
       // Simple sorting: Browser Wallet first, then WalletConnect
@@ -81,7 +108,7 @@ export function WalletConnect() {
 
   const handleConnect = async (connector: Connector) => {
     try {
-      // If trying to connect Farcaster wallet outside of Farcaster context, show QR code
+      // According to Farcaster docs: If trying to connect Farcaster wallet outside of Farcaster context, show QR code
       const isFarcasterConnector = connector.name?.toLowerCase().includes('farcaster') ||
         connector.id?.toLowerCase().includes('farcaster') ||
         connector.name?.toLowerCase().includes('frame') ||
@@ -92,13 +119,13 @@ export function WalletConnect() {
         return
       }
       
-      // Safari-specific: Pre-clear WalletConnect storage before connecting
-      // Safari has WebSocket issues that can cause stale connections
+      // Identify WalletConnect connector
       const isWalletConnect = connector.name?.toLowerCase().includes('walletconnect') ||
         connector.id?.toLowerCase().includes('walletconnect')
       
-      if (isSafari && isWalletConnect && typeof window !== 'undefined') {
-        console.log('Safari detected: Pre-clearing WalletConnect storage before connection...')
+      // WalletConnect: Pre-clear storage before connecting (mobile-only, shows wallet list)
+      // This helps avoid stale connections
+      if (isWalletConnect && !isConnected && typeof window !== 'undefined') {
         try {
           // Clear any stale WalletConnect sessions
           const wcKeys = Object.keys(localStorage).filter(key => 
@@ -106,56 +133,36 @@ export function WalletConnect() {
           )
           wcKeys.forEach(key => localStorage.removeItem(key))
           sessionStorage.removeItem('wallet_connected_this_session')
-          console.log('WalletConnect storage cleared for Safari connection')
-          
-          // Small delay to ensure storage is cleared
-          await new Promise(resolve => setTimeout(resolve, 500))
+          console.log('WalletConnect storage cleared before connection')
         } catch (e) {
           console.warn('Failed to pre-clear WalletConnect storage:', e)
         }
       }
       
-      // Safari-specific: Add timeout for WalletConnect connections
-      // Safari WebSocket connections can hang indefinitely
-      if (isSafari && isWalletConnect) {
-        let connectionTimeout: NodeJS.Timeout | null = null
-        let timedOut = false
-        
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          connectionTimeout = setTimeout(() => {
-            timedOut = true
-            reject(new Error('SAFARI_TIMEOUT'))
-          }, 30000) // 30 second timeout for Safari
-        })
-        
-        try {
-          await Promise.race([connectAsync({ connector }), timeoutPromise])
-          // Connection succeeded - clear timeout
-          if (connectionTimeout) {
-            clearTimeout(connectionTimeout)
-          }
-        } catch (timeoutError: any) {
-          // Clear timeout
-          if (connectionTimeout) {
-            clearTimeout(connectionTimeout)
-          }
-          
-          // If it's our timeout error, handle it gracefully without logging as error
-          if (timeoutError?.message === 'SAFARI_TIMEOUT' || timedOut) {
-            alert('⚠️ Safari WebSocket Issue\n\nSafari has known issues with WalletConnect WebSockets. Please try:\n\n1. Use the browser wallet (MetaMask extension) instead\n2. Or try connecting from Chrome/Firefox\n\nWalletConnect may work intermittently on Safari.')
-            return
-          }
-          
-          // Re-throw other errors to be handled below
-          throw timeoutError
-        }
-      } else {
-        await connectAsync({ connector })
+      // According to Wagmi v3 docs: connect() initiates connection, state tracked via hooks
+      // For WalletConnect: This will show wallet list (not QR code) with "open wallet" buttons
+      // Connection state will be updated via hooks when user selects and approves
+      console.log('Attempting to connect with:', connector.name, connector.id, 'isWalletConnect:', isWalletConnect)
+      
+      // Call connect - this should open the WalletConnect modal
+      // In Wagmi v2, connect() is synchronous and errors are tracked via useConnect hook
+      // WalletConnect errors are caught by the useConnect hook, not thrown
+      console.log('Calling connect() with connector:', connector.name, connector.id)
+      
+      // Wrap in try-catch to handle any immediate errors
+      try {
+        connect({ connector })
+        console.log('connect() called - WalletConnect modal should open')
+      } catch (immediateError) {
+        // Some errors might be thrown immediately
+        console.error('Immediate error from connect():', immediateError)
+        // Re-throw to be handled by the outer catch block
+        throw immediateError
       }
       
-      // Mark as connected in this session
+      // Mark connection attempt in session (will be updated when actually connected)
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem('wallet_connected_this_session', 'true')
+        sessionStorage.setItem('wallet_connection_attempted', 'true')
       }
     } catch (error: any) {
       // Handle WalletConnect-specific errors gracefully
@@ -163,8 +170,20 @@ export function WalletConnect() {
       const errorName = error?.name || ''
       const errorString = String(error).toLowerCase()
       
-      // Safari-specific: Provide helpful error message (skip console.error for timeout)
-      if (isSafari && (connector.name?.toLowerCase().includes('walletconnect') || connector.id?.toLowerCase().includes('walletconnect'))) {
+      // Check for the specific WalletConnect internal error
+      const isInternalError = errorMessage.includes('Cannot read properties of undefined') ||
+        errorMessage.includes('reading \'error\'') ||
+        errorName === 'RpcResponse.InternalErrorError'
+      
+      if (isInternalError && isWalletConnect) {
+        console.error('❌ WalletConnect internal error - this is a known issue with WalletConnect library')
+        console.error('Error details:', error)
+        alert('⚠️ WalletConnect Error\n\nThere was an issue connecting with WalletConnect. This may be a temporary issue.\n\nPlease try:\n1. Refreshing the page\n2. Using the browser wallet (MetaMask extension) instead\n3. Trying again in a few moments')
+        return
+      }
+      
+      // Safari/Chrome-specific: Provide helpful error message (skip console.error for timeout)
+      if ((isSafari || isChrome) && (connector.name?.toLowerCase().includes('walletconnect') || connector.id?.toLowerCase().includes('walletconnect'))) {
         const isTimeout = errorMessage.includes('timeout') || errorMessage.includes('took too long') || errorMessage === 'SAFARI_TIMEOUT'
         const isWebSocketError = errorString.includes('websocket') || errorString.includes('socket') || errorString.includes('connection')
         
@@ -174,8 +193,10 @@ export function WalletConnect() {
             return
           }
           // For other WebSocket errors, show alert but don't log as error
-          console.warn('Safari WalletConnect issue:', errorMessage)
-          alert('⚠️ Safari WebSocket Issue\n\nSafari has known issues with WalletConnect WebSockets. Please try:\n\n1. Use the browser wallet (MetaMask extension) instead\n2. Or try connecting from Chrome/Firefox\n\nWalletConnect may work intermittently on Safari.')
+          const browserName = isSafari ? 'Safari' : 'Chrome'
+          const altBrowser = isSafari ? 'Chrome/Firefox' : 'Safari/Firefox'
+          console.warn(`${browserName} WalletConnect issue:`, errorMessage)
+          alert(`⚠️ ${browserName} WebSocket Issue\n\n${browserName} has known issues with WalletConnect WebSockets. Please try:\n\n1. Use the browser wallet (MetaMask extension) instead\n2. Or try connecting from ${altBrowser}\n\nWalletConnect may work intermittently on ${browserName}.`)
           return
         }
       }
@@ -185,10 +206,15 @@ export function WalletConnect() {
       
       // Check for stale session errors (WalletConnect v2)
       const isStaleSession = errorMessage.includes('session topic doesn\'t exist') ||
+        errorMessage.includes('no matching key') ||
         errorMessage.includes('No matching key') ||
         errorMessage.includes('session topic') ||
         errorString.includes('session topic doesn\'t exist') ||
-        errorString.includes('no matching key')
+        errorString.includes('no matching key') ||
+        // Additional patterns for WalletConnect v2
+        (error?.code === 3000 && errorMessage.includes('unauthorized')) ||
+        (error?.reason?.toLowerCase().includes('session topic')) ||
+        (error?.reason?.toLowerCase().includes('no matching key'))
       
       // If it's a stale session error, disconnect and clear storage
       if (isStaleSession) {
@@ -290,9 +316,31 @@ export function WalletConnect() {
     if (typeof window !== 'undefined') {
       console.log('Available connectors:', connectors.map(c => ({ name: c.name, id: c.id })))
       console.log('Farcaster connector:', farcasterConnector?.name)
-      console.log('External connectors:', externalConnectors.map(c => c.name))
+      console.log('External connectors:', externalConnectors.map(c => ({ name: c.name, id: c.id })))
+      console.log('All connectors:', connectors.map(c => ({ name: c.name, id: c.id })))
     }
   }, [])
+
+  // Close wallet menu on Escape key or when connected
+  useEffect(() => {
+    if (!showWalletMenu) return
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowWalletMenu(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [showWalletMenu])
+
+  // Close menu when connected
+  useEffect(() => {
+    if (isConnected) {
+      setShowWalletMenu(false)
+    }
+  }, [isConnected])
 
   // Fetch ENS name when address changes
   useEffect(() => {
@@ -324,22 +372,33 @@ export function WalletConnect() {
     fetchEnsName()
   }, [address, isConnected])
 
-  // Auto-connect Farcaster wallet when inside the mini app while still allowing manual switches
+  // According to Farcaster docs: farcasterMiniApp connector automatically connects if wallet is already connected
+  // We only need to manually connect if user is in Farcaster context but not connected
+  // The connector handles automatic connection internally, so we should check isConnected first
   useEffect(() => {
-    if (!mounted || autoConnectAttempted || isConnected) return
+    if (!mounted) return
+    
+    // If already connected, no need to auto-connect
+    if (isConnected) return
+    
+    // Only attempt manual connection if in Farcaster context and have Farcaster connector
     if (!isInFarcaster || !farcasterConnector) return
 
-    const attemptAutoConnect = async () => {
-      try {
-        setAutoConnectAttempted(true)
-        await connectAsync({ connector: farcasterConnector })
-      } catch (error) {
-        console.warn('Auto Farcaster connect failed:', error)
+    // According to docs: If user already has a connected wallet, connector will auto-connect
+    // We only need to manually trigger connection if auto-connect didn't happen
+    // Use a small delay to let the connector try auto-connect first
+    const attemptConnect = setTimeout(() => {
+      if (!isConnected && farcasterConnector) {
+        try {
+          connect({ connector: farcasterConnector })
+        } catch (error) {
+          console.warn('Farcaster connect attempt failed:', error)
+        }
       }
-    }
+    }, 500) // Small delay to allow auto-connect to happen first
 
-    attemptAutoConnect()
-  }, [mounted, isInFarcaster, farcasterConnector, connectAsync, autoConnectAttempted, isConnected])
+    return () => clearTimeout(attemptConnect)
+  }, [mounted, isInFarcaster, farcasterConnector, isConnected, connect])
   
   // Handle WalletConnect stale session errors and fatal socket errors globally
   // Safari-specific: Safari has known WebSocket issues with WalletConnect
@@ -360,6 +419,10 @@ export function WalletConnect() {
         // Additional patterns for WalletConnect v2
         (event.error?.code === 3000 && errorString.includes('unauthorized')) ||
         (event.error?.reason?.toLowerCase().includes('session topic')) ||
+        (event.error?.reason?.toLowerCase().includes('no matching key')) ||
+        // Additional patterns for WalletConnect v2
+        (event.error?.code === 3000 && errorString.includes('unauthorized')) ||
+        (event.error?.reason?.toLowerCase().includes('session topic')) ||
         (event.error?.reason?.toLowerCase().includes('no matching key'))
       
       const isFatalSocketError = errorString.includes('fatal socket error') ||
@@ -372,10 +435,7 @@ export function WalletConnect() {
         console.log(`Detected WalletConnect error (${isSafari ? 'Safari' : 'browser'}): stale session or fatal socket. Disconnecting...`)
         try {
           // Force disconnect even if socket is broken
-          disconnect().catch(() => {
-            // If disconnect fails, just clear storage
-            console.warn('Disconnect failed, clearing storage directly')
-          })
+          disconnect()
         } catch (e) {
           // Ignore disconnect errors
           console.warn('Error during disconnect:', e)
@@ -421,7 +481,7 @@ export function WalletConnect() {
             )
             wcKeys.forEach(key => localStorage.removeItem(key))
             sessionStorage.removeItem('wallet_connected_this_session')
-            disconnect().catch(() => {})
+            disconnect()
             
             // Safari-specific: Log helpful message
             if (isSafari) {
@@ -743,34 +803,69 @@ export function WalletConnect() {
     )
   }
 
-  // Not connected - show connection options
+  // Not connected - show connection options in a dropdown menu
   // According to Farcaster docs: show all available connectors from wagmi
   // externalConnectors already includes Farcaster if in Farcaster context
   return (
     <div className="relative">
       <div className="flex items-center gap-2">
-        {/* Show all available connectors (matches Farcaster docs pattern) */}
+        {/* Dropdown menu button */}
         {externalConnectors.length > 0 ? (
-          externalConnectors.map((connector, index) => (
+          <div className="relative">
             <Button
-              key={connector.uid}
               size="sm"
-              onClick={() => handleConnect(connector)}
-              disabled={isPending}
-              className={index === 0
-                ? "gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm"
-                : "gap-2 border-2 border-gray-700 bg-black text-white hover:bg-gray-900 text-xs sm:text-sm"
-              }
+              onClick={() => setShowWalletMenu(!showWalletMenu)}
+              className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm"
             >
               <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">
-                {isPending ? 'Connecting...' : getConnectorDisplayName(connector)}
-              </span>
-              <span className="sm:hidden">
-                {isPending ? '...' : (getConnectorDisplayName(connector) === 'Browser Wallet' ? 'Browser' : getConnectorDisplayName(connector))}
-              </span>
+              <span>Connect Wallet</span>
+              <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 transition-transform ${showWalletMenu ? 'rotate-180' : ''}`} />
             </Button>
-          ))
+            
+            {/* Dropdown menu */}
+            {showWalletMenu && (
+              <>
+                {/* Backdrop to close menu on outside click */}
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowWalletMenu(false)}
+                />
+                {/* Menu */}
+                <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-gray-700 bg-gray-900 shadow-lg">
+                  <div className="py-1">
+                    {externalConnectors.map((connector, index) => {
+                      const isWalletConnect = connector.name?.toLowerCase().includes('walletconnect') || 
+                        connector.id?.toLowerCase().includes('walletconnect')
+                      
+                      return (
+                        <button
+                          key={connector.uid}
+                          onClick={() => {
+                            console.log('Connector clicked:', connector.name, connector.id)
+                            setShowWalletMenu(false)
+                            handleConnect(connector)
+                          }}
+                          disabled={isPending}
+                          className={`w-full px-4 py-2 text-left text-sm transition-colors ${
+                            index === 0
+                              ? 'text-brand-green hover:bg-gray-800'
+                              : 'text-white hover:bg-gray-800'
+                          } ${isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Wallet className="h-4 w-4" />
+                            <span>
+                              {isPending ? 'Connecting...' : getConnectorDisplayName(connector)}
+                            </span>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         ) : (
           <Button
             size="sm"

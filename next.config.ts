@@ -23,6 +23,16 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Allow Next.js dev tools to access stack frames
+      {
+        source: '/nextjs_original-stack-frames',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+        ],
+      },
     ];
   },
 };

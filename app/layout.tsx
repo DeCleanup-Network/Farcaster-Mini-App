@@ -6,6 +6,7 @@ import { FarcasterProvider } from "@/components/farcaster/FarcasterProvider";
 import { NetworkChecker } from "@/components/network/NetworkChecker";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { ErrorHandler } from "@/components/ErrorHandler";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -112,6 +113,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${bebasNeue.variable} antialiased min-h-screen`}
       >
+        <ErrorHandler />
         <Providers>
           <FarcasterProvider>
             <AppHeader />
