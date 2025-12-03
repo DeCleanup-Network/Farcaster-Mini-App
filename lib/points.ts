@@ -1,21 +1,20 @@
 import { Address } from 'viem'
 
 /**
- * DCU Points System
+ * $bDCU Token System - Local Storage Fallback
  * 
- * DCU Points are stored ON-CHAIN through the RewardDistributor contract's internal DCUToken contract.
+ * In production, $bDCU tokens are stored on-chain via the $bDCU ERC20 token contract.
  * 
  * How it works:
- * 1. RewardDistributor contract uses a DCUToken contract internally to track points
- * 2. When rewards are distributed (level claim, streak, referral, impact form), 
- *    the RewardDistributor calls dcuToken.mintReward() which transfers tokens from 
- *    the contract's rewards pool to the user
- * 3. User's DCU points balance = their balance in the DCUToken contract
- * 4. Points are stored with 18 decimals (like standard ERC-20 tokens)
+ * 1. $bDCU tokens are distributed automatically by bDCURewardDistributor contract
+ * 2. When rewards are distributed (level claim, streak, referral, impact form, verifier rewards),
+ *    the bDCURewardDistributor transfers $bDCU tokens directly to the user's wallet
+ * 3. User's $bDCU balance = their ERC20 token balance in the $bDCU token contract
+ * 4. Tokens use 18 decimals (standard ERC-20)
  * 
  * Storage Location:
- * - On-chain: DCUToken contract (accessed via RewardDistributor.dcuToken())
- * - This file provides fallback localStorage functions for development/testing
+ * - On-chain: $bDCU ERC20 token contract (accessed via lib/contracts.ts getPointsBalance)
+ * - This file provides fallback localStorage functions for development/testing only
  */
 
 const STORAGE_KEY_PREFIX = 'decleanup_points_'

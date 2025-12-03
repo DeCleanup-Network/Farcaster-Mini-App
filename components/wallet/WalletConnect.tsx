@@ -120,12 +120,12 @@ export function WalletConnect() {
       }
       
       // Identify WalletConnect connector
-      const isWalletConnect = connector.name?.toLowerCase().includes('walletconnect') ||
+      const isWalletConnectConnector = connector.name?.toLowerCase().includes('walletconnect') ||
         connector.id?.toLowerCase().includes('walletconnect')
       
       // WalletConnect: Pre-clear storage before connecting (mobile-only, shows wallet list)
       // This helps avoid stale connections
-      if (isWalletConnect && !isConnected && typeof window !== 'undefined') {
+      if (isWalletConnectConnector && !isConnected && typeof window !== 'undefined') {
         try {
           // Clear any stale WalletConnect sessions
           const wcKeys = Object.keys(localStorage).filter(key => 
@@ -142,7 +142,7 @@ export function WalletConnect() {
       // According to Wagmi v3 docs: connect() initiates connection, state tracked via hooks
       // For WalletConnect: This will show wallet list (not QR code) with "open wallet" buttons
       // Connection state will be updated via hooks when user selects and approves
-      console.log('Attempting to connect with:', connector.name, connector.id, 'isWalletConnect:', isWalletConnect)
+      console.log('Attempting to connect with:', connector.name, connector.id, 'isWalletConnect:', isWalletConnectConnector)
       
       // Call connect - this should open the WalletConnect modal
       // In Wagmi v2, connect() is synchronous and errors are tracked via useConnect hook
@@ -175,7 +175,11 @@ export function WalletConnect() {
         errorMessage.includes('reading \'error\'') ||
         errorName === 'RpcResponse.InternalErrorError'
       
-      if (isInternalError && isWalletConnect) {
+      // Check if this is a WalletConnect connector
+      const isWalletConnectError = connector?.name?.toLowerCase().includes('walletconnect') ||
+        connector?.id?.toLowerCase().includes('walletconnect')
+      
+      if (isInternalError && isWalletConnectError) {
         console.error('❌ WalletConnect internal error - this is a known issue with WalletConnect library')
         console.error('Error details:', error)
         alert('⚠️ WalletConnect Error\n\nThere was an issue connecting with WalletConnect. This may be a temporary issue.\n\nPlease try:\n1. Refreshing the page\n2. Using the browser wallet (MetaMask extension) instead\n3. Trying again in a few moments')

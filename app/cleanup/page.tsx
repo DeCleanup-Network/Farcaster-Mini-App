@@ -252,6 +252,7 @@ function CleanupContent() {
     }
 
     async function fetchUserLevel() {
+      if (!address) return
       try {
         const level = await getUserLevel(address)
         setUserLevel(level)
