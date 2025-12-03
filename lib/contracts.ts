@@ -1670,6 +1670,37 @@ export async function getVerifierTokenEarnings(verifierAddress: Address): Promis
 }
 
 /**
+ * Get total rewards distributed to a user from bDCURewardDistributor
+ * This shows the cumulative rewards tracked by the contract (may differ from actual balance)
+ * @param userAddress User's wallet address
+ * @returns Total rewards distributed according to contract (in $bDCU tokens)
+ */
+export async function getTotalRewardsDistributed(userAddress: Address): Promise<number> {
+  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+    console.warn('getTotalRewardsDistributed: BDCU_REWARD_DISTRIBUTOR address not set')
+    return 0
+  }
+
+  try {
+    const totalDistributed = await readContract(config, {
+      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
+      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'totalDistributed',
+      args: [userAddress],
+    })
+    
+    // Convert from wei (18 decimals) to tokens
+    const { formatUnits } = await import('viem')
+    const formatted = parseFloat(formatUnits(totalDistributed as bigint, 18))
+    console.log(`Total rewards distributed to ${userAddress}: ${formatted} $bDCU`)
+    return formatted
+  } catch (error: any) {
+    console.error('Error fetching total rewards distributed:', error)
+    return 0
+  }
+}
+
+/**
  * Check if VerificationContract is linked to bDCURewardDistributor
  */
 export async function checkVerificationContractLinked(): Promise<{ linked: boolean; verificationContractAddress: Address | null }> {

@@ -22,6 +22,7 @@ export function WalletConnect() {
   const [showFarcasterQR, setShowFarcasterQR] = useState(false)
   const [ensName, setEnsName] = useState<string | null>(null)
   const [showWalletMenu, setShowWalletMenu] = useState(false)
+  const [manuallyDisconnected, setManuallyDisconnected] = useState(false)
 
   // Get Farcaster connector and external wallet connectors
   // According to Farcaster docs: farcasterMiniApp connector automatically connects if wallet is already connected
@@ -383,7 +384,16 @@ export function WalletConnect() {
     if (!mounted) return
     
     // If already connected, no need to auto-connect
-    if (isConnected) return
+    if (isConnected) {
+      // Reset manual disconnect flag when user connects (they may have manually connected)
+      if (manuallyDisconnected && connector?.id !== farcasterConnector?.id) {
+        setManuallyDisconnected(false)
+      }
+      return
+    }
+    
+    // Don't auto-connect if user manually disconnected
+    if (manuallyDisconnected) return
     
     // Only attempt manual connection if in Farcaster context and have Farcaster connector
     if (!isInFarcaster || !farcasterConnector) return
@@ -392,7 +402,7 @@ export function WalletConnect() {
     // We only need to manually trigger connection if auto-connect didn't happen
     // Use a small delay to let the connector try auto-connect first
     const attemptConnect = setTimeout(() => {
-      if (!isConnected && farcasterConnector) {
+      if (!isConnected && farcasterConnector && !manuallyDisconnected) {
         try {
           connect({ connector: farcasterConnector })
         } catch (error) {
@@ -402,7 +412,7 @@ export function WalletConnect() {
     }, 500) // Small delay to allow auto-connect to happen first
 
     return () => clearTimeout(attemptConnect)
-  }, [mounted, isInFarcaster, farcasterConnector, isConnected, connect])
+  }, [mounted, isInFarcaster, farcasterConnector, isConnected, connect, manuallyDisconnected, connector])
   
   // Handle WalletConnect stale session errors and fatal socket errors globally
   // Safari-specific: Safari has known WebSocket issues with WalletConnect
@@ -657,6 +667,9 @@ export function WalletConnect() {
             onClick={async () => {
               try {
                 console.log(`Disconnecting wallet... (${isSafari ? 'Safari' : 'browser'})`)
+                
+                // Mark as manually disconnected to prevent auto-reconnect
+                setManuallyDisconnected(true)
                 
                 // Always clear storage first (especially important for Safari/WalletConnect with socket errors)
                 if (typeof window !== 'undefined') {

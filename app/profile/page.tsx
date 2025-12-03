@@ -17,6 +17,9 @@ import {
   ExternalLink,
   Share2,
   Copy,
+  Gift,
+  Users,
+  FileText,
 } from 'lucide-react'
 import { ImportTokenModal } from '@/components/wallet/ImportTokenModal'
 import Link from 'next/link'
@@ -33,6 +36,7 @@ import {
   getCleanupStatus,
   claimImpactProductFromVerification,
   getClaimFee,
+  getTotalRewardsDistributed,
   CONTRACT_ADDRESSES,
 } from '@/lib/contracts'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
@@ -135,6 +139,7 @@ function ProfileContent() {
     tokenId: null as bigint | null,
     impactValue: null as string | null,
     dcuReward: null as string | null,
+    totalRewardsDistributed: 0,
   })
   const [cleanupStatus, setCleanupStatus] = useState<{
     cleanupId: bigint | null
@@ -203,12 +208,13 @@ function ProfileContent() {
           setLoading(true)
         }
 
-        const [dcuBalance, stakedDCU, level, streak, activeStreak] = await Promise.all([
+        const [dcuBalance, stakedDCU, level, streak, activeStreak, totalRewardsDistributed] = await Promise.all([
           getDCUBalance(userAddress),
           getStakedDCU(userAddress),
           getUserLevel(userAddress),
           getStreakCount(userAddress),
           hasActiveStreak(userAddress),
+          getTotalRewardsDistributed(userAddress),
         ])
 
         let tokenURI = ''
@@ -364,6 +370,7 @@ function ProfileContent() {
           tokenId,
           impactValue,
           dcuReward,
+          totalRewardsDistributed,
         })
       } catch (error) {
         console.error('Error fetching profile data:', error)
@@ -380,6 +387,7 @@ function ProfileContent() {
           tokenId: null,
           impactValue: null,
           dcuReward: null,
+          totalRewardsDistributed: 0,
         })
       } finally {
         if (showSpinner) {
@@ -668,6 +676,98 @@ function ProfileContent() {
             )}
           </div>
         </div>
+
+        {/* Reward Breakdown */}
+        {profileData.dcuBalance > 0 && (
+          <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900 p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-brand-green" />
+              <h2 className="text-lg font-bold uppercase tracking-wide text-white">
+                $bDCU Reward Breakdown
+              </h2>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                <span className="text-sm text-gray-400">Current Balance:</span>
+                <span className="text-lg font-bold text-white">
+                  {profileData.dcuBalance.toFixed(2)} $bDCU
+                </span>
+              </div>
+
+              {profileData.totalRewardsDistributed > 0 && (
+                <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                  <span className="text-sm text-gray-400">Total Rewards Distributed:</span>
+                  <span className="text-sm font-semibold text-gray-300">
+                    {profileData.totalRewardsDistributed.toFixed(2)} $bDCU
+                  </span>
+                </div>
+              )}
+
+              <div className="mt-4 space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Estimated Breakdown
+                </h3>
+                
+                {profileData.level > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Award className="h-4 w-4 text-brand-yellow" />
+                      <span className="text-gray-400">Level Rewards ({profileData.level} × 10 $bDCU):</span>
+                    </div>
+                    <span className="font-medium text-white">
+                      {(profileData.level * 10).toFixed(0)} $bDCU
+                    </span>
+                  </div>
+                )}
+
+                {profileData.streak > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Flame className="h-4 w-4 text-brand-yellow" />
+                      <span className="text-gray-400">Streak Rewards ({profileData.streak} × 2 $bDCU):</span>
+                    </div>
+                    <span className="font-medium text-white">
+                      {(profileData.streak * 2).toFixed(0)} $bDCU
+                    </span>
+                  </div>
+                )}
+
+                {profileData.totalRewardsDistributed > 0 && (
+                  <>
+                    <div className="mt-2 border-t border-gray-800 pt-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <Gift className="h-4 w-4 text-brand-green" />
+                          <span className="text-gray-400">Other Rewards (referrals, impact forms, etc.):</span>
+                        </div>
+                        <span className="font-medium text-white">
+                          {Math.max(0, profileData.totalRewardsDistributed - (profileData.level * 10) - (profileData.streak * 2)).toFixed(2)} $bDCU
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-2 border-t border-gray-800 pt-2">
+                      <div className="flex items-center justify-between text-sm font-semibold">
+                        <span className="text-gray-300">Total Tracked:</span>
+                        <span className="text-white">
+                          {profileData.totalRewardsDistributed.toFixed(2)} $bDCU
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {profileData.dcuBalance !== profileData.totalRewardsDistributed && profileData.totalRewardsDistributed > 0 && (
+                <div className="mt-4 rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
+                  <p className="text-xs text-gray-400">
+                    <strong className="text-blue-300">Note:</strong> Your balance may differ from tracked rewards if you received tokens from other sources or transferred tokens.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Cleanup Status Card */}
         {cleanupStatus && cleanupStatus.cleanupId && (

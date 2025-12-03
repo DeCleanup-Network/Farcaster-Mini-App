@@ -175,8 +175,8 @@ export default async function SharePage({
   }
 
   // Render page with meta tags, then redirect client-side
-  // This allows crawlers to read the OG tags before redirect
-  // The generateMetadata function above handles all the meta tags
+  // The generateMetadata function injects meta tags into <head>
+  // ShareRedirect component delays redirect for crawlers to read metadata
   return <ShareRedirect redirectUrl={redirectUrl} />
 }
 
