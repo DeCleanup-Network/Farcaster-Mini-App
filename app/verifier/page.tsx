@@ -90,13 +90,11 @@ export default function VerifierPage() {
   const [ensNames, setEnsNames] = useState<Map<string, string>>(new Map())
   const [verifierStats, setVerifierStats] = useState<{
     totalVerified: number
-    totalDistributed: string
     verifierEarned: string
     totalEarnings: string // All rewards combined (verifier + level + impact form + referral + streak)
     isLoading: boolean
   }>({
     totalVerified: 0,
-    totalDistributed: '0',
     verifierEarned: '0',
     totalEarnings: '0',
     isLoading: true,
@@ -369,7 +367,7 @@ export default function VerifierPage() {
   // Load verifier stats
   useEffect(() => {
     if (!isVerifier || !address || cleanups.length === 0) {
-      setVerifierStats({ totalVerified: 0, totalDistributed: '0', verifierEarned: '0', totalEarnings: '0', isLoading: false })
+      setVerifierStats({ totalVerified: 0, verifierEarned: '0', totalEarnings: '0', isLoading: false })
       return
     }
 
@@ -410,59 +408,15 @@ export default function VerifierPage() {
           totalEarnings = verifierEarned
         }
         
-        // Try to get total distributed from reward distributor (if using token system)
-        let totalDistributed = '0'
-        try {
-          const { readContract } = await import('wagmi/actions')
-          const { config } = await import('@/lib/wagmi')
-          const { CONTRACT_ADDRESSES, BDCU_REWARD_DISTRIBUTOR_ABI } = await import('@/lib/contracts')
-          
-          if (CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
-            console.log('Fetching globalTotalDistributed from:', CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR)
-            const globalTotal = await readContract(config, {
-              address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
-              abi: BDCU_REWARD_DISTRIBUTOR_ABI,
-              functionName: 'globalTotalDistributed',
-            }) as bigint
-            
-            console.log('Raw globalTotalDistributed value:', globalTotal.toString())
-            // Format as $bDCU (18 decimals)
-            totalDistributed = (Number(globalTotal) / 1e18).toFixed(2)
-            console.log('Formatted total distributed:', totalDistributed)
-          } else {
-            console.warn('BDCU_REWARD_DISTRIBUTOR address not set')
-            // Fallback to points system
-            const { CONTRACT_ADDRESSES: CONTRACT_ADDRS, REWARD_DISTRIBUTOR_ABI: REWARD_ABI } = await import('@/lib/contracts')
-            if (CONTRACT_ADDRS.REWARD_DISTRIBUTOR) {
-              const totalPoints = await readContract(config, {
-                address: CONTRACT_ADDRS.REWARD_DISTRIBUTOR,
-                abi: REWARD_ABI,
-                functionName: 'totalPointsDistributed',
-              }) as bigint
-              
-              totalDistributed = (Number(totalPoints) / 1e18).toFixed(2)
-            }
-          }
-        } catch (error: any) {
-          console.error('Error loading total distributed:', error)
-          console.error('Error details:', {
-            message: error?.message,
-            code: error?.code,
-            name: error?.name,
-          })
-          // Keep default '0' if query fails
-        }
-        
         setVerifierStats({
           totalVerified: verifiedCount,
-          totalDistributed,
           verifierEarned,
           totalEarnings,
           isLoading: false,
         })
       } catch (error) {
         console.error('Error loading verifier stats:', error)
-        setVerifierStats({ totalVerified: 0, totalDistributed: '0', verifierEarned: '0', totalEarnings: '0', isLoading: false })
+        setVerifierStats({ totalVerified: 0, verifierEarned: '0', totalEarnings: '0', isLoading: false })
       }
     }
 
@@ -1575,19 +1529,6 @@ export default function VerifierPage() {
                   Total earnings: {verifierStats.totalEarnings} $bDCU (includes level claims, impact forms, referrals, streaks)
                 </div>
               )}
-            </div>
-            <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-4">
-              <div className="text-sm text-gray-400">Total $bDCU Distributed</div>
-              <div className="mt-1 text-3xl font-bold text-blue-400">
-                {verifierStats.isLoading ? (
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                ) : (
-                  `${verifierStats.totalDistributed} $bDCU`
-                )}
-              </div>
-              <div className="mt-1 text-xs text-gray-500">
-                Total tokens distributed to all users (all rewards combined)
-              </div>
             </div>
           </div>
           <div className="mt-4 rounded-lg border border-green-500/20 bg-green-500/5 p-3">
