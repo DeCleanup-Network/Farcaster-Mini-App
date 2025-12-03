@@ -393,10 +393,6 @@ export const CONTRACT_ADDRESSES = {
     (process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS ||
       process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT ||
       '') as Address,
-  REWARD_DISTRIBUTOR:
-    (process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_CONTRACT ||
-      process.env.NEXT_PUBLIC_REWARD_DISTRIBUTOR_ADDRESS ||
-      '') as Address,
   // $bDCU Token contract (from Clanker)
   // Token name: bDCU (DeCleanup Token on Base)
   // Note: "bDCU" = Base DeCleanup, "DCU" was the old name (deprecated)
@@ -426,11 +422,8 @@ export const IMPACT_PRODUCT_ABI = parseAbi([
 ])
 
 // $bDCU Token Integration Strategy:
-// 1. CURRENT: Points system via RewardDistributor contract (pointsBalance mapping)
-// 2. AFTER CLANKER LAUNCH: Direct ERC20 token balance from Clanker token contract
-// 3. DISTRIBUTION: bDCURewardDistributor contract automatically distributes tokens on user actions
-// 
-// Migration path: Points → Tokens (1:1 conversion when token is live)
+// 1. Direct ERC20 token balance from Clanker token contract
+// 2. bDCURewardDistributor contract automatically distributes tokens on user actions
 
 // Verification Contract ABI
 export const VERIFICATION_ABI = parseAbi([
@@ -457,26 +450,7 @@ export const ERC20_ABI = parseAbi([
   'function totalSupply() external view returns (uint256)',
 ])
 
-// Reward Distributor ABI
-// NOTE: Contract is upgradeable. V2 includes DCU token migration support.
-// CURRENT: Points system via RewardDistributor contract (pointsBalance mapping)
-// FUTURE: After Clanker token launch, will use bDCURewardDistributor contract for automatic distributions
-// After token deployment, points can be migrated to actual $bDCU tokens (1:1 conversion)
-export const REWARD_DISTRIBUTOR_ABI = parseAbi([
-  'function getStreakCount(address user) external view returns (uint256)',
-  'function hasActiveStreak(address user) external view returns (bool)',
-  'function getPointsBalance(address user) external view returns (uint256)',
-  'function pointsBalance(address user) external view returns (uint256)',
-  'function totalPointsDistributed() external view returns (uint256)',
-  // V2 upgradeable functions (may not exist in V1)
-  'function getDCUBalance(address user) external view returns (uint256 balance, bool isTokenBalance)',
-  'function migratePointsToToken() external returns (uint256)',
-  'function dcuToken() external view returns (address)',
-  'function tokenMigrationEnabled() external view returns (bool)',
-  'function hasMigrated(address user) external view returns (bool)',
-])
-
-// bDCU Reward Distributor ABI (new contract for automatic token distributions)
+// bDCU Reward Distributor ABI (contract for automatic token distributions)
 export const BDCU_REWARD_DISTRIBUTOR_ABI = parseAbi([
   'function bDCUToken() external view returns (address)',
   'function getContractBalance() external view returns (uint256)',
@@ -485,13 +459,6 @@ export const BDCU_REWARD_DISTRIBUTOR_ABI = parseAbi([
   'function totalDistributed(address user) external view returns (uint256)', // Mapping for verifier earnings
   'function verificationContract() external view returns (address)',
 ])
-
-// Reward Distributor ABI (points system)
-export const REWARD_DISTRIBUTOR_POINTS_ABI = parseAbi([
-  'function pointsBalance(address user) external view returns (uint256)',
-  'function totalPointsDistributed() external view returns (uint256)',
-])
-
 
 // Impact Product Functions
 
@@ -589,23 +556,19 @@ export async function claimImpactProduct(cleanupId: bigint, level: number): Prom
 // $bDCU Token Functions
 // 
 // Integration Strategy:
-// 1. CURRENT (Pre-Clanker): Points system via RewardDistributor contract
-// 2. AFTER CLANKER LAUNCH: Direct ERC20 token balance from Clanker token contract
-// 3. DISTRIBUTION: bDCURewardDistributor contract automatically distributes tokens
-//
-// Migration: Points can be migrated to tokens (1:1) when token is live
-// This function automatically detects which system is active and reads accordingly
+// 1. Direct ERC20 token balance from Clanker token contract (if deployed)
+// 2. bDCURewardDistributor contract automatically distributes tokens on user actions
+// 3. Local storage fallback (development only)
 
 /**
  * Get user's $bDCU balance from on-chain storage
  * 
  * Priority order:
  * 1. Direct ERC20 token balance from Clanker token contract (if deployed)
- * 2. Points balance from RewardDistributor contract (legacy/fallback)
- * 3. Local storage fallback (development only)
+ * 2. Local storage fallback (development only)
  * 
  * @param userAddress User's wallet address
- * @returns Balance in $bDCU tokens (or points if token not deployed)
+ * @returns Balance in $bDCU tokens
  */
 export async function getPointsBalance(userAddress: Address): Promise<number> {
   // Priority 1: Try to read from Clanker token contract (if deployed)
@@ -628,53 +591,13 @@ export async function getPointsBalance(userAddress: Address): Promise<number> {
     }
   }
 
-  // Priority 2: Read from RewardDistributor contract (points system)
-  if (!CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR) {
-    // Fallback to local storage for development
-    return pointsLib.getPointsBalance(userAddress)
-  }
-
-  try {
-    // Try to get DCU balance (handles both points and tokens if migrated)
-    // First check if contract has getDCUBalance function (V2 upgradeable)
-    try {
-      const result = await readContract(config, {
-        address: CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR,
-        abi: REWARD_DISTRIBUTOR_ABI,
-        functionName: 'getDCUBalance',
-        args: [userAddress],
-      })
-
-      // V2 returns (balance, isTokenBalance)
-      if (Array.isArray(result) && result.length === 2) {
-        const balance = result[0] as bigint
-        return Number(balance) / 1e18
-      }
-    } catch {
-      // Fallback to getPointsBalance if getDCUBalance doesn't exist (V1)
-    }
-
-    // Read balance directly from RewardDistributor contract
-    const balance = await readContract(config, {
-      address: CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR,
-      abi: REWARD_DISTRIBUTOR_ABI,
-      functionName: 'getPointsBalance',
-      args: [userAddress],
-    })
-
-    // $bDCU uses 18 decimals for consistency
-    return Number(balance) / 1e18
-  } catch (error) {
-    console.warn('Error reading $bDCU balance from on-chain storage, using fallback:', error)
-    // Fallback to local storage for development
-    return pointsLib.getPointsBalance(userAddress)
-  }
+  // Fallback to local storage for development if token not deployed
+  return pointsLib.getPointsBalance(userAddress)
 }
 
 /**
  * Get user's $bDCU balance (alias for getPointsBalance)
- * Currently reads from RewardDistributor contract
- * After token deployment, will read from $bDCU token contract
+ * Reads from $bDCU token contract (if deployed) or local storage fallback
  */
 export async function getDCUBalance(userAddress: Address): Promise<number> {
   return getPointsBalance(userAddress)
@@ -1684,40 +1607,26 @@ export async function rejectCleanup(
   }
 }
 
-// Reward Distributor Functions
+// Streak Functions
+// Note: Streak tracking is not currently implemented in bDCURewardDistributor
+// These functions return default values for UI compatibility
 
 /**
  * Get user's streak count
+ * @deprecated Streak tracking not available - returns 0
  */
 export async function getStreakCount(userAddress: Address): Promise<number> {
-  if (!CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR) {
-    throw new Error('Reward Distributor contract address not set')
-  }
-
-  const streak = await readContract(config, {
-    address: CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR,
-    abi: REWARD_DISTRIBUTOR_ABI,
-    functionName: 'getStreakCount',
-    args: [userAddress],
-  })
-
-  return Number(streak)
+  // Streak tracking not implemented in bDCURewardDistributor
+  return 0
 }
 
 /**
  * Check if user has active streak
+ * @deprecated Streak tracking not available - returns false
  */
 export async function hasActiveStreak(userAddress: Address): Promise<boolean> {
-  if (!CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR) {
-    throw new Error('Reward Distributor contract address not set')
-  }
-
-  return await readContract(config, {
-    address: CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR,
-    abi: REWARD_DISTRIBUTOR_ABI,
-    functionName: 'hasActiveStreak',
-    args: [userAddress],
-  })
+  // Streak tracking not implemented in bDCURewardDistributor
+  return false
 }
 
 /**

@@ -129,14 +129,14 @@ Latest Base Sepolia deployment (2025-11-18). These addresses are wired into `.en
 | Contract | Address | Explorer |
 | --- | --- | --- |
 | ImpactProductNFT | `0x0E5713877D0B3610B58ACB5c13bdA41b61F6a0c9` | [Basescan](https://sepolia.basescan.org/address/0x0E5713877D0B3610B58ACB5c13bdA41b61F6a0c9) |
-| RewardDistributor | `0xd77f64024b0Ce2359DCe43ea149c77bF3cf08a40` | [Basescan](https://sepolia.basescan.org/address/0xd77f64024b0Ce2359DCe43ea149c77bF3cf08a40) |
 | VerificationContract | `0x08e9Ad176773ea7558e9C8453191d4361f8225f5` | [Basescan](https://sepolia.basescan.org/address/0x08e9Ad176773ea7558e9C8453191d4361f8225f5) |
+| bDCURewardDistributor | See deployment files | Automatic $bDCU token distribution |
 
 These contracts are production-ready; swap the env vars to Base mainnet once you redeploy.
 
 - **Impact Product NFT**: Dynamic NFT with 10 progressive levels
 - **Verification Contract**: Handles cleanup submissions and verification
-- **Reward Distributor**: Distributes $bDCU tokens, streak, referral, and impact-form bonuses
+- **bDCURewardDistributor**: Automatically distributes $bDCU tokens for level claims, streaks, referrals, impact forms, and verifier rewards
 
 ### Upgradeable Contracts
 
