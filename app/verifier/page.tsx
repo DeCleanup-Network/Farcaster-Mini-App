@@ -499,7 +499,14 @@ export default function VerifierPage() {
 
       console.log('Verifying address against contract:', addr)
       console.log('isVerifier function type:', typeof isVerifierFn)
-      const isAuthorized = await isVerifierFn(addr)
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Verifier check timeout')), 15000)
+      )
+      
+      const checkPromise = isVerifierFn(addr)
+      const isAuthorized = await Promise.race([checkPromise, timeoutPromise]) as Awaited<typeof checkPromise>
       console.log('Verifier check result:', isAuthorized)
       
       setIsVerifier(isAuthorized)
@@ -625,7 +632,14 @@ export default function VerifierPage() {
     try {
       setIsLoadingCleanups(true)
       setLoading(true)
-      const counter = await getCleanupCounter()
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Loading cleanups timeout')), 30000)
+      )
+      
+      const counterPromise = getCleanupCounter()
+      const counter = await Promise.race([counterPromise, timeoutPromise]) as Awaited<typeof counterPromise>
       console.log('Cleanup counter:', counter.toString())
       const cleanupList: CleanupItem[] = []
 
