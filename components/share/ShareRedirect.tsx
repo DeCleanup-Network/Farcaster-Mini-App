@@ -23,8 +23,9 @@ export function ShareRedirect({ redirectUrl }: ShareRedirectProps) {
       const timer = setTimeout(() => {
         // Use replace instead of href to avoid adding to history
         // This helps preserve URL parameters in Safari
+        // Shorter delay for better UX - crawlers should have read metadata by now
         window.location.replace(redirectUrl)
-      }, 5000) // 5 seconds to give crawlers more time to read metadata
+      }, 1000) // 1 second - enough for crawlers, better UX for users
 
       return () => clearTimeout(timer)
     }

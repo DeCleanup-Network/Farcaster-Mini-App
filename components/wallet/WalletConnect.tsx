@@ -55,8 +55,8 @@ export function WalletConnect() {
   // Get all external connectors (Browser Wallet, WalletConnect)
   // Filter logic:
   // - Farcaster connector: Only show in Farcaster context
-  // - Browser wallet: Show on desktop, hide in Farcaster (mobile)
-  // - WalletConnect: Show everywhere (mobile-friendly wallet list)
+  // - Browser wallet (MetaMask, etc.): Show on desktop, hide in Farcaster (mobile)
+  // - WalletConnect: Only show if no browser wallet available (fallback)
   // - Exclude Coinbase wallet
   const externalConnectors = connectors
     .filter(c => {
@@ -65,7 +65,8 @@ export function WalletConnect() {
       const isFarcaster = name.includes('farcaster') || name.includes('frame') || name.includes('miniapp') ||
         id.includes('farcaster') || id.includes('frame') || id.includes('miniapp')
       const isInjected = name === 'injected' || id === 'injected' || 
-        name.includes('browser') || id.includes('browser')
+        name.includes('browser') || id.includes('browser') ||
+        name.includes('metamask') || id.includes('metamask')
       const isWalletConnect = name.includes('walletconnect') || id.includes('walletconnect')
       const isCoinbase = name.includes('coinbase') || id.includes('coinbase')
       
@@ -86,22 +87,37 @@ export function WalletConnect() {
         return false
       }
       
-      // On desktop (not Farcaster): Show browser wallet and WalletConnect
-      if (isInjected) return true // Show browser wallet on desktop
-      if (isWalletConnect) return true // Show WalletConnect on desktop too
+      // On desktop (not Farcaster): Prioritize browser wallet, WalletConnect as fallback
+      if (isInjected) return true // Show browser wallet on desktop (MetaMask, etc.)
+      // Only show WalletConnect if no injected wallet is available
+      if (isWalletConnect) {
+        // Check if there's an injected wallet available
+        const hasInjected = connectors.some(conn => {
+          const connName = conn.name.toLowerCase()
+          const connId = conn.id?.toLowerCase() || ''
+          return (connName === 'injected' || connId === 'injected' || 
+            connName.includes('browser') || connId.includes('browser') ||
+            connName.includes('metamask') || connId.includes('metamask')) &&
+            !connName.includes('farcaster') && !connId.includes('farcaster')
+        })
+        // Only show WalletConnect if no injected wallet is available
+        return !hasInjected
+      }
       
       return false
     })
     .sort((a, b) => {
-      // Simple sorting: Browser Wallet first, then WalletConnect
+      // Prioritize Browser Wallet (MetaMask) over WalletConnect
       const aIsInjected = a.name.toLowerCase() === 'injected' || a.id?.toLowerCase() === 'injected' ||
-        a.name.toLowerCase().includes('browser') || a.id?.toLowerCase().includes('browser')
+        a.name.toLowerCase().includes('browser') || a.id?.toLowerCase().includes('browser') ||
+        a.name.toLowerCase().includes('metamask') || a.id?.toLowerCase().includes('metamask')
       const bIsInjected = b.name.toLowerCase() === 'injected' || b.id?.toLowerCase() === 'injected' ||
-        b.name.toLowerCase().includes('browser') || b.id?.toLowerCase().includes('browser')
+        b.name.toLowerCase().includes('browser') || b.id?.toLowerCase().includes('browser') ||
+        b.name.toLowerCase().includes('metamask') || b.id?.toLowerCase().includes('metamask')
       const aIsWC = a.name.toLowerCase().includes('walletconnect') || a.id?.toLowerCase().includes('walletconnect')
       const bIsWC = b.name.toLowerCase().includes('walletconnect') || b.id?.toLowerCase().includes('walletconnect')
       
-      // Prioritize Browser Wallet over WalletConnect (especially on Safari)
+      // Always prioritize Browser Wallet (MetaMask) over WalletConnect
       if (aIsInjected && bIsWC) return -1
       if (bIsInjected && aIsWC) return 1
       return 0

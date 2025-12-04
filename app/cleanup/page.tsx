@@ -251,13 +251,8 @@ function CleanupContent() {
     }
   }, [enhancedData.locationType, enhancedData.wasteTypes])
 
-  useEffect(() => {
-    // Get location on mount
-    if (!location) {
-      getLocation()
-    }
-    
-  }, [isConnected, address])
+  // Don't request location automatically - only when user is ready to submit
+  // Location will be requested when user clicks "Next" on the before photo step
 
   // Fetch user level
   useEffect(() => {
