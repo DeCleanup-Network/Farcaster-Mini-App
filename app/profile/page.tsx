@@ -20,6 +20,8 @@ import {
   Gift,
   Users,
   FileText,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { ImportTokenModal } from '@/components/wallet/ImportTokenModal'
 import Link from 'next/link'
@@ -37,11 +39,13 @@ import {
   claimImpactProductFromVerification,
   getClaimFee,
   getTotalRewardsDistributed,
+  getRewardsBreakdown,
   CONTRACT_ADDRESSES,
 } from '@/lib/contracts'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { useChainId } from 'wagmi'
 import { shareCast, generateReferralLink, generateClaimShareLink, formatReferralMessage, formatImpactShareMessage } from '@/lib/farcaster'
+import { SuccessModal } from '@/components/ui/success-modal'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   ? 'Basescan (Sepolia)'
@@ -140,6 +144,14 @@ function ProfileContent() {
     impactValue: null as string | null,
     dcuReward: null as string | null,
     totalRewardsDistributed: 0,
+    rewardsBreakdown: {
+      levelRewards: 0,
+      cleanupCount: 0,
+      streakRewards: 0,
+      referralRewards: 0,
+      impactFormRewards: 0,
+      total: 0,
+    },
   })
   const [cleanupStatus, setCleanupStatus] = useState<{
     cleanupId: bigint | null
@@ -152,6 +164,13 @@ function ProfileContent() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [copyingField, setCopyingField] = useState<string | null>(null)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [successModalData, setSuccessModalData] = useState<{
+    title: string
+    message: string
+    transactionHash?: string
+  } | null>(null)
+  const [breakdownExpanded, setBreakdownExpanded] = useState(false)
 
   // Prevent hydration mismatch by ensuring we render only after mounting
   useEffect(() => {
@@ -208,7 +227,12 @@ function ProfileContent() {
           setLoading(true)
         }
 
-        const [dcuBalance, stakedDCU, level, streak, activeStreak, totalRewardsDistributed] = await Promise.all([
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Profile data loading timeout')), 30000)
+        )
+
+        const dataPromise = Promise.all([
           getDCUBalance(userAddress),
           getStakedDCU(userAddress),
           getUserLevel(userAddress),
@@ -216,6 +240,24 @@ function ProfileContent() {
           hasActiveStreak(userAddress),
           getTotalRewardsDistributed(userAddress),
         ])
+
+        const [dcuBalance, stakedDCU, level, streak, activeStreak, totalRewardsDistributed] = await Promise.race([
+          dataPromise,
+          timeoutPromise,
+        ]) as Awaited<typeof dataPromise>
+
+        // Get detailed breakdown from events (query actual rewards distributed)
+        const rewardsBreakdown = await getRewardsBreakdown(userAddress).catch((error) => {
+          console.error('Error fetching rewards breakdown:', error)
+          return {
+            levelRewards: 0,
+            cleanupCount: 0,
+            streakRewards: 0,
+            referralRewards: 0,
+            impactFormRewards: 0,
+            total: 0,
+          }
+        })
 
         let tokenURI = ''
         let imageUrl = ''
@@ -371,6 +413,7 @@ function ProfileContent() {
           impactValue,
           dcuReward,
           totalRewardsDistributed,
+          rewardsBreakdown,
         })
       } catch (error) {
         console.error('Error fetching profile data:', error)
@@ -388,6 +431,14 @@ function ProfileContent() {
           impactValue: null,
           dcuReward: null,
           totalRewardsDistributed: 0,
+          rewardsBreakdown: {
+            levelRewards: 0,
+            cleanupCount: 0,
+            streakRewards: 0,
+            referralRewards: 0,
+            impactFormRewards: 0,
+            total: 0,
+          },
         })
       } finally {
         if (showSpinner) {
@@ -613,13 +664,13 @@ function ProfileContent() {
           </Button>
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats Grid - Total Balance and Total Rewards */}
         <div className="mb-6 grid gap-4 sm:grid-cols-2">
           <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
             <div className="mb-2 flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-brand-green" />
               <h3 className="text-sm font-medium text-gray-400">
-                $bDCU
+                Total $bDCU
               </h3>
               <ImportTokenModal type="token" onCopy={handleManualCopy} />
             </div>
@@ -627,7 +678,7 @@ function ProfileContent() {
               {profileData.dcuBalance.toFixed(0)}
             </p>
             <p className="mt-1 text-xs text-gray-500">
-              Earned from cleanups and actions
+              All tokens in your wallet
             </p>
             {profileData.stakedDCU > 0 && (
               <p className="mt-1 text-xs text-gray-500">
@@ -636,138 +687,99 @@ function ProfileContent() {
             )}
           </div>
 
-          <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
+          <div className="rounded-lg border border-brand-green/30 bg-brand-green/5 p-6">
             <div className="mb-2 flex items-center gap-2">
-              <Award className="h-5 w-5 text-brand-yellow" />
-              <h3 className="text-sm font-medium text-gray-400">
-                Impact Product Level
+              <Award className="h-5 w-5 text-brand-green" />
+              <h3 className="text-sm font-medium text-gray-300">
+                Total Rewards
               </h3>
-              {profileData.tokenId && (
-                <ImportTokenModal type="nft" tokenId={Number(profileData.tokenId)} onCopy={handleManualCopy} />
-              )}
             </div>
-            <p className="text-3xl font-bold text-white">
-              {profileData.level > 0 ? `Level ${profileData.level}` : 'No Level'}
+            <p className="text-3xl font-bold text-brand-green">
+              {profileData.totalRewardsDistributed > 0 ? profileData.totalRewardsDistributed.toFixed(0) : '0'}
             </p>
-            {profileData.level > 0 && (
-              <p className="mt-1 text-xs text-gray-500">
-                {getTierName(profileData.level)}
-              </p>
-            )}
+            <p className="mt-1 text-xs text-gray-400">
+              From app actions only
+            </p>
           </div>
         </div>
 
-        {/* Additional Stats */}
-        <div className="mb-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <Flame className={`h-4 w-4 ${profileData.hasActiveStreak ? 'text-brand-yellow' : 'text-gray-500'}`} />
-              <h3 className="text-xs font-medium text-gray-400">
-                Streak
-              </h3>
-            </div>
-            <p className="text-xl font-bold text-white">
-              {profileData.streak}
-            </p>
-            {profileData.hasActiveStreak && (
-              <p className="mt-1 text-xs text-brand-yellow">
-                Active
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Reward Breakdown */}
-        {profileData.dcuBalance > 0 && (
-          <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900 p-6">
-            <div className="mb-4 flex items-center gap-2">
+        {/* Reward Breakdown - Expandable */}
+        <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900 p-6">
+          <button
+            onClick={() => setBreakdownExpanded(!breakdownExpanded)}
+            className="flex w-full items-center justify-between hover:bg-gray-800/50 rounded-lg p-2 -m-2 transition-colors"
+          >
+            <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-brand-green" />
               <h2 className="text-lg font-bold uppercase tracking-wide text-white">
-                $bDCU Reward Breakdown
+                Reward Breakdown
               </h2>
             </div>
+            {breakdownExpanded ? (
+              <ChevronUp className="h-5 w-5 text-gray-400" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-gray-400" />
+            )}
+          </button>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                <span className="text-sm text-gray-400">Current Balance:</span>
+          {breakdownExpanded && (
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/30 p-3">
+                <div className="flex items-center gap-3">
+                  <Award className="h-5 w-5 text-brand-yellow" />
+                  <div>
+                    <span className="text-sm font-medium text-white">Cleanups - Claims of Impact Product</span>
+                    <p className="text-xs text-gray-400">
+                      {profileData.rewardsBreakdown.cleanupCount} cleanup{profileData.rewardsBreakdown.cleanupCount !== 1 ? 's' : ''} = {profileData.rewardsBreakdown.cleanupCount} level claim{profileData.rewardsBreakdown.cleanupCount !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
                 <span className="text-lg font-bold text-white">
-                  {profileData.dcuBalance.toFixed(2)} $bDCU
+                  {profileData.rewardsBreakdown.levelRewards.toFixed(2)} $bDCU
                 </span>
               </div>
 
-              {profileData.totalRewardsDistributed > 0 && (
-                <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                  <span className="text-sm text-gray-400">Total Rewards Distributed:</span>
-                  <span className="text-sm font-semibold text-gray-300">
-                    {profileData.totalRewardsDistributed.toFixed(2)} $bDCU
-                  </span>
+              <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/30 p-3">
+                <div className="flex items-center gap-3">
+                  <Users className="h-5 w-5 text-brand-green" />
+                  <div>
+                    <span className="text-sm font-medium text-white">Referrals</span>
+                    <p className="text-xs text-gray-400">Rewards for referring new users</p>
+                  </div>
                 </div>
-              )}
-
-              <div className="mt-4 space-y-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Estimated Breakdown
-                </h3>
-                
-                {profileData.level > 0 && (
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <Award className="h-4 w-4 text-brand-yellow" />
-                      <span className="text-gray-400">Level Rewards ({profileData.level} × 10 $bDCU):</span>
-                    </div>
-                    <span className="font-medium text-white">
-                      {(profileData.level * 10).toFixed(0)} $bDCU
-                    </span>
-                  </div>
-                )}
-
-                {profileData.streak > 0 && (
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <Flame className="h-4 w-4 text-brand-yellow" />
-                      <span className="text-gray-400">Streak Rewards ({profileData.streak} × 2 $bDCU):</span>
-                    </div>
-                    <span className="font-medium text-white">
-                      {(profileData.streak * 2).toFixed(0)} $bDCU
-                    </span>
-                  </div>
-                )}
-
-                {profileData.totalRewardsDistributed > 0 && (
-                  <>
-                    <div className="mt-2 border-t border-gray-800 pt-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <Gift className="h-4 w-4 text-brand-green" />
-                          <span className="text-gray-400">Other Rewards (referrals, impact forms, etc.):</span>
-                        </div>
-                        <span className="font-medium text-white">
-                          {Math.max(0, profileData.totalRewardsDistributed - (profileData.level * 10) - (profileData.streak * 2)).toFixed(2)} $bDCU
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-2 border-t border-gray-800 pt-2">
-                      <div className="flex items-center justify-between text-sm font-semibold">
-                        <span className="text-gray-300">Total Tracked:</span>
-                        <span className="text-white">
-                          {profileData.totalRewardsDistributed.toFixed(2)} $bDCU
-                        </span>
-                      </div>
-                    </div>
-                  </>
-                )}
+                <span className="text-lg font-bold text-white">
+                  {profileData.rewardsBreakdown.referralRewards.toFixed(2)} $bDCU
+                </span>
               </div>
 
-              {profileData.dcuBalance !== profileData.totalRewardsDistributed && profileData.totalRewardsDistributed > 0 && (
-                <div className="mt-4 rounded-lg border border-blue-500/30 bg-blue-500/5 p-3">
-                  <p className="text-xs text-gray-400">
-                    <strong className="text-blue-300">Note:</strong> Your balance may differ from tracked rewards if you received tokens from other sources or transferred tokens.
-                  </p>
+              <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/30 p-3">
+                <div className="flex items-center gap-3">
+                  <Flame className="h-5 w-5 text-brand-yellow" />
+                  <div>
+                    <span className="text-sm font-medium text-white">Streak</span>
+                    <p className="text-xs text-gray-400">Weekly streak maintenance rewards</p>
+                  </div>
                 </div>
-              )}
+                <span className="text-lg font-bold text-white">
+                  {profileData.rewardsBreakdown.streakRewards.toFixed(2)} $bDCU
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/30 p-3">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-brand-green" />
+                  <div>
+                    <span className="text-sm font-medium text-white">Impact Reports</span>
+                    <p className="text-xs text-gray-400">Submission of impact reports</p>
+                  </div>
+                </div>
+                <span className="text-lg font-bold text-white">
+                  {profileData.rewardsBreakdown.impactFormRewards.toFixed(2)} $bDCU
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Cleanup Status Card */}
         {cleanupStatus && cleanupStatus.cleanupId && (
@@ -853,12 +865,14 @@ function ProfileContent() {
                         
                         // Pass chainId to avoid false chain detection
                         const hash = await claimImpactProductFromVerification(cleanupStatus.cleanupId, chainId)
-                        alert(
-                          `✅ Claim transaction submitted!\n\n` +
-                          `Transaction Hash: ${hash}\n\n` +
-                          `Your Impact Product NFT will be minted once the transaction confirms.\n\n` +
-                          `View on ${BLOCK_EXPLORER_NAME}: ${getExplorerTxUrl(hash)}`
-                        )
+                        
+                        // Show styled success modal instead of alert
+                        setSuccessModalData({
+                          title: 'Claim transaction submitted!',
+                          message: 'Your Impact Product NFT will be minted once the transaction confirms.',
+                          transactionHash: hash,
+                        })
+                        setShowSuccessModal(true)
 
                         // Wait for transaction confirmation with better error handling
                         const { waitForTransactionReceipt } = await import('wagmi/actions')
@@ -991,6 +1005,9 @@ function ProfileContent() {
                 <Award className="h-5 w-5 text-brand-yellow" />
                 Your Impact Product
               </h2>
+              {profileData.tokenId && (
+                <ImportTokenModal type="nft" tokenId={Number(profileData.tokenId)} onCopy={handleManualCopy} />
+              )}
             </div>
             <div className="rounded-lg border border-gray-800 p-4">
               <div className="mb-4 aspect-square w-full max-w-xs mx-auto rounded-lg bg-gray-800 flex items-center justify-center">
@@ -1239,6 +1256,22 @@ function ProfileContent() {
               </Button>
             </Link>
           </section>
+        )}
+
+        {/* Success Modal */}
+        {showSuccessModal && successModalData && (
+          <SuccessModal
+            isOpen={showSuccessModal}
+            onClose={() => {
+              setShowSuccessModal(false)
+              setSuccessModalData(null)
+            }}
+            title={successModalData.title}
+            message={successModalData.message}
+            transactionHash={successModalData.transactionHash}
+            explorerUrl={successModalData.transactionHash ? getExplorerTxUrl(successModalData.transactionHash as `0x${string}`) : undefined}
+            explorerName={BLOCK_EXPLORER_NAME}
+          />
         )}
 
       </div>

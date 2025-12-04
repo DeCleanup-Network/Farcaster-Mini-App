@@ -1,4 +1,4 @@
-import { Address, encodeFunctionData, parseAbi } from 'viem'
+import { Address, encodeFunctionData, parseAbi, parseAbiItem, formatUnits } from 'viem'
 import {
   readContract,
   writeContract,
@@ -458,6 +458,10 @@ export const BDCU_REWARD_DISTRIBUTOR_ABI = parseAbi([
   'function globalTotalDistributed() external view returns (uint256)',
   'function totalDistributed(address user) external view returns (uint256)', // Mapping for verifier earnings
   'function verificationContract() external view returns (address)',
+  'event LevelRewardDistributed(address indexed user, uint256 amount)',
+  'event StreakRewardDistributed(address indexed user, uint256 amount)',
+  'event ReferralRewardDistributed(address indexed referrer, address indexed referee, uint256 amount)',
+  'event ImpactFormRewardDistributed(address indexed user, uint256 cleanupId, uint256 amount)',
 ])
 
 // Impact Product Functions
@@ -1697,6 +1701,280 @@ export async function getTotalRewardsDistributed(userAddress: Address): Promise<
   } catch (error: any) {
     console.error('Error fetching total rewards distributed:', error)
     return 0
+  }
+}
+
+/**
+ * Get detailed breakdown of rewards distributed to a user by querying events
+ * @param userAddress User's wallet address
+ * @returns Breakdown of rewards by type
+ */
+export async function getRewardsBreakdown(userAddress: Address): Promise<{
+  levelRewards: number
+  cleanupCount: number // Number of cleanups (each cleanup = 1 level claim)
+  streakRewards: number
+  referralRewards: number
+  impactFormRewards: number
+  total: number
+}> {
+  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, total: 0 }
+  }
+
+  try {
+    const { createPublicClient, http } = await import('viem')
+    const { baseSepolia, base } = await import('viem/chains')
+    
+    const chain = REQUIRED_CHAIN_ID === 84532 ? baseSepolia : base
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(REQUIRED_RPC_URL),
+    })
+
+    const distributorAddress = CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR
+    
+    // RPC has max block range of 100,000 blocks
+    // Query from the last 50,000 blocks to stay well within limits
+    // This should cover several months of activity
+    let fromBlock = 0n
+    try {
+      const currentBlock = await publicClient.getBlockNumber()
+      const blockRange = 50000n // Last 50k blocks (safe margin)
+      fromBlock = currentBlock > blockRange ? currentBlock - blockRange : 0n
+      console.log(`Current block: ${currentBlock}, querying from block: ${fromBlock} (last ${blockRange} blocks)`)
+    } catch (error) {
+      console.warn('Could not get current block number:', error)
+      // If we can't get current block, we'll try from 0 and let error handling catch it
+      fromBlock = 0n
+    }
+    
+    console.log(`Querying reward events for ${userAddress} from block ${fromBlock}...`)
+    console.log(`Contract address: ${distributorAddress}`)
+    
+    // Query all reward events (try with args filter first, fallback to no filter if that fails)
+    let levelLogs: any[] = []
+    let streakLogs: any[] = []
+    let referralLogs: any[] = []
+    let impactFormLogs: any[] = []
+    
+    try {
+      // Try with indexed args filter (more efficient)
+      const [levelLogsFiltered, streakLogsFiltered, referralLogsAll, impactFormLogsFiltered] = await Promise.all([
+        publicClient.getLogs({
+          address: distributorAddress,
+          event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
+          args: { user: userAddress },
+          fromBlock,
+        }).catch((error: any) => {
+          if (error?.message?.includes('max block range')) {
+            console.warn('Block range too large for LevelRewardDistributed, trying from latest block only')
+            // Try from latest block only as fallback
+            return publicClient.getBlockNumber().then(async (currentBlock) => {
+              return publicClient.getLogs({
+                address: distributorAddress,
+                event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
+                args: { user: userAddress },
+                fromBlock: currentBlock - 50000n, // Last 50k blocks
+              }).catch(() => [])
+            })
+          }
+          throw error
+        }),
+        publicClient.getLogs({
+          address: distributorAddress,
+          event: parseAbiItem('event StreakRewardDistributed(address indexed user, uint256 amount)'),
+          args: { user: userAddress },
+          fromBlock,
+        }).catch((error: any) => {
+          if (error?.message?.includes('max block range')) {
+            return publicClient.getBlockNumber().then(async (currentBlock) => {
+              return publicClient.getLogs({
+                address: distributorAddress,
+                event: parseAbiItem('event StreakRewardDistributed(address indexed user, uint256 amount)'),
+                args: { user: userAddress },
+                fromBlock: currentBlock - 50000n,
+              }).catch(() => [])
+            })
+          }
+          throw error
+        }),
+        publicClient.getLogs({
+          address: distributorAddress,
+          event: parseAbiItem('event ReferralRewardDistributed(address indexed referrer, address indexed referee, uint256 amount)'),
+          fromBlock,
+        }).catch((error: any) => {
+          if (error?.message?.includes('max block range')) {
+            return publicClient.getBlockNumber().then(async (currentBlock) => {
+              return publicClient.getLogs({
+                address: distributorAddress,
+                event: parseAbiItem('event ReferralRewardDistributed(address indexed referrer, address indexed referee, uint256 amount)'),
+                fromBlock: currentBlock - 50000n,
+              }).catch(() => [])
+            })
+          }
+          throw error
+        }),
+        publicClient.getLogs({
+          address: distributorAddress,
+          event: parseAbiItem('event ImpactFormRewardDistributed(address indexed user, uint256 cleanupId, uint256 amount)'),
+          args: { user: userAddress },
+          fromBlock,
+        }).catch((error: any) => {
+          if (error?.message?.includes('max block range')) {
+            return publicClient.getBlockNumber().then(async (currentBlock) => {
+              return publicClient.getLogs({
+                address: distributorAddress,
+                event: parseAbiItem('event ImpactFormRewardDistributed(address indexed user, uint256 cleanupId, uint256 amount)'),
+                args: { user: userAddress },
+                fromBlock: currentBlock - 50000n,
+              }).catch(() => [])
+            })
+          }
+          throw error
+        }),
+      ])
+      
+      levelLogs = levelLogsFiltered
+      streakLogs = streakLogsFiltered
+      impactFormLogs = impactFormLogsFiltered
+      
+      // Filter referral logs client-side (user can be referrer or referee)
+      const userLower = userAddress.toLowerCase()
+      referralLogs = referralLogsAll.filter((log: any) => {
+        const referrer = log.args?.referrer?.toLowerCase()
+        const referee = log.args?.referee?.toLowerCase()
+        return referrer === userLower || referee === userLower
+      })
+      
+      console.log(`Query with args filter succeeded`)
+    } catch (error: any) {
+      console.warn('Query with args filter failed:', error?.message)
+      
+      // If it's a block range error, try querying from a more recent block
+      if (error?.message?.includes('max block range')) {
+        try {
+          const currentBlock = await publicClient.getBlockNumber()
+          const recentFromBlock = currentBlock - 50000n // Last 50k blocks
+          console.log(`Retrying from recent block ${recentFromBlock} (last 50k blocks)`)
+          
+          const [allLevelLogs, allStreakLogs, allReferralLogs, allImpactFormLogs] = await Promise.all([
+            publicClient.getLogs({
+              address: distributorAddress,
+              event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
+              fromBlock: recentFromBlock,
+            }),
+            publicClient.getLogs({
+              address: distributorAddress,
+              event: parseAbiItem('event StreakRewardDistributed(address indexed user, uint256 amount)'),
+              fromBlock: recentFromBlock,
+            }),
+            publicClient.getLogs({
+              address: distributorAddress,
+              event: parseAbiItem('event ReferralRewardDistributed(address indexed referrer, address indexed referee, uint256 amount)'),
+              fromBlock: recentFromBlock,
+            }),
+            publicClient.getLogs({
+              address: distributorAddress,
+              event: parseAbiItem('event ImpactFormRewardDistributed(address indexed user, uint256 cleanupId, uint256 amount)'),
+              fromBlock: recentFromBlock,
+            }),
+          ])
+          
+          // Filter client-side
+          const userLower = userAddress.toLowerCase()
+          levelLogs = allLevelLogs.filter((log: any) => log.args?.user?.toLowerCase() === userLower)
+          streakLogs = allStreakLogs.filter((log: any) => log.args?.user?.toLowerCase() === userLower)
+          referralLogs = allReferralLogs.filter((log: any) => {
+            const referrer = log.args?.referrer?.toLowerCase()
+            const referee = log.args?.referee?.toLowerCase()
+            return referrer === userLower || referee === userLower
+          })
+          impactFormLogs = allImpactFormLogs.filter((log: any) => log.args?.user?.toLowerCase() === userLower)
+          
+          console.log(`Query from recent block succeeded`)
+        } catch (recentError: any) {
+          console.error('Query from recent block also failed:', recentError)
+          // Return empty arrays - we'll show 0 but at least the page won't crash
+          levelLogs = []
+          streakLogs = []
+          referralLogs = []
+          impactFormLogs = []
+        }
+      } else {
+        // Other error, throw it
+        throw error
+      }
+    }
+    
+    console.log(`Found events:`, {
+      levelLogs: levelLogs.length,
+      streakLogs: streakLogs.length,
+      referralLogs: referralLogs.length,
+      impactFormLogs: impactFormLogs.length,
+    })
+
+    // Calculate totals
+    // Each LevelRewardDistributed event = 1 cleanup that was claimed
+    const cleanupCount = levelLogs.length
+    const levelRewards = levelLogs.reduce((sum, log) => {
+      const amount = log.args.amount as bigint
+      return sum + parseFloat(formatUnits(amount, 18))
+    }, 0)
+
+    const streakRewards = streakLogs.reduce((sum, log) => {
+      const amount = log.args.amount as bigint
+      return sum + parseFloat(formatUnits(amount, 18))
+    }, 0)
+
+    const referralRewards = referralLogs.reduce((sum, log) => {
+      const amount = log.args.amount as bigint
+      return sum + parseFloat(formatUnits(amount, 18))
+    }, 0)
+
+    const impactFormRewards = impactFormLogs.reduce((sum, log) => {
+      const amount = log.args.amount as bigint
+      return sum + parseFloat(formatUnits(amount, 18))
+    }, 0)
+
+    const total = levelRewards + streakRewards + referralRewards + impactFormRewards
+
+    console.log(`Rewards breakdown for ${userAddress}:`, {
+      cleanupCount,
+      levelLogs: levelLogs.length,
+      streakLogs: streakLogs.length,
+      referralLogs: referralLogs.length,
+      impactFormLogs: impactFormLogs.length,
+      levelRewards,
+      streakRewards,
+      referralRewards,
+      impactFormRewards,
+      total,
+    })
+
+    // If no events found but we have a total from contract, log a warning
+    if (total === 0) {
+      console.warn(`No reward events found for ${userAddress}. This could mean:`)
+      console.warn(`1. Events weren't emitted (check contract)`)
+      console.warn(`2. RPC doesn't support querying from block 0`)
+      console.warn(`3. Contract address might be wrong: ${distributorAddress}`)
+    }
+
+    return {
+      levelRewards,
+      cleanupCount,
+      streakRewards,
+      referralRewards,
+      impactFormRewards,
+      total,
+    }
+  } catch (error: any) {
+    console.error('Error fetching rewards breakdown:', error)
+    console.error('Error details:', {
+      message: error?.message,
+      code: error?.code,
+      name: error?.name,
+    })
+    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, total: 0 }
   }
 }
 
