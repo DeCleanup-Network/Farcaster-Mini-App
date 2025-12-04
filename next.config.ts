@@ -3,8 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   // Set workspace root to silence lockfile warning
+  // Explicitly set to project root (parent directory of next.config.ts)
   turbopack: {
-    root: process.cwd(),
+    root: __dirname || process.cwd(),
   },
   // Force clean build (removed recyclables route)
   // Ensure .well-known directory is served

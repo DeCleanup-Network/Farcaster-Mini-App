@@ -1736,16 +1736,16 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
     // RPC has max block range of 100,000 blocks
     // Query from the last 50,000 blocks to stay well within limits
     // This should cover several months of activity
-    let fromBlock = 0n
+    let fromBlock = BigInt(0)
     try {
       const currentBlock = await publicClient.getBlockNumber()
-      const blockRange = 50000n // Last 50k blocks (safe margin)
-      fromBlock = currentBlock > blockRange ? currentBlock - blockRange : 0n
+      const blockRange = BigInt(50000) // Last 50k blocks (safe margin)
+      fromBlock = currentBlock > blockRange ? currentBlock - blockRange : BigInt(0)
       console.log(`Current block: ${currentBlock}, querying from block: ${fromBlock} (last ${blockRange} blocks)`)
     } catch (error) {
       console.warn('Could not get current block number:', error)
       // If we can't get current block, we'll try from 0 and let error handling catch it
-      fromBlock = 0n
+      fromBlock = BigInt(0)
     }
     
     console.log(`Querying reward events for ${userAddress} from block ${fromBlock}...`)
@@ -1774,7 +1774,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
                 address: distributorAddress,
                 event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
                 args: { user: userAddress },
-                fromBlock: currentBlock - 50000n, // Last 50k blocks
+                fromBlock: currentBlock - BigInt(50000), // Last 50k blocks
               }).catch(() => [])
             })
           }
@@ -1854,7 +1854,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       if (error?.message?.includes('max block range')) {
         try {
           const currentBlock = await publicClient.getBlockNumber()
-          const recentFromBlock = currentBlock - 50000n // Last 50k blocks
+          const recentFromBlock = currentBlock - BigInt(50000) // Last 50k blocks
           console.log(`Retrying from recent block ${recentFromBlock} (last 50k blocks)`)
           
           const [allLevelLogs, allStreakLogs, allReferralLogs, allImpactFormLogs] = await Promise.all([
