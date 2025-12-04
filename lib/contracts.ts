@@ -1792,7 +1792,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
                 address: distributorAddress,
                 event: parseAbiItem('event StreakRewardDistributed(address indexed user, uint256 amount)'),
                 args: { user: userAddress },
-                fromBlock: currentBlock - 50000n,
+                fromBlock: currentBlock - BigInt(50000),
               }).catch(() => [])
             })
           }
@@ -1808,7 +1808,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
               return publicClient.getLogs({
                 address: distributorAddress,
                 event: parseAbiItem('event ReferralRewardDistributed(address indexed referrer, address indexed referee, uint256 amount)'),
-                fromBlock: currentBlock - 50000n,
+                fromBlock: currentBlock - BigInt(50000),
               }).catch(() => [])
             })
           }
@@ -1826,7 +1826,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
                 address: distributorAddress,
                 event: parseAbiItem('event ImpactFormRewardDistributed(address indexed user, uint256 cleanupId, uint256 amount)'),
                 args: { user: userAddress },
-                fromBlock: currentBlock - 50000n,
+                fromBlock: currentBlock - BigInt(50000),
               }).catch(() => [])
             })
           }
