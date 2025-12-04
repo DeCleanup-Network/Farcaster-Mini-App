@@ -1114,9 +1114,12 @@ function CleanupContent() {
     return (
       <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20">
         <div className="mx-auto max-w-md">
-          <div className="mb-6">
-            <BackButton href="/" />
-          </div>
+          {/* Only show back button if there's no referral */}
+          {!referrerAddress && (
+            <div className="mb-6">
+              <BackButton href="/" />
+            </div>
+          )}
           
           <ReferralNotification />
           <CooldownBanner />

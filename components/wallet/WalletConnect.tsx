@@ -863,8 +863,8 @@ export function WalletConnect() {
                   className="fixed inset-0 z-40" 
                   onClick={() => setShowWalletMenu(false)}
                 />
-                {/* Menu */}
-                <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-gray-700 bg-gray-900 shadow-lg">
+                {/* Menu - positioned to stay on screen */}
+                <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-gray-700 bg-gray-900 shadow-lg sm:right-0">
                   <div className="py-1">
                     {externalConnectors.map((connector, index) => {
                       const isWalletConnect = connector.name?.toLowerCase().includes('walletconnect') || 

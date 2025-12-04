@@ -629,7 +629,7 @@ function ProfileContent() {
     <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
       <div className="mx-auto max-w-2xl">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-4">
           <BackButton href="/" />
         </div>
 
