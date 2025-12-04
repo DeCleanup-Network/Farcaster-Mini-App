@@ -56,6 +56,9 @@ function CleanupContent() {
   const [afterPhoto, setAfterPhoto] = useState<File | null>(null)
   const [beforePhotoAllowed, setBeforePhotoAllowed] = useState(false)
   const [afterPhotoAllowed, setAfterPhotoAllowed] = useState(false)
+  const [beforePhotoUrl, setBeforePhotoUrl] = useState<string | null>(null)
+  const [afterPhotoUrl, setAfterPhotoUrl] = useState<string | null>(null)
+  const [photoError, setPhotoError] = useState<string | null>(null)
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isGettingLocation, setIsGettingLocation] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
@@ -82,6 +85,18 @@ function CleanupContent() {
       setHostName(window.location.hostname)
     }
   }, [])
+
+  // Cleanup object URLs on unmount or when photos change
+  useEffect(() => {
+    return () => {
+      if (beforePhotoUrl) {
+        URL.revokeObjectURL(beforePhotoUrl)
+      }
+      if (afterPhotoUrl) {
+        URL.revokeObjectURL(afterPhotoUrl)
+      }
+    }
+  }, [beforePhotoUrl, afterPhotoUrl])
   
   // Read referrer from URL params and persist it
   const [showReferralNotification, setShowReferralNotification] = useState(false)
@@ -361,30 +376,88 @@ function CleanupContent() {
   const isBaseBuildHost = hostName.includes('build.base.org')
 
   const handlePhotoSelect = (type: 'before' | 'after') => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    // Use generic image/* to allow all image types
-    // Do NOT set capture attribute - this forces camera on some devices
-    // By omitting it, mobile browsers will offer "Camera" or "Photo Library" options
-    input.accept = 'image/*'
+    try {
+      setPhotoError(null)
+      const input = document.createElement('input')
+      input.type = 'file'
+      // Use generic image/* to allow all image types
+      // Do NOT set capture attribute - this forces camera on some devices
+      // By omitting it, mobile browsers will offer "Camera" or "Photo Library" options
+      input.accept = 'image/*'
 
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (file) {
-        const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB per image
-        if (file.size > MAX_FILE_SIZE) {
-          const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2)
-          alert(`Image size must be less than 10 MB per image. This image is ${fileSizeMB} MB.`)
-          return
-        }
-        if (type === 'before') {
-          setBeforePhoto(file)
-        } else if (type === 'after') {
-          setAfterPhoto(file)
+      input.onchange = (e) => {
+        try {
+          const file = (e.target as HTMLInputElement).files?.[0]
+          if (file) {
+            // Validate file type
+            if (!file.type.startsWith('image/')) {
+              setPhotoError('Please select a valid image file (JPEG, PNG, HEIC, etc.)')
+              alert('Please select a valid image file (JPEG, PNG, HEIC, etc.)')
+              return
+            }
+
+            // Validate file size
+            const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB per image
+            if (file.size > MAX_FILE_SIZE) {
+              const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2)
+              const errorMsg = `Image size must be less than 10 MB per image. This image is ${fileSizeMB} MB.`
+              setPhotoError(errorMsg)
+              alert(errorMsg)
+              return
+            }
+
+            // Validate file is not empty
+            if (file.size === 0) {
+              setPhotoError('The selected file is empty. Please choose a different image.')
+              alert('The selected file is empty. Please choose a different image.')
+              return
+            }
+
+            // Create object URL for preview
+            try {
+              // Clean up previous object URL if it exists
+              if (type === 'before' && beforePhotoUrl) {
+                URL.revokeObjectURL(beforePhotoUrl)
+              } else if (type === 'after' && afterPhotoUrl) {
+                URL.revokeObjectURL(afterPhotoUrl)
+              }
+
+              const objectUrl = URL.createObjectURL(file)
+              
+              if (type === 'before') {
+                setBeforePhoto(file)
+                setBeforePhotoUrl(objectUrl)
+              } else if (type === 'after') {
+                setAfterPhoto(file)
+                setAfterPhotoUrl(objectUrl)
+              }
+            } catch (urlError) {
+              console.error('Error creating object URL:', urlError)
+              setPhotoError('Failed to load image preview. The file may be corrupted. Please try a different image.')
+              alert('Failed to load image preview. The file may be corrupted. Please try a different image.')
+            }
+          }
+        } catch (error) {
+          console.error('Error handling file selection:', error)
+          setPhotoError('An error occurred while selecting the image. Please try again.')
+          alert('An error occurred while selecting the image. Please try again.')
+        } finally {
+          // Clean up the input element
+          input.remove()
         }
       }
+
+      input.onerror = () => {
+        setPhotoError('Failed to open file picker. Please try again.')
+        input.remove()
+      }
+
+      input.click()
+    } catch (error) {
+      console.error('Error creating file input:', error)
+      setPhotoError('Failed to open file picker. Please try again.')
+      alert('Failed to open file picker. Please try again.')
     }
-    input.click()
   }
 
   const getLocation = () => {
@@ -1081,15 +1154,43 @@ function CleanupContent() {
               Step 1: Snap a photo of the area before you start. Show the impact your cleanup will make!
             </p>
             
-            {beforePhoto ? (
+            {photoError && (
+              <div className="mb-4 rounded-lg border border-red-500/50 bg-red-500/10 p-3">
+                <p className="text-sm text-red-400">{photoError}</p>
+                <button
+                  onClick={() => setPhotoError(null)}
+                  className="mt-2 text-xs text-red-300 underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+            {beforePhoto && beforePhotoUrl ? (
               <div className="relative mb-4">
                 <img
-                  src={URL.createObjectURL(beforePhoto)}
+                  src={beforePhotoUrl}
                   alt="Before cleanup"
                   className="h-64 w-full rounded-lg object-cover"
+                  onError={(e) => {
+                    console.error('Error loading image preview:', e)
+                    setPhotoError('Failed to display image preview. The file may be corrupted.')
+                    // Clean up the broken URL
+                    if (beforePhotoUrl) {
+                      URL.revokeObjectURL(beforePhotoUrl)
+                      setBeforePhotoUrl(null)
+                    }
+                    setBeforePhoto(null)
+                  }}
                 />
                 <button
-                  onClick={() => setBeforePhoto(null)}
+                  onClick={() => {
+                    if (beforePhotoUrl) {
+                      URL.revokeObjectURL(beforePhotoUrl)
+                    }
+                    setBeforePhoto(null)
+                    setBeforePhotoUrl(null)
+                    setPhotoError(null)
+                  }}
                   disabled={isSubmissionDisabled}
                   className="absolute right-2 top-2 rounded-full bg-red-500 p-2 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -1251,15 +1352,43 @@ function CleanupContent() {
               Step 2: Capture the transformed space! Upload your after photo to complete your submission and earn rewards.
             </p>
             
-            {afterPhoto ? (
+            {photoError && (
+              <div className="mb-4 rounded-lg border border-red-500/50 bg-red-500/10 p-3">
+                <p className="text-sm text-red-400">{photoError}</p>
+                <button
+                  onClick={() => setPhotoError(null)}
+                  className="mt-2 text-xs text-red-300 underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+            {afterPhoto && afterPhotoUrl ? (
               <div className="relative mb-4">
                 <img
-                  src={URL.createObjectURL(afterPhoto)}
+                  src={afterPhotoUrl}
                   alt="After cleanup"
                   className="h-64 w-full rounded-lg object-cover"
+                  onError={(e) => {
+                    console.error('Error loading image preview:', e)
+                    setPhotoError('Failed to display image preview. The file may be corrupted.')
+                    // Clean up the broken URL
+                    if (afterPhotoUrl) {
+                      URL.revokeObjectURL(afterPhotoUrl)
+                      setAfterPhotoUrl(null)
+                    }
+                    setAfterPhoto(null)
+                  }}
                 />
                 <button
-                  onClick={() => setAfterPhoto(null)}
+                  onClick={() => {
+                    if (afterPhotoUrl) {
+                      URL.revokeObjectURL(afterPhotoUrl)
+                    }
+                    setAfterPhoto(null)
+                    setAfterPhotoUrl(null)
+                    setPhotoError(null)
+                  }}
                   className="absolute right-2 top-2 rounded-full bg-red-500 p-2 text-white"
                 >
                   <X className="h-4 w-4" />
@@ -1684,22 +1813,28 @@ function CleanupContent() {
           </p>
         </div>
 
-        {beforePhoto && afterPhoto && (
+        {beforePhoto && afterPhoto && beforePhotoUrl && afterPhotoUrl && (
           <div className="mb-6 grid grid-cols-2 gap-4">
             <div>
               <p className="mb-2 text-xs font-medium text-gray-400">BEFORE</p>
               <img
-                src={URL.createObjectURL(beforePhoto)}
+                src={beforePhotoUrl}
                 alt="Before"
                 className="h-32 w-full rounded-lg object-cover"
+                onError={(e) => {
+                  console.error('Error loading before photo in review:', e)
+                }}
               />
             </div>
             <div>
               <p className="mb-2 text-xs font-medium text-gray-400">AFTER</p>
               <img
-                src={URL.createObjectURL(afterPhoto)}
+                src={afterPhotoUrl}
                 alt="After"
                 className="h-32 w-full rounded-lg object-cover"
+                onError={(e) => {
+                  console.error('Error loading after photo in review:', e)
+                }}
               />
             </div>
           </div>
