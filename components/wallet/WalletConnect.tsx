@@ -855,7 +855,6 @@ export function WalletConnect() {
                 <span>Connect Wallet</span>
                 <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 transition-transform ${showWalletMenu ? 'rotate-180' : ''}`} />
               </Button>
-            </Button>
             
             {/* Dropdown menu */}
             {showWalletMenu && (
