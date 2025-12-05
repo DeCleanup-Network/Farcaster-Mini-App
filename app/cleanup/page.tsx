@@ -943,6 +943,13 @@ function CleanupContent() {
     return (
       <div className="min-h-screen bg-background px-4 py-8 pb-20">
         <div className="mx-auto max-w-md">
+          {/* Network notice */}
+          <div className="mb-4 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
+            <p className="text-xs text-blue-300">
+              <strong>Note:</strong> Make sure your wallet is connected to Base Sepolia chain to ensure smooth performance.
+            </p>
+          </div>
+          
           {/* Only show back button if there's no referral */}
           {!referrerAddress && (
             <BackButton href="/" label="Go Back" />

@@ -695,7 +695,7 @@ function ProfileContent() {
               {profileData.totalRewardsDistributed > 0 ? profileData.totalRewardsDistributed.toFixed(0) : '0'}
             </p>
             <p className="mt-1 text-xs text-gray-400">
-              From app actions only (sum of all rewards below)
+              From all app actions
             </p>
           </div>
         </div>

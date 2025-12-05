@@ -740,8 +740,14 @@ export async function submitCleanup(
     )
   }
 
-  // Pass providedChainId to avoid false positives when wallet is already on correct chain
-  await ensureWalletOnRequiredChain('cleanup submission', providedChainId)
+  // Note: Chain switching is handled by wallet - user should ensure they're on Base Sepolia
+  // We'll still check but won't throw errors that block submission
+  try {
+    await ensureWalletOnRequiredChain('cleanup submission', providedChainId)
+  } catch (chainError: any) {
+    // Log but don't block - let the transaction fail naturally if on wrong chain
+    console.warn('Chain check warning:', chainError?.message)
+  }
 
   // Scale coordinates by 1e6 and offset to handle negative values
   // Contract uses uint256, so we need to offset negative coordinates
@@ -1033,7 +1039,12 @@ export async function claimImpactProductFromVerification(
     throw new Error('Verification contract address not set')
   }
 
-  await ensureWalletOnRequiredChain('claim impact product', providedChainId)
+  // Note: Chain switching is handled by wallet - user should ensure they're on Base Sepolia
+  try {
+    await ensureWalletOnRequiredChain('claim impact product', providedChainId)
+  } catch (chainError: any) {
+    console.warn('Chain check warning:', chainError?.message)
+  }
 
   // Check cleanup status before attempting to claim
   try {
@@ -1802,15 +1813,18 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
     // RPC has max block range of 100,000 blocks
     // Query from the last 50,000 blocks to stay well within limits
     // This should cover several months of activity
+    // IMPORTANT: For new contracts, we need to query from deployment block or use a wider range
     let fromBlock = BigInt(0)
     try {
       const currentBlock = await publicClient.getBlockNumber()
       const blockRange = BigInt(50000) // Last 50k blocks (safe margin)
       fromBlock = currentBlock > blockRange ? currentBlock - blockRange : BigInt(0)
       console.log(`Current block: ${currentBlock}, querying from block: ${fromBlock} (last ${blockRange} blocks)`)
+      
+      // If query fails, we'll retry from block 0 as fallback (handled in catch block)
     } catch (error) {
       console.warn('Could not get current block number:', error)
-      // If we can't get current block, we'll try from 0 and let error handling catch it
+      // If we can't get current block, try from 0 (will handle max range error if needed)
       fromBlock = BigInt(0)
     }
     
@@ -1978,6 +1992,40 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       referralLogs: referralLogs.length,
       impactFormLogs: impactFormLogs.length,
     })
+    
+    // Debug: Log actual event data to help diagnose missing level rewards
+    if (levelLogs.length > 0) {
+      console.log('✅ Level reward events found:', levelLogs.map((log: any) => ({
+        user: log.args?.user,
+        amount: log.args?.amount?.toString(),
+        blockNumber: log.blockNumber,
+        transactionHash: log.transactionHash,
+      })))
+    } else {
+      console.warn('⚠️ No LevelRewardDistributed events found for user:', userAddress)
+      console.warn('Contract address:', distributorAddress)
+      console.warn('Query from block:', fromBlock.toString())
+      console.warn('This could mean:')
+      console.warn('1. Events were emitted from a different contract address')
+      console.warn('2. Events were emitted before the query block range')
+      console.warn('3. Contract address might be incorrect')
+    }
+    
+    // Debug: Log actual event data to help diagnose missing level rewards
+    if (levelLogs.length > 0) {
+      console.log('Level reward events found:', levelLogs.map((log: any) => ({
+        user: log.args?.user,
+        amount: log.args?.amount?.toString(),
+        blockNumber: log.blockNumber,
+        transactionHash: log.transactionHash,
+      })))
+    } else {
+      console.warn('⚠️ No LevelRewardDistributed events found for user:', userAddress)
+      console.warn('This could mean:')
+      console.warn('1. Events were emitted from a different contract address')
+      console.warn('2. Events were emitted before the query block range')
+      console.warn('3. Contract address might be incorrect:', distributorAddress)
+    }
 
     // Calculate totals
     // Each LevelRewardDistributed event = 1 cleanup that was claimed
