@@ -975,7 +975,10 @@ export function WalletConnect() {
             </div>
           </div>
         </div>
-      )}
+        <span className="text-[10px] text-muted-foreground/70 text-right w-full">
+          Base Sepolia
+        </span>
+      </div>
     </div>
   )
 }
