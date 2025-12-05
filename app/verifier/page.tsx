@@ -43,8 +43,8 @@ interface CleanupItem {
   beforePhotoHash: string
   afterPhotoHash: string
   timestamp: bigint
-  latitude: bigint
-  longitude: bigint
+  latitude: number
+  longitude: number
   verified: boolean
   claimed: boolean
   rejected: boolean
@@ -906,10 +906,9 @@ export default function VerifierPage() {
     return new Date(Number(timestamp) * 1000).toLocaleString()
   }
 
-  function formatCoordinates(lat: bigint, lng: bigint): string {
-    const latNum = Number(lat) / 1e6
-    const lngNum = Number(lng) / 1e6
-    return `${latNum.toFixed(6)}, ${lngNum.toFixed(6)}`
+  function formatCoordinates(lat: number, lng: number): string {
+    // Coordinates are now already in decimal format (not scaled)
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
   }
 
   function getLevelName(level: number): string {
