@@ -25,7 +25,12 @@ export function AppHeader() {
           <span className="text-xs text-muted-foreground hidden sm:inline">
             Please connect on Base Sepolia
           </span>
-          <WalletConnect />
+          <div className="flex flex-col items-end gap-1">
+            <WalletConnect />
+            <span className="text-[10px] text-muted-foreground/70">
+              Connect via Base Sepolia
+            </span>
+          </div>
         </div>
       </div>
     </header>

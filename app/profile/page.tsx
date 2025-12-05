@@ -628,12 +628,9 @@ function ProfileContent() {
   return (
     <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
       <div className="mx-auto max-w-2xl">
-        {/* Header */}
-        <div className="mb-4">
-          <BackButton href="/" />
-        </div>
-
+        {/* Header - moved back button inside the flex container */}
         <div className="mb-6 flex items-start justify-between">
+          <BackButton href="/" />
           <div>
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               My Profile
@@ -695,10 +692,10 @@ function ProfileContent() {
               </h3>
             </div>
             <p className="text-3xl font-bold text-brand-green">
-              {profileData.totalRewardsDistributed > 0 ? profileData.totalRewardsDistributed.toFixed(0) : '0'}
+              {profileData.rewardsBreakdown.total > 0 ? profileData.rewardsBreakdown.total.toFixed(0) : '0'}
             </p>
             <p className="mt-1 text-xs text-gray-400">
-              From app actions only
+              From app actions only (sum of all rewards below)
             </p>
           </div>
         </div>

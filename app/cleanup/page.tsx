@@ -943,7 +943,10 @@ function CleanupContent() {
     return (
       <div className="min-h-screen bg-background px-4 py-8 pb-20">
         <div className="mx-auto max-w-md">
-          <BackButton href="/" label="Go Back" />
+          {/* Only show back button if there's no referral */}
+          {!referrerAddress && (
+            <BackButton href="/" label="Go Back" />
+          )}
           <div className="mt-8 flex items-center justify-center p-8">
             <Loader2 className="h-8 w-8 animate-spin text-brand-green" />
           </div>
@@ -962,7 +965,10 @@ function CleanupContent() {
           <p className="mb-6 text-gray-400">
             Please connect your wallet to submit a cleanup.
           </p>
-          <BackButton href="/" label="Go Back" />
+          {/* Only show back button if there's no referral */}
+          {!referrerAddress && (
+            <BackButton href="/" label="Go Back" />
+          )}
         </div>
       </div>
     )

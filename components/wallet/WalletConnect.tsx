@@ -840,19 +840,21 @@ export function WalletConnect() {
   // According to Farcaster docs: show all available connectors from wagmi
   // externalConnectors already includes Farcaster if in Farcaster context
   return (
-    <div className="relative">
-      <div className="flex items-center gap-2">
-        {/* Dropdown menu button */}
-        {externalConnectors.length > 0 ? (
-          <div className="relative">
-            <Button
-              size="sm"
-              onClick={() => setShowWalletMenu(!showWalletMenu)}
-              className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm"
-            >
-              <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span>Connect Wallet</span>
-              <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 transition-transform ${showWalletMenu ? 'rotate-180' : ''}`} />
+    <div className="relative inline-block">
+      <div className="flex flex-col items-end gap-1">
+        <div className="flex items-center gap-2">
+          {/* Dropdown menu button */}
+          {externalConnectors.length > 0 ? (
+            <div className="relative">
+              <Button
+                size="sm"
+                onClick={() => setShowWalletMenu(!showWalletMenu)}
+                className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm"
+              >
+                <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span>Connect Wallet</span>
+                <ChevronDown className={`h-3 w-3 sm:h-4 sm:w-4 transition-transform ${showWalletMenu ? 'rotate-180' : ''}`} />
+              </Button>
             </Button>
             
             {/* Dropdown menu */}
