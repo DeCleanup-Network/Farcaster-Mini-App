@@ -692,7 +692,7 @@ function ProfileContent() {
               </h3>
             </div>
             <p className="text-3xl font-bold text-brand-green">
-              {profileData.rewardsBreakdown.total > 0 ? profileData.rewardsBreakdown.total.toFixed(0) : '0'}
+              {profileData.totalRewardsDistributed > 0 ? profileData.totalRewardsDistributed.toFixed(0) : '0'}
             </p>
             <p className="mt-1 text-xs text-gray-400">
               From app actions only (sum of all rewards below)

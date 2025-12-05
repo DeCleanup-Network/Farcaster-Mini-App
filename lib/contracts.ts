@@ -230,6 +230,17 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
         retries++
       }
 
+      // If switch didn't work after polling, try one more time with longer delay
+      console.log(`[${context}] Chain switch polling didn't detect change, trying one more switch attempt...`)
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      const finalCheck = await getCurrentChainId()
+      if (finalCheck === REQUIRED_CHAIN_ID) {
+        console.log(`[${context}] ✅ Successfully switched to ${REQUIRED_CHAIN_NAME} on retry`)
+        return
+      }
+      
       throw new Error(`Failed to switch network. Please manually switch to ${REQUIRED_CHAIN_NAME} in your wallet.`)
     } catch (error: any) {
       console.error(`[${context}] Switch failed:`, error)
@@ -241,6 +252,13 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
       }
       
       const errorMessage = getErrorMessage(error)
+      
+      // If user rejected the switch, throw a clear error
+      if (errorMessage.includes('rejected') || errorMessage.includes('denied') || errorMessage.includes('User rejected')) {
+        throw new Error(
+          `Network switch was rejected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet and try again.`
+        )
+      }
 
       // If user rejected, throw specific error
       if (error?.code === 4001 || errorMessage.includes('rejected') || errorMessage.includes('User rejected')) {

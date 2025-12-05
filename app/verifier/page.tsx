@@ -1541,10 +1541,6 @@ export default function VerifierPage() {
               <strong className="text-green-300">Verifier Rewards:</strong> You receive <strong className="text-green-300">1 $bDCU</strong> for each cleanup you verify, whether you approve or reject it. 
               This rewards your verification activity and helps maintain quality standards.
             </p>
-            <p className="mt-2 text-xs text-gray-500">
-              <strong>Note:</strong> If you've also claimed Impact Products, submitted impact forms, received referrals, or maintained streaks using this wallet address, 
-              those rewards are included in your total earnings but shown separately above.
-            </p>
           </div>
         </div>
 
