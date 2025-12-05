@@ -2011,21 +2011,6 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       console.warn('3. Contract address might be incorrect')
     }
     
-    // Debug: Log actual event data to help diagnose missing level rewards
-    if (levelLogs.length > 0) {
-      console.log('Level reward events found:', levelLogs.map((log: any) => ({
-        user: log.args?.user,
-        amount: log.args?.amount?.toString(),
-        blockNumber: log.blockNumber,
-        transactionHash: log.transactionHash,
-      })))
-    } else {
-      console.warn('⚠️ No LevelRewardDistributed events found for user:', userAddress)
-      console.warn('This could mean:')
-      console.warn('1. Events were emitted from a different contract address')
-      console.warn('2. Events were emitted before the query block range')
-      console.warn('3. Contract address might be incorrect:', distributorAddress)
-    }
 
     // Calculate totals
     // Each LevelRewardDistributed event = 1 cleanup that was claimed
