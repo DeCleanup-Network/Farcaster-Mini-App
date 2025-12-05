@@ -1,0 +1,21 @@
+{
+  "network": "baseSepolia",
+  "address": "0x52db7E77E303574C9721Fd70797EA5D157C32DC1",
+  "impactProductNFT": "0x0E5713877D0B3610B58ACB5c13bdA41b61F6a0c9",
+  "rewardDistributor": "0x834aB1cB4547dD6667C747C430AF59ce413947cE",
+  "verifiers": [
+    "0x7d85fcbb505d48e6176483733b62b51704e0bf95"
+  ],
+  "submissionFee": "0",
+  "feeEnabled": false,
+  "claimFee": "7000000000000",
+  "claimFeeEnabled": true,
+  "deployer": "0x7D85fCbB505D48E6176483733b62b51704e0bF95",
+  "timestamp": "2025-12-05T15:17:20.339Z",
+  "features": [
+    "referral_protection",
+    "first_submission_tracking",
+    "claim_fee",
+    "submission_fee"
+  ]
+}

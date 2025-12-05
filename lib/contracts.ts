@@ -457,6 +457,8 @@ export const BDCU_REWARD_DISTRIBUTOR_ABI = parseAbi([
   'function getTotalDistributed(address user) external view returns (uint256)',
   'function globalTotalDistributed() external view returns (uint256)',
   'function totalDistributed(address user) external view returns (uint256)', // Mapping for verifier earnings
+  'function getStreakCount(address user) external view returns (uint256)',
+  'function hasActiveStreak(address user) external view returns (bool)',
   'function verificationContract() external view returns (address)',
   'event LevelRewardDistributed(address indexed user, uint256 amount)',
   'event StreakRewardDistributed(address indexed user, uint256 amount)',
@@ -723,9 +725,15 @@ export async function submitCleanup(
   // Pass providedChainId to avoid false positives when wallet is already on correct chain
   await ensureWalletOnRequiredChain('cleanup submission', providedChainId)
 
-  // Scale coordinates by 1e6
-  const latScaled = BigInt(Math.floor(latitude * 1e6))
-  const lngScaled = BigInt(Math.floor(longitude * 1e6))
+  // Scale coordinates by 1e6 and offset to handle negative values
+  // Contract uses uint256, so we need to offset negative coordinates
+  // Longitude: -180 to 180 -> offset by 180 * 1e6 (so -180 becomes 0, 180 becomes 360*1e6)
+  // Latitude: -90 to 90 -> offset by 90 * 1e6 (so -90 becomes 0, 90 becomes 180*1e6)
+  const LONGITUDE_OFFSET = 180 * 1e6
+  const LATITUDE_OFFSET = 90 * 1e6
+  
+  const latScaled = BigInt(Math.floor(latitude * 1e6) + LATITUDE_OFFSET)
+  const lngScaled = BigInt(Math.floor(longitude * 1e6) + LONGITUDE_OFFSET)
 
   // Trust providedChainId if it was provided and matches required chain
   // Only do additional checks if providedChainId is not available
@@ -1146,8 +1154,8 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
   beforePhotoHash: string
   afterPhotoHash: string
   timestamp: bigint
-  latitude: bigint
-  longitude: bigint
+  latitude: number
+  longitude: number
   verified: boolean
   claimed: boolean
   rejected: boolean
@@ -1173,8 +1181,10 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
       beforePhotoHash: result[1] as string,
       afterPhotoHash: result[2] as string,
       timestamp: result[3] as bigint,
-      latitude: result[4] as bigint,
-      longitude: result[5] as bigint,
+      // Convert back from offset coordinates
+      // Longitude: subtract 180 * 1e6, Latitude: subtract 90 * 1e6
+      latitude: (Number(result[4] as bigint) - 90 * 1e6) / 1e6,
+      longitude: (Number(result[5] as bigint) - 180 * 1e6) / 1e6,
       verified: result[6] as boolean,
       claimed: result[7] as boolean,
       rejected: result[8] as boolean,
@@ -1185,7 +1195,7 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
     }
   }
 
-  return result as unknown as {
+  const fallback = result as unknown as {
     user: `0x${string}`
     beforePhotoHash: string
     afterPhotoHash: string
@@ -1199,6 +1209,13 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
     referrer: `0x${string}`
     hasImpactForm: boolean
     impactReportHash: string
+  }
+  
+  return {
+    ...fallback,
+    // Convert back from offset coordinates
+    latitude: (Number(fallback.latitude) - 90 * 1e6) / 1e6,
+    longitude: (Number(fallback.longitude) - 180 * 1e6) / 1e6,
   }
 }
 
@@ -1612,25 +1629,56 @@ export async function rejectCleanup(
 }
 
 // Streak Functions
-// Note: Streak tracking is not currently implemented in bDCURewardDistributor
-// These functions return default values for UI compatibility
+// Streak tracking is implemented in bDCURewardDistributor
 
 /**
  * Get user's streak count
- * @deprecated Streak tracking not available - returns 0
+ * @param userAddress User address
+ * @returns Current streak count (in weeks)
  */
 export async function getStreakCount(userAddress: Address): Promise<number> {
-  // Streak tracking not implemented in bDCURewardDistributor
-  return 0
+  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+    return 0
+  }
+
+  try {
+    const count = await readContract(config, {
+      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
+      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'getStreakCount',
+      args: [userAddress],
+    })
+
+    return Number(count)
+  } catch (error: any) {
+    console.error('Error getting streak count:', error)
+    return 0
+  }
 }
 
 /**
  * Check if user has active streak
- * @deprecated Streak tracking not available - returns false
+ * @param userAddress User address
+ * @returns True if user has an active streak (last cleanup within 7 days)
  */
 export async function hasActiveStreak(userAddress: Address): Promise<boolean> {
-  // Streak tracking not implemented in bDCURewardDistributor
-  return false
+  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+    return false
+  }
+
+  try {
+    const hasStreak = await readContract(config, {
+      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
+      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'hasActiveStreak',
+      args: [userAddress],
+    })
+
+    return Boolean(hasStreak)
+  } catch (error: any) {
+    console.error('Error checking active streak:', error)
+    return false
+  }
 }
 
 /**

@@ -94,14 +94,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Upload to Pinata via server (no CORS issues)
-    const response = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
-      method: 'POST',
-      headers: {
-        pinata_api_key: pinataApiKey,
-        pinata_secret_api_key: pinataSecretKey,
-      },
-      body: pinataFormData,
-    })
+    // Use AbortController for timeout (Vercel serverless functions have 10s timeout on Hobby plan)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 25000) // 25 seconds timeout
+    
+    let response: Response
+    try {
+      response = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
+        method: 'POST',
+        headers: {
+          pinata_api_key: pinataApiKey,
+          pinata_secret_api_key: pinataSecretKey,
+        },
+        body: pinataFormData,
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      if (error.name === 'AbortError') {
+        return NextResponse.json(
+          { error: 'Upload timeout - file may be too large. Please try a smaller image or try again.' },
+          { status: 408 }
+        )
+      }
+      throw error
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))

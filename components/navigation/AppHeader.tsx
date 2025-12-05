@@ -22,9 +22,6 @@ export function AppHeader() {
           </div>
         </Link>
         <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
-          <span className="text-xs text-muted-foreground hidden sm:inline">
-            Please connect on Base Sepolia
-          </span>
           <WalletConnect />
         </div>
       </div>

@@ -40,6 +40,14 @@ contract bDCURewardDistributor is Ownable, ReentrancyGuard, Pausable {
     mapping(address => uint256) public totalDistributed; // user => total tokens received
     uint256 public globalTotalDistributed;
     
+    // Streak tracking
+    mapping(address => uint256) public streakCount; // user => current streak count (in weeks)
+    mapping(address => uint256) public lastCleanupTimestamp; // user => timestamp of last cleanup that counted for streak
+    uint256 public constant STREAK_WINDOW = 7 days; // Streak must be maintained within 7 days
+    
+    // Referral tracking - prevent duplicate referral rewards
+    mapping(address => bool) public hasReceivedReferralReward; // referee => whether they've received referral reward
+    
     // Events
     event LevelRewardDistributed(address indexed user, uint256 amount);
     event StreakRewardDistributed(address indexed user, uint256 amount);
@@ -85,32 +93,107 @@ contract bDCURewardDistributor is Ownable, ReentrancyGuard, Pausable {
     /**
      * @notice Distribute streak reward (2 $bDCU)
      * Called by VerificationContract when user maintains streak
+     * Updates streak count and distributes reward if streak is maintained
+     * 
+     * Streak logic:
+     * - First cleanup: Start streak at 1, no reward (this is the first cleanup)
+     * - Next cleanup within 7 days: Increment streak, give 2 $bDCU reward
+     * - Cleanup after 7+ days: Reset streak to 1, no reward (streak broken, starting new)
+     * 
      * @param user User address to receive tokens
      */
     function distributeStreakReward(address user) external whenNotPaused nonReentrant {
         require(_isAuthorizedCaller(), "Not authorized");
         require(user != address(0), "Invalid address");
         
-        uint256 contractBalance = bDCUToken.balanceOf(address(this));
-        require(contractBalance >= STREAK_REWARD, "Insufficient token balance");
+        uint256 currentTime = block.timestamp;
+        uint256 lastCleanup = lastCleanupTimestamp[user];
         
-        require(bDCUToken.transfer(user, STREAK_REWARD), "Transfer failed");
+        // Check if user has an active streak (last cleanup within STREAK_WINDOW)
+        // For first cleanup, lastCleanup will be 0, so this will be false
+        bool hasActiveStreak = lastCleanup > 0 && (currentTime - lastCleanup) <= STREAK_WINDOW;
         
-        totalDistributed[user] += STREAK_REWARD;
-        globalTotalDistributed += STREAK_REWARD;
+        if (hasActiveStreak) {
+            // User maintained streak - increment count and distribute reward
+            streakCount[user] += 1;
+            lastCleanupTimestamp[user] = currentTime;
+            
+            uint256 contractBalance = bDCUToken.balanceOf(address(this));
+            require(contractBalance >= STREAK_REWARD, "Insufficient token balance");
+            
+            require(bDCUToken.transfer(user, STREAK_REWARD), "Transfer failed");
+            
+            totalDistributed[user] += STREAK_REWARD;
+            globalTotalDistributed += STREAK_REWARD;
+            
+            emit StreakRewardDistributed(user, STREAK_REWARD);
+        } else {
+            // User is starting a new streak (first cleanup or streak was broken)
+            // Reset streak to 1 for the current cleanup
+            streakCount[user] = 1;
+            lastCleanupTimestamp[user] = currentTime;
+            
+            // No streak reward for first cleanup or when streak is broken
+            // User still gets level reward (10 $bDCU) from ImpactProductNFT
+        }
+    }
+    
+    /**
+     * @notice Get user's current streak count
+     * @param user User address
+     * @return Current streak count (in weeks)
+     */
+    function getStreakCount(address user) external view returns (uint256) {
+        // Check if streak is still active
+        uint256 currentTime = block.timestamp;
+        uint256 lastCleanup = lastCleanupTimestamp[user];
         
-        emit StreakRewardDistributed(user, STREAK_REWARD);
+        if (lastCleanup == 0) {
+            return 0; // No streak started
+        }
+        
+        // If streak is broken (outside window), return 0
+        if ((currentTime - lastCleanup) > STREAK_WINDOW) {
+            return 0;
+        }
+        
+        return streakCount[user];
+    }
+    
+    /**
+     * @notice Check if user has an active streak
+     * @param user User address
+     * @return True if user has an active streak (last cleanup within STREAK_WINDOW)
+     */
+    function hasActiveStreak(address user) external view returns (bool) {
+        uint256 currentTime = block.timestamp;
+        uint256 lastCleanup = lastCleanupTimestamp[user];
+        
+        if (lastCleanup == 0) {
+            return false; // No streak started
+        }
+        
+        // Streak is active if last cleanup was within STREAK_WINDOW
+        return (currentTime - lastCleanup) <= STREAK_WINDOW;
     }
     
     /**
      * @notice Distribute referral reward (3 $bDCU to both referrer and referee)
+     * @dev Can only be called once per referee - prevents duplicate referral rewards
      * @param referrerAddress Referrer address
-     * @param refereeAddress Referee address
+     * @param refereeAddress Referee address (must be first-time user)
      */
     function distributeReferralReward(address referrerAddress, address refereeAddress) external whenNotPaused nonReentrant {
         require(_isAuthorizedCaller(), "Not authorized");
         require(referrerAddress != address(0) && refereeAddress != address(0), "Invalid address");
         require(referrerAddress != refereeAddress, "Cannot refer yourself");
+        
+        // IMPORTANT: Referee can only receive referral reward ONCE (on their first submission)
+        // This prevents users from getting multiple referral rewards by using different referral links
+        require(!hasReceivedReferralReward[refereeAddress], "Referee has already received referral reward");
+        
+        // Mark referee as having received referral reward (prevents future rewards)
+        hasReceivedReferralReward[refereeAddress] = true;
         
         uint256 totalNeeded = REFERRAL_REWARD * 2;
         uint256 contractBalance = bDCUToken.balanceOf(address(this));

@@ -34,6 +34,9 @@ contract VerificationContract is Ownable, ReentrancyGuard {
     // Cleanup counter
     uint256 public cleanupCounter;
     
+    // Track if user has ever submitted a cleanup (prevents multiple referral rewards)
+    mapping(address => bool) public hasSubmittedCleanup;
+    
     // Verifier allowlist (multiple verifiers can verify)
     mapping(address => bool) public verifiers;
     
@@ -126,6 +129,18 @@ contract VerificationContract is Ownable, ReentrancyGuard {
             // Fee is automatically sent to contract, owner can withdraw
         }
         
+        // IMPORTANT: Referral is only valid for the user's FIRST submission
+        // If user has already submitted before, ignore referrer (set to address(0))
+        address validReferrer = address(0);
+        if (!hasSubmittedCleanup[msg.sender] && referrerAddress != address(0) && referrerAddress != msg.sender) {
+            // This is user's first submission and they have a valid referrer
+            validReferrer = referrerAddress;
+        }
+        // If user has already submitted, validReferrer remains address(0) (no referral reward)
+        
+        // Mark user as having submitted (prevents future referral rewards)
+        hasSubmittedCleanup[msg.sender] = true;
+        
         uint256 cleanupId = cleanupCounter;
         cleanupCounter++;
         
@@ -140,7 +155,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
             claimed: false,
             rejected: false,
             level: 0,
-            referrer: referrerAddress,
+            referrer: validReferrer, // Only set if first submission and valid referrer
             hasImpactForm: hasImpactForm,
             impactReportHash: impactReportHash
         });

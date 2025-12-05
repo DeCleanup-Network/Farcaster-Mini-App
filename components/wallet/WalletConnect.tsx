@@ -88,20 +88,33 @@ export function WalletConnect() {
       }
       
       // On desktop (not Farcaster): Prioritize browser wallet, WalletConnect as fallback
-      if (isInjected) return true // Show browser wallet on desktop (MetaMask, etc.)
-      // Only show WalletConnect if no injected wallet is available
-      if (isWalletConnect) {
+      // Always show injected wallets on desktop/web (not in Farcaster)
+      if (isInjected) {
+        // Double-check: ensure we're not in Farcaster before showing injected
+        // Also check if window.ethereum exists (browser wallet available)
+        if (!isInFarcaster && typeof window !== 'undefined' && (window as any)?.ethereum) {
+          return true // Show browser wallet on desktop/web
+        }
+        // If in Farcaster, don't show injected
+        return false
+      }
+      
+      // Only show WalletConnect if no injected wallet is available AND not in Farcaster
+      if (isWalletConnect && !isInFarcaster) {
         // Check if there's an injected wallet available
         const hasInjected = connectors.some(conn => {
           const connName = conn.name.toLowerCase()
           const connId = conn.id?.toLowerCase() || ''
-          return (connName === 'injected' || connId === 'injected' || 
+          const isInjectedConn = (connName === 'injected' || connId === 'injected' || 
             connName.includes('browser') || connId.includes('browser') ||
             connName.includes('metamask') || connId.includes('metamask')) &&
             !connName.includes('farcaster') && !connId.includes('farcaster')
+          return isInjectedConn
         })
+        // Check if window.ethereum exists (browser wallet extension installed)
+        const hasBrowserWallet = typeof window !== 'undefined' && !!(window as any)?.ethereum
         // Only show WalletConnect if no injected wallet is available
-        return !hasInjected
+        return !hasInjected && !hasBrowserWallet
       }
       
       return false

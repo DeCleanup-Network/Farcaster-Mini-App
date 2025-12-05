@@ -37,14 +37,35 @@ export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
     formData.append('options', options)
 
     // Upload via our API route (avoids CORS)
-    const response = await fetch('/api/ipfs/upload', {
-      method: 'POST',
-      body: formData,
-    })
+    // Add timeout for large files (30 seconds)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds
+    
+    let response: Response
+    try {
+      response = await fetch('/api/ipfs/upload', {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      if (error.name === 'AbortError') {
+        throw new Error('Upload timeout - file may be too large. Please try a smaller image (max 10MB) or check your internet connection.')
+      }
+      throw error
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       console.error('IPFS upload error:', errorData)
+      
+      // Handle timeout specifically
+      if (response.status === 408) {
+        throw new Error('Upload timeout - file may be too large. Please try a smaller image (max 10MB per image) or check your internet connection.')
+      }
+      
       throw new Error(`Failed to upload to IPFS: ${errorData.error || response.statusText || 'Network error'}`)
     }
 
