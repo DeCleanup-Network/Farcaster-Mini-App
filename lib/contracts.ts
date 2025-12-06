@@ -457,6 +457,7 @@ export const VERIFICATION_ABI = parseAbi([
   'function getSubmissionFee() external view returns (uint256 fee, bool enabled)',
   'function getClaimFee() external view returns (uint256 fee, bool enabled)',
   'function isRejected(uint256 cleanupId) external view returns (bool)',
+  'function hasSubmittedCleanup(address user) external view returns (bool)',
 ])
 
 // ERC20 Token ABI (for Clanker $bDCU token)
@@ -477,6 +478,7 @@ export const BDCU_REWARD_DISTRIBUTOR_ABI = parseAbi([
   'function totalDistributed(address user) external view returns (uint256)', // Mapping for verifier earnings
   'function getStreakCount(address user) external view returns (uint256)',
   'function hasActiveStreak(address user) external view returns (bool)',
+  'function hasReceivedReferralReward(address user) external view returns (bool)',
   'function verificationContract() external view returns (address)',
   'event LevelRewardDistributed(address indexed user, uint256 amount)',
   'event StreakRewardDistributed(address indexed user, uint256 amount)',
@@ -1709,6 +1711,86 @@ export async function hasActiveStreak(userAddress: Address): Promise<boolean> {
   } catch (error: any) {
     console.error('Error checking active streak:', error)
     return false
+  }
+}
+
+/**
+ * Check if user has already received a referral reward
+ * Returns true if user already received referral reward (cannot use referral link again)
+ */
+export async function hasReceivedReferralReward(userAddress: Address): Promise<boolean> {
+  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+    return false
+  }
+
+  try {
+    const hasReceived = await readContract(config, {
+      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
+      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'hasReceivedReferralReward',
+      args: [userAddress],
+    })
+
+    return Boolean(hasReceived)
+  } catch (error: any) {
+    console.error('Error checking referral reward status:', error)
+    return false
+  }
+}
+
+/**
+ * Check if user has already submitted a cleanup
+ * Returns true if user already submitted (cannot use referral link again)
+ */
+export async function hasSubmittedCleanup(userAddress: Address): Promise<boolean> {
+  if (!CONTRACT_ADDRESSES.VERIFICATION) {
+    return false
+  }
+
+  try {
+    const hasSubmitted = await readContract(config, {
+      address: CONTRACT_ADDRESSES.VERIFICATION,
+      abi: VERIFICATION_ABI,
+      functionName: 'hasSubmittedCleanup',
+      args: [userAddress],
+    })
+
+    return Boolean(hasSubmitted)
+  } catch (error: any) {
+    console.error('Error checking cleanup submission status:', error)
+    return false
+  }
+}
+
+/**
+ * Check if user is eligible for referral reward
+ * Returns { eligible: boolean, reason?: string }
+ */
+export async function checkReferralEligibility(userAddress: Address): Promise<{ eligible: boolean; reason?: string }> {
+  try {
+    // Check if user already received referral reward
+    const hasReceived = await hasReceivedReferralReward(userAddress)
+    if (hasReceived) {
+      return {
+        eligible: false,
+        reason: 'You have already received a referral reward. Each user can only receive referral rewards once.',
+      }
+    }
+
+    // Check if user already submitted a cleanup
+    const hasSubmitted = await hasSubmittedCleanup(userAddress)
+    if (hasSubmitted) {
+      return {
+        eligible: false,
+        reason: 'You have already submitted a cleanup. Referral rewards are only available for first-time users.',
+      }
+    }
+
+    return { eligible: true }
+  } catch (error: any) {
+    console.error('Error checking referral eligibility:', error)
+    // On error, allow referral (contract will reject if ineligible)
+    return { eligible: true }
   }
 }
 

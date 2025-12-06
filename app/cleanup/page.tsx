@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
 import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle, Users } from 'lucide-react'
 import { uploadToIPFS, uploadJSONToIPFS, getIPFSUrl } from '@/lib/ipfs'
-import { submitCleanup, getSubmissionFee, getCleanupStatus, getUserLevel, CONTRACT_ADDRESSES } from '@/lib/contracts'
+import { submitCleanup, getSubmissionFee, getCleanupStatus, getUserLevel, CONTRACT_ADDRESSES, checkReferralEligibility } from '@/lib/contracts'
 import { clearPendingCleanupData, resetSubmissionCounting } from '@/lib/clear-cleanup-data'
 import type { Address } from 'viem'
 import { tryAddRequiredChain } from '@/lib/network'
@@ -100,6 +100,8 @@ function CleanupContent() {
   
   // Read referrer from URL params and persist it
   const [showReferralNotification, setShowReferralNotification] = useState(false)
+  const [referralEligible, setReferralEligible] = useState<boolean | null>(null)
+  const [referralIneligibleReason, setReferralIneligibleReason] = useState<string | null>(null)
   
   useEffect(() => {
     if (!mounted || typeof window === 'undefined') return
@@ -131,8 +133,6 @@ function CleanupContent() {
       if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
         const referrerAddr = ref as Address
         setReferrerAddress(referrerAddr)
-        // Show notification to user that they were referred
-        setShowReferralNotification(true)
         // Persist referrer in localStorage so it's available when user submits
           // Store referrer even before address is available
           const referrerKey = `referrer_pending`
@@ -175,6 +175,33 @@ function CleanupContent() {
       }
     }
   }, [mounted, searchParams, address])
+
+  // Check referral eligibility when address and referrer are available
+  useEffect(() => {
+    if (!address || !referrerAddress || !isConnected) {
+      setReferralEligible(null)
+      setReferralIneligibleReason(null)
+      setShowReferralNotification(false)
+      return
+    }
+
+    async function checkEligibility() {
+      try {
+        const eligibility = await checkReferralEligibility(address)
+        setReferralEligible(eligibility.eligible)
+        setReferralIneligibleReason(eligibility.reason || null)
+        // Show notification regardless - if not eligible, we'll show a different message
+        setShowReferralNotification(true)
+      } catch (error) {
+        console.error('Error checking referral eligibility:', error)
+        // On error, assume eligible (contract will reject if not)
+        setReferralEligible(true)
+        setShowReferralNotification(true)
+      }
+    }
+
+    checkEligibility()
+  }, [address, referrerAddress, isConnected])
 
   // Impact Report form data
   const [enhancedData, setEnhancedData] = useState({
@@ -922,6 +949,54 @@ function CleanupContent() {
   const ReferralNotification = () => {
     if (!showReferralNotification || !referrerAddress) return null
     
+    // Show loading state while checking eligibility
+    if (referralEligible === null) {
+      return (
+        <div className="mb-6 rounded-lg border-2 border-gray-600 bg-gray-900/50 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-gray-400">Checking referral eligibility...</p>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    
+    // Show ineligible message if user already used referral
+    if (referralEligible === false) {
+      return (
+        <div className="mb-6 rounded-lg border-2 border-yellow-600 bg-yellow-900/20 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <AlertCircle className="h-5 w-5 text-yellow-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className="mb-1 text-sm font-bold uppercase text-yellow-500">
+                ⚠️ Referral Already Used
+              </h3>
+              <p className="text-sm text-gray-300">
+                {referralIneligibleReason || 'You have already used a referral link. Each user can only receive referral rewards once.'}
+              </p>
+              <p className="mt-2 text-xs text-gray-400">
+                You can still submit cleanups and earn rewards, but you won't receive additional referral rewards.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowReferralNotification(false)}
+              className="flex-shrink-0 text-gray-400 hover:text-white"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )
+    }
+    
+    // Show eligible message
     return (
       <div className="mb-6 rounded-lg border-2 border-brand-green bg-brand-green/10 p-4">
         <div className="flex items-start gap-3">
@@ -933,7 +1008,7 @@ function CleanupContent() {
               🎉 You Were Invited!
             </h3>
             <p className="text-sm text-gray-300">
-              You've been referred to DeCleanup Rewards! When you submit your first cleanup and it gets verified, both you and your referrer will earn <strong className="text-white">3 $DCU</strong> each.
+              You've been referred to DeCleanup Rewards! When you submit your first cleanup and it gets verified, both you and your referrer will earn <strong className="text-white">3 $bDCU</strong> each.
             </p>
             <p className="mt-2 text-xs text-gray-400">
               Submit a cleanup below to get started and claim your referral reward!

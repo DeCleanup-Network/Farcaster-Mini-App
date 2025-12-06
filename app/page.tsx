@@ -537,9 +537,11 @@ export default function Home() {
 
                 <Button
                   onClick={async () => {
-                    const { generateReferralLink, formatReferralMessage } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address, 'web', false)
-                    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(formatReferralMessage(referralLink, 'web'))}`
+                    const { formatReferralMessage } = await import('@/lib/farcaster')
+                    // For X/Telegram, use direct web app URL to avoid WalletConnect issues in in-app browsers
+                    const webAppUrl = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
+                    const directReferralLink = `${webAppUrl}/cleanup?ref=${address}`
+                    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(formatReferralMessage(directReferralLink, 'web'))}`
                     window.open(xUrl, '_blank')
                   }}
                   variant="outline"
