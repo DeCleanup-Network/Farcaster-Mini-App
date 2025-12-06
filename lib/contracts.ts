@@ -2066,7 +2066,24 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       return sum + parseFloat(formatUnits(amount, 18))
     }, 0)
 
-    const total = levelRewards + streakRewards + referralRewards + impactFormRewards
+    // If level rewards are missing but we have other rewards, try to calculate from totalDistributed
+    // This handles cases where level rewards were distributed from the old contract
+    let calculatedLevelRewards = levelRewards
+    if (levelRewards === 0 && (streakRewards > 0 || referralRewards > 0 || impactFormRewards > 0)) {
+      try {
+        const totalDistributed = await getTotalRewardsDistributed(userAddress)
+        const calculatedFromTotal = totalDistributed - streakRewards - referralRewards - impactFormRewards
+        if (calculatedFromTotal > 0) {
+          calculatedLevelRewards = calculatedFromTotal
+          console.log(`⚠️ Level rewards not found in events, but calculated from totalDistributed: ${calculatedLevelRewards} $bDCU`)
+          console.log(`   Total distributed: ${totalDistributed}, Other rewards: ${streakRewards + referralRewards + impactFormRewards}`)
+        }
+      } catch (error) {
+        console.warn('Could not calculate level rewards from totalDistributed:', error)
+      }
+    }
+
+    const total = calculatedLevelRewards + streakRewards + referralRewards + impactFormRewards
 
     console.log(`Rewards breakdown for ${userAddress}:`, {
       cleanupCount,
@@ -2089,9 +2106,16 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       console.warn(`3. Contract address might be wrong: ${distributorAddress}`)
     }
 
+    // Use calculated level rewards if we had to calculate them
+    const finalLevelRewards = calculatedLevelRewards
+    // Estimate cleanup count from level rewards (10 $bDCU per cleanup)
+    const estimatedCleanupCount = calculatedLevelRewards > 0 && cleanupCount === 0 
+      ? Math.floor(calculatedLevelRewards / 10) 
+      : cleanupCount
+
     return {
-      levelRewards,
-      cleanupCount,
+      levelRewards: finalLevelRewards,
+      cleanupCount: estimatedCleanupCount,
       streakRewards,
       referralRewards,
       impactFormRewards,
