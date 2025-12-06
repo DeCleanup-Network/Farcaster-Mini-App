@@ -740,13 +740,15 @@ export async function submitCleanup(
     )
   }
 
-  // Note: Chain switching is handled by wallet - user should ensure they're on Base Sepolia
-  // We'll still check but won't throw errors that block submission
+  // Verify chain before submission - this is critical for transaction success
   try {
     await ensureWalletOnRequiredChain('cleanup submission', providedChainId)
   } catch (chainError: any) {
-    // Log but don't block - let the transaction fail naturally if on wrong chain
-    console.warn('Chain check warning:', chainError?.message)
+    // If chain check fails, throw error to prevent transaction on wrong chain
+    // This ensures user gets clear feedback before attempting transaction
+    throw new Error(
+      `Network Error: ${chainError?.message || 'Please switch to Base Sepolia Testnet in your wallet before submitting.'}`
+    )
   }
 
   // Scale coordinates by 1e6 and offset to handle negative values

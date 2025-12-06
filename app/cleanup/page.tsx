@@ -1158,6 +1158,11 @@ function CleanupContent() {
                 <p className="text-sm text-gray-400">
                   Upload before and after cleanup photos with geotag. Supported formats: JPEG, JPG, HEIC. Maximum size per image: 10 MB.
                 </p>
+                <div className="mt-3 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
+                  <p className="text-xs text-blue-300">
+                    <strong>Note:</strong> Make sure your wallet is connected to Base Sepolia chain to ensure smooth performance and successful transactions.
+                  </p>
+                </div>
               </div>
 
               <div className="mb-6">
