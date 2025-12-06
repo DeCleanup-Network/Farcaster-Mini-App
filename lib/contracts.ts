@@ -1812,19 +1812,25 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
     
     // RPC has max block range of 100,000 blocks
     // Query from the last 50,000 blocks to stay well within limits
-    // This should cover several months of activity
-    // IMPORTANT: For new contracts, we need to query from deployment block or use a wider range
+    // IMPORTANT: For new contracts, we need to query from deployment block
+    // Try to get deployment block from environment or use a safe range
     let fromBlock = BigInt(0)
     try {
       const currentBlock = await publicClient.getBlockNumber()
-      const blockRange = BigInt(50000) // Last 50k blocks (safe margin)
-      fromBlock = currentBlock > blockRange ? currentBlock - blockRange : BigInt(0)
-      console.log(`Current block: ${currentBlock}, querying from block: ${fromBlock} (last ${blockRange} blocks)`)
       
-      // If query fails, we'll retry from block 0 as fallback (handled in catch block)
+      // Try to get deployment block from environment (if set)
+      const deploymentBlock = process.env.NEXT_PUBLIC_BDCU_DISTRIBUTOR_DEPLOYMENT_BLOCK
+      if (deploymentBlock) {
+        fromBlock = BigInt(deploymentBlock)
+        console.log(`Using deployment block from env: ${fromBlock}`)
+      } else {
+        // Use last 50k blocks as safe margin
+        const blockRange = BigInt(50000)
+        fromBlock = currentBlock > blockRange ? currentBlock - blockRange : BigInt(0)
+        console.log(`Current block: ${currentBlock}, querying from block: ${fromBlock} (last ${blockRange} blocks)`)
+      }
     } catch (error) {
       console.warn('Could not get current block number:', error)
-      // If we can't get current block, try from 0 (will handle max range error if needed)
       fromBlock = BigInt(0)
     }
     
@@ -1931,17 +1937,30 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       console.warn('Query with args filter failed:', error?.message)
       
       // If it's a block range error, try querying from a more recent block
+      // Also try querying ALL events (no user filter) and filter client-side as fallback
       if (error?.message?.includes('max block range')) {
         try {
           const currentBlock = await publicClient.getBlockNumber()
-          const recentFromBlock = currentBlock - BigInt(50000) // Last 50k blocks
+          const recentFromBlock = currentBlock > BigInt(50000) ? currentBlock - BigInt(50000) : BigInt(0)
           console.log(`Retrying from recent block ${recentFromBlock} (last 50k blocks)`)
           
+          // Try querying without user filter first (more likely to succeed, then filter client-side)
           const [allLevelLogs, allStreakLogs, allReferralLogs, allImpactFormLogs] = await Promise.all([
             publicClient.getLogs({
               address: distributorAddress,
               event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
               fromBlock: recentFromBlock,
+            }).catch((queryError: any) => {
+              // If that fails, try from block 0 (will handle max range in next catch)
+              console.log('Query without user filter failed, trying from block 0...', queryError?.message)
+              return publicClient.getLogs({
+                address: distributorAddress,
+                event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
+                fromBlock: BigInt(0),
+              }).catch(() => {
+                console.warn('Query from block 0 also failed, returning empty array')
+                return []
+              })
             }),
             publicClient.getLogs({
               address: distributorAddress,
@@ -1962,7 +1981,19 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
           
           // Filter client-side
           const userLower = userAddress.toLowerCase()
-          levelLogs = allLevelLogs.filter((log: any) => log.args?.user?.toLowerCase() === userLower)
+          levelLogs = allLevelLogs.filter((log: any) => {
+            const logUser = log.args?.user?.toLowerCase()
+            const matches = logUser === userLower
+            if (matches) {
+              console.log('✅ Found level reward event in fallback query:', {
+                user: log.args?.user,
+                amount: log.args?.amount?.toString(),
+                blockNumber: log.blockNumber,
+                transactionHash: log.transactionHash,
+              })
+            }
+            return matches
+          })
           streakLogs = allStreakLogs.filter((log: any) => log.args?.user?.toLowerCase() === userLower)
           referralLogs = allReferralLogs.filter((log: any) => {
             const referrer = log.args?.referrer?.toLowerCase()
@@ -1971,7 +2002,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
           })
           impactFormLogs = allImpactFormLogs.filter((log: any) => log.args?.user?.toLowerCase() === userLower)
           
-          console.log(`Query from recent block succeeded`)
+          console.log(`Query from recent block succeeded, found ${levelLogs.length} level reward events after filtering`)
         } catch (recentError: any) {
           console.error('Query from recent block also failed:', recentError)
           // Return empty arrays - we'll show 0 but at least the page won't crash
