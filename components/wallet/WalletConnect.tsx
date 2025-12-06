@@ -376,6 +376,18 @@ export function WalletConnect() {
     }
   }, [isConnected])
 
+  // Log connection state changes (only when it actually changes)
+  useEffect(() => {
+    if (isConnected && address && mounted) {
+      console.log('Connected wallet:', {
+        address,
+        connector: connector?.name,
+        connectorId: connector?.id,
+        isFarcaster: connector?.name?.toLowerCase().includes('farcaster'),
+      })
+    }
+  }, [isConnected, address, connector?.name, connector?.id, mounted])
+
   // Fetch ENS name when address changes
   useEffect(() => {
     if (!address || !isConnected) {
@@ -671,16 +683,6 @@ export function WalletConnect() {
 
   // Connected state
   if (isConnected && address) {
-    // Log the connected wallet for debugging
-    if (typeof window !== 'undefined') {
-      console.log('Connected wallet:', {
-        address,
-        connector: connector?.name,
-        connectorId: connector?.id,
-        isFarcaster: connector?.name?.toLowerCase().includes('farcaster'),
-      })
-    }
-
     return (
       <div className="relative">
         <div className="flex items-center gap-2">

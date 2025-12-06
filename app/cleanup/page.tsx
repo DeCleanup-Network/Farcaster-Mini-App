@@ -408,7 +408,7 @@ function CleanupContent() {
               return
             }
 
-            // Create object URL for preview
+            // Create object URL for preview and preload the image
             try {
               // Clean up previous object URL if it exists
               if (type === 'before' && beforePhotoUrl) {
@@ -419,13 +419,26 @@ function CleanupContent() {
 
               const objectUrl = URL.createObjectURL(file)
               
-              if (type === 'before') {
-                setBeforePhoto(file)
-                setBeforePhotoUrl(objectUrl)
-              } else if (type === 'after') {
-                setAfterPhoto(file)
-                setAfterPhotoUrl(objectUrl)
+              // Preload the image to ensure the blob URL is valid before setting state
+              // This prevents Safari/WebKit blob resource errors
+              const img = new Image()
+              img.onload = () => {
+                // Image loaded successfully, now it's safe to set state
+                if (type === 'before') {
+                  setBeforePhoto(file)
+                  setBeforePhotoUrl(objectUrl)
+                } else if (type === 'after') {
+                  setAfterPhoto(file)
+                  setAfterPhotoUrl(objectUrl)
+                }
               }
+              img.onerror = () => {
+                // Image failed to load, clean up and show error
+                URL.revokeObjectURL(objectUrl)
+                setPhotoError('Failed to load image preview. The file may be corrupted. Please try a different image.')
+                alert('Failed to load image preview. The file may be corrupted. Please try a different image.')
+              }
+              img.src = objectUrl
             } catch (urlError) {
               console.error('Error creating object URL:', urlError)
               setPhotoError('Failed to load image preview. The file may be corrupted. Please try a different image.')
