@@ -1954,8 +1954,8 @@ function CleanupContent() {
               <img
                 src={
                   beforePhotoIPFSHash 
-                    ? getIPFSUrl(beforePhotoIPFSHash)
-                    : beforePhotoUrl || ''
+                    ? (getIPFSUrl(beforePhotoIPFSHash) ?? '')
+                    : (beforePhotoUrl ?? '')
                 }
                 alt="Before"
                 className="h-32 w-full rounded-lg object-cover"
@@ -1974,8 +1974,8 @@ function CleanupContent() {
               <img
                 src={
                   afterPhotoIPFSHash 
-                    ? getIPFSUrl(afterPhotoIPFSHash)
-                    : afterPhotoUrl || ''
+                    ? (getIPFSUrl(afterPhotoIPFSHash) ?? '')
+                    : (afterPhotoUrl ?? '')
                 }
                 alt="After"
                 className="h-32 w-full rounded-lg object-cover"
