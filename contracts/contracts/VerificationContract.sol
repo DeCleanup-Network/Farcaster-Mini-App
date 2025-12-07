@@ -129,14 +129,26 @@ contract VerificationContract is Ownable, ReentrancyGuard {
             // Fee is automatically sent to contract, owner can withdraw
         }
         
-        // IMPORTANT: Referral is only valid for the user's FIRST submission
-        // If user has already submitted before, ignore referrer (set to address(0))
+        // IMPORTANT: Referral is only valid for the user's FIRST submission AND if they haven't received a referral reward yet
+        // Check both conditions to prevent duplicate referral rewards
         address validReferrer = address(0);
-        if (!hasSubmittedCleanup[msg.sender] && referrerAddress != address(0) && referrerAddress != msg.sender) {
-            // This is user's first submission and they have a valid referrer
+        bool hasReceivedReferral = false;
+        try IRewardDistributor(rewardDistributor).hasReceivedReferralReward(msg.sender) returns (bool result) {
+            hasReceivedReferral = result;
+        } catch {
+            // If check fails (e.g., old contract), assume false and let distributeReferralReward handle it
+            hasReceivedReferral = false;
+        }
+        
+        // Only set referrer if:
+        // 1. User hasn't submitted before
+        // 2. User hasn't received a referral reward yet
+        // 3. Referrer address is valid and not self
+        if (!hasSubmittedCleanup[msg.sender] && !hasReceivedReferral && referrerAddress != address(0) && referrerAddress != msg.sender) {
+            // This is user's first submission, they haven't received referral reward, and they have a valid referrer
             validReferrer = referrerAddress;
         }
-        // If user has already submitted, validReferrer remains address(0) (no referral reward)
+        // If user has already submitted or received referral reward, validReferrer remains address(0) (no referral reward)
         
         // Mark user as having submitted (prevents future referral rewards)
         hasSubmittedCleanup[msg.sender] = true;

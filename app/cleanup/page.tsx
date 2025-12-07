@@ -715,6 +715,22 @@ function CleanupContent() {
       // Chain switching is handled by ensureWalletOnRequiredChain() in submitCleanup()
       // No need to duplicate the logic here - it will handle switching and show errors if needed
       
+      // Check referral eligibility if referrer is provided
+      // Prevent submission with referral link if user is not eligible
+      if (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') {
+        try {
+          const eligibility = await checkReferralEligibility(address!)
+          if (!eligibility.eligible) {
+            alert(`Cannot submit with referral link: ${eligibility.reason || 'You are not eligible for referral rewards.'}\n\nYou can still submit without the referral link.`)
+            setIsSubmitting(false)
+            return
+          }
+        } catch (error) {
+          console.error('Error checking referral eligibility:', error)
+          // On error, allow submission (contract will reject if ineligible)
+        }
+      }
+      
       // Submit to contract
       console.log('Submitting to contract...')
       console.log('Contract address:', CONTRACT_ADDRESSES.VERIFICATION)
@@ -730,12 +746,17 @@ function CleanupContent() {
       
       try {
         // Pass chainId from hook to avoid false chain detection issues
+        // If user is not eligible for referral, pass null as referrerAddress (contract will ignore it anyway)
+        const finalReferrerAddress = (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') 
+          ? referrerAddress 
+          : null
+        
         const cleanupId = await submitCleanup(
           beforeHash.hash,
           afterHash.hash,
           location.lat,
           location.lng,
-          referrerAddress, // Use referrer from URL if available
+          finalReferrerAddress, // Use referrer from URL if available and eligible
           hasForm,
           impactFormDataHash || '',
           feeValue, // Include fee if required

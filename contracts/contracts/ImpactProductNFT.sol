@@ -287,5 +287,6 @@ interface IRewardDistributor {
     function distributeImpactFormReward(address user, uint256 cleanupId) external;
     function distributeVerifierReward(address verifier, uint256 cleanupId) external;
     function setReferrer(address referee, address referrer) external; // Only in old RewardDistributor
+    function hasReceivedReferralReward(address user) external view returns (bool); // Check if user already received referral reward
 }
 
