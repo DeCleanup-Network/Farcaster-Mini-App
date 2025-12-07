@@ -186,6 +186,9 @@ function CleanupContent() {
     }
 
     async function checkEligibility() {
+      // Type guard: address is already checked in useEffect condition
+      if (!address) return
+      
       try {
         const eligibility = await checkReferralEligibility(address)
         setReferralEligible(eligibility.eligible)
