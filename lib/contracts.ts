@@ -870,41 +870,62 @@ export async function submitCleanup(
     console.log('[cleanup submission] ✅ Chain validated via providedChainId, skipping pre-tx check')
   }
 
-  // Safari/WalletConnect specific handling
+  // Safari/WalletConnect/Farcaster specific handling
   const isSafari = typeof window !== 'undefined' && /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
   const account = await getAccount(config)
   const isWalletConnect = account.connector?.id?.includes('walletConnect') || 
                           account.connector?.name?.toLowerCase().includes('walletconnect')
+  const isFarcaster = account.connector?.id?.includes('farcaster') || 
+                      account.connector?.name?.toLowerCase().includes('farcaster') ||
+                      account.connector?.name?.toLowerCase().includes('miniapp') ||
+                      account.connector?.id?.toLowerCase().includes('miniapp')
   const isSafariWalletConnect = isSafari && isWalletConnect
+  const isFarcasterWalletConnect = isFarcaster && isWalletConnect
 
-  // For Safari/WalletConnect, add extra delay and verification before transaction
-  if (isSafariWalletConnect) {
-    console.log('[submitCleanup] Safari/WalletConnect detected, ensuring chain is ready...')
+  // For Safari/WalletConnect/Farcaster, add extra delay and verification before transaction
+  if (isSafariWalletConnect || isFarcaster || isFarcasterWalletConnect) {
+    const context = isFarcaster ? 'Farcaster' : isSafariWalletConnect ? 'Safari/WalletConnect' : 'WalletConnect'
+    console.log(`[submitCleanup] ${context} detected, ensuring chain is ready...`)
     
-    // Verify WalletConnect provider is ready
+    // Verify provider is ready
     try {
       const connector = account.connector as any
       const provider = await connector?.getProvider?.()
       if (!provider) {
-        console.warn('[submitCleanup] Safari/WalletConnect: Provider not ready, waiting...')
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        console.warn(`[submitCleanup] ${context}: Provider not ready, waiting...`)
+        await new Promise(resolve => setTimeout(resolve, isFarcaster ? 2000 : 2000))
+      } else {
+        // For Farcaster, verify the provider is actually functional
+        if (isFarcaster) {
+          try {
+            // Test provider by checking chain ID
+            const testChainId = await provider.request({ method: 'eth_chainId' })
+            console.log(`[submitCleanup] Farcaster provider test successful, chainId: ${testChainId}`)
+          } catch (testError) {
+            console.warn(`[submitCleanup] Farcaster provider test failed, waiting longer...`, testError)
+            await new Promise(resolve => setTimeout(resolve, 2000))
+          }
+        }
       }
     } catch (providerError) {
-      console.warn('[submitCleanup] Safari/WalletConnect: Provider check failed:', providerError)
+      console.warn(`[submitCleanup] ${context}: Provider check failed:`, providerError)
     }
     
     // Add delay before transaction to ensure everything is ready
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // Farcaster needs longer delay due to iframe communication
+    const delay = isFarcaster ? 1500 : 1000
+    await new Promise(resolve => setTimeout(resolve, delay))
     
-    // Double-check chain one more time for Safari/WalletConnect
+    // Double-check chain one more time
     const finalCheckChainId = await getCurrentChainId()
     if (finalCheckChainId !== null && finalCheckChainId !== REQUIRED_CHAIN_ID) {
-      console.warn('[submitCleanup] Safari/WalletConnect: Chain mismatch detected, attempting final switch...')
+      console.warn(`[submitCleanup] ${context}: Chain mismatch detected, attempting final switch...`)
       try {
         await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        // Farcaster needs longer wait after switch
+        await new Promise(resolve => setTimeout(resolve, isFarcaster ? 3000 : 2000))
       } catch (switchError) {
-        console.warn('[submitCleanup] Final chain switch failed:', switchError)
+        console.warn(`[submitCleanup] ${context}: Final chain switch failed:`, switchError)
         throw new Error(
           `Please switch to ${REQUIRED_CHAIN_NAME} in your wallet app before submitting. ` +
           `Current chain: ${finalCheckChainId}, Required: ${REQUIRED_CHAIN_ID}`
@@ -918,9 +939,12 @@ export async function submitCleanup(
     console.log('[submitCleanup] Sending transaction...', {
       isSafari,
       isWalletConnect,
+      isFarcaster,
       isSafariWalletConnect,
+      isFarcasterWalletConnect,
       chainId: await getCurrentChainId(),
-      address: CONTRACT_ADDRESSES.VERIFICATION
+      address: CONTRACT_ADDRESSES.VERIFICATION,
+      connector: account.connector?.name || account.connector?.id
     })
 
     hash = await writeContract(config as any, {
@@ -949,14 +973,31 @@ export async function submitCleanup(
       await handleWalletConnectStaleSession(error)
     }
     
-    // For Safari/WalletConnect, provide more helpful error messages
-    if (isSafariWalletConnect) {
+    // For Safari/WalletConnect/Farcaster, provide more helpful error messages
+    if (isSafariWalletConnect || isFarcaster || isFarcasterWalletConnect) {
       const errorMessage = getErrorMessage(error)
+      const context = isFarcaster ? 'Farcaster' : 'Safari/WalletConnect'
+      
       if (errorMessage.includes('User rejected') || error?.code === 4001) {
-        throw new Error('Transaction was rejected. Please check your wallet app and approve the transaction.')
+        throw new Error(
+          `Transaction was rejected in ${context}. ` +
+          `Please check your wallet app and approve the transaction. ` +
+          `Make sure you're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).`
+        )
       }
       if (errorMessage.includes('network') || errorMessage.includes('chain')) {
-        throw new Error(`Network issue detected. Please ensure you're on ${REQUIRED_CHAIN_NAME} in your wallet app and try again.`)
+        throw new Error(
+          `Network issue detected in ${context}. ` +
+          `Please ensure you're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet app and try again.`
+        )
+      }
+      // Farcaster-specific: Check for iframe communication errors
+      if (isFarcaster && (errorMessage.includes('timeout') || errorMessage.includes('failed to fetch'))) {
+        throw new Error(
+          `Farcaster wallet communication timeout. ` +
+          `Please try again - the transaction may have been submitted. ` +
+          `Check your wallet app or transaction history.`
+        )
       }
     }
     
@@ -1088,6 +1129,35 @@ export async function claimImpactProductFromVerification(
     console.warn('Could not fetch claim fee, proceeding without fee:', error)
   }
 
+  // Farcaster-specific handling for claim transactions
+  const account = await getAccount(config)
+  const isFarcaster = account.connector?.id?.includes('farcaster') || 
+                      account.connector?.name?.toLowerCase().includes('farcaster') ||
+                      account.connector?.name?.toLowerCase().includes('miniapp') ||
+                      account.connector?.id?.toLowerCase().includes('miniapp')
+  
+  if (isFarcaster) {
+    console.log('[claimImpactProduct] Farcaster detected, ensuring provider is ready...')
+    try {
+      const connector = account.connector as any
+      const provider = await connector?.getProvider?.()
+      if (provider) {
+        // Test provider functionality
+        try {
+          await provider.request({ method: 'eth_chainId' })
+          console.log('[claimImpactProduct] Farcaster provider ready')
+        } catch (testError) {
+          console.warn('[claimImpactProduct] Farcaster provider test failed, waiting...', testError)
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
+      }
+      // Add delay for Farcaster iframe communication
+      await new Promise(resolve => setTimeout(resolve, 1500))
+    } catch (providerError) {
+      console.warn('[claimImpactProduct] Farcaster provider check failed:', providerError)
+    }
+  }
+
   try {
     const hash = await writeContract(config as any, {
       address: CONTRACT_ADDRESSES.VERIFICATION,
@@ -1126,6 +1196,24 @@ export async function claimImpactProductFromVerification(
     
     if (errorMessage.includes('Cleanup does not exist') || errorMessage.includes('does not exist')) {
       throw new Error(`Cleanup #${cleanupId.toString()} does not exist.`)
+    }
+    
+    // Farcaster-specific error handling
+    if (isFarcaster) {
+      if (errorMessage.includes('timeout') || errorMessage.includes('failed to fetch')) {
+        throw new Error(
+          `Farcaster wallet communication timeout. ` +
+          `Please try again - the transaction may have been submitted. ` +
+          `Check your wallet app or transaction history.`
+        )
+      }
+      if (errorMessage.includes('User rejected') || error?.code === 4001) {
+        throw new Error(
+          `Transaction was rejected in Farcaster. ` +
+          `Please check your wallet app and approve the transaction. ` +
+          `Make sure you're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).`
+        )
+      }
     }
     
     // Re-throw with better error message

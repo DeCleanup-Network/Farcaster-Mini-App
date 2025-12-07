@@ -58,6 +58,8 @@ function CleanupContent() {
   const [afterPhotoAllowed, setAfterPhotoAllowed] = useState(false)
   const [beforePhotoUrl, setBeforePhotoUrl] = useState<string | null>(null)
   const [afterPhotoUrl, setAfterPhotoUrl] = useState<string | null>(null)
+  const [beforePhotoIPFSHash, setBeforePhotoIPFSHash] = useState<string | null>(null)
+  const [afterPhotoIPFSHash, setAfterPhotoIPFSHash] = useState<string | null>(null)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isGettingLocation, setIsGettingLocation] = useState(false)
@@ -667,6 +669,10 @@ function CleanupContent() {
 
       console.log('Photos uploaded:', { beforeHash: beforeHash.hash, afterHash: afterHash.hash })
       console.log('Location:', { lat: location.lat, lng: location.lng })
+      
+      // Store IPFS hashes for use in review step
+      setBeforePhotoIPFSHash(beforeHash.hash)
+      setAfterPhotoIPFSHash(afterHash.hash)
 
       // Upload enhanced impact report data to IPFS if form was submitted
       let impactFormDataHash: string | null = null
@@ -1941,27 +1947,45 @@ function CleanupContent() {
           </p>
         </div>
 
-        {beforePhoto && afterPhoto && beforePhotoUrl && afterPhotoUrl && (
+        {((beforePhoto && afterPhoto) || (beforePhotoIPFSHash && afterPhotoIPFSHash)) && (
           <div className="mb-6 grid grid-cols-2 gap-4">
             <div>
               <p className="mb-2 text-xs font-medium text-gray-400">BEFORE</p>
               <img
-                src={beforePhotoUrl}
+                src={
+                  beforePhotoIPFSHash 
+                    ? getIPFSUrl(beforePhotoIPFSHash)
+                    : beforePhotoUrl || ''
+                }
                 alt="Before"
                 className="h-32 w-full rounded-lg object-cover"
                 onError={(e) => {
                   console.error('Error loading before photo in review:', e)
+                  // Try to use blob URL as fallback if IPFS fails
+                  if (beforePhotoIPFSHash && beforePhotoUrl) {
+                    const img = e.target as HTMLImageElement
+                    img.src = beforePhotoUrl
+                  }
                 }}
               />
             </div>
             <div>
               <p className="mb-2 text-xs font-medium text-gray-400">AFTER</p>
               <img
-                src={afterPhotoUrl}
+                src={
+                  afterPhotoIPFSHash 
+                    ? getIPFSUrl(afterPhotoIPFSHash)
+                    : afterPhotoUrl || ''
+                }
                 alt="After"
                 className="h-32 w-full rounded-lg object-cover"
                 onError={(e) => {
                   console.error('Error loading after photo in review:', e)
+                  // Try to use blob URL as fallback if IPFS fails
+                  if (afterPhotoIPFSHash && afterPhotoUrl) {
+                    const img = e.target as HTMLImageElement
+                    img.src = afterPhotoUrl
+                  }
                 }}
               />
             </div>
