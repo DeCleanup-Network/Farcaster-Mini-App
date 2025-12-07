@@ -37,9 +37,9 @@ export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
     formData.append('options', options)
 
     // Upload via our API route (avoids CORS)
-    // Add timeout for large files (30 seconds)
+    // Add timeout for large files (50 seconds to match server timeout)
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds
+    const timeoutId = setTimeout(() => controller.abort(), 50000) // 50 seconds
     
     let response: Response
     try {

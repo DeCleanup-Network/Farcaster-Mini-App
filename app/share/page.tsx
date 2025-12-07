@@ -18,9 +18,12 @@ function buildQueryString(params: Record<string, string | undefined>) {
   return queryString ? `?${queryString}` : ''
 }
 
-function buildFarcasterActionUrl(type: string, ref?: string) {
-  // For Farcaster embeds, the action URL should always be the base miniapp URL
-  // The app will handle routing based on the share page redirect
+function buildFarcasterActionUrl(type: string, ref?: string, level?: string) {
+  // For Farcaster embeds, the action URL should be the base miniapp URL
+  // The Farcaster SDK will launch the miniapp, and the share page redirect
+  // will handle routing to the correct page with ref parameter preserved
+  // Note: Farcaster miniapp URLs don't support query parameters directly,
+  // so we rely on the share page redirect to preserve the ref parameter
   return FARCASTER_MINIAPP_URL
 }
 
@@ -52,7 +55,7 @@ export async function generateMetadata({
   const shareUrl = `${SITE_URL}/share${shareQuery}`
 
   // Build the Farcaster action URL that will launch the miniapp
-  const farcasterActionUrl = buildFarcasterActionUrl(type, ref)
+  const farcasterActionUrl = buildFarcasterActionUrl(type, ref, level)
   
   const EMBED_METADATA = {
     version: '1',
@@ -133,7 +136,14 @@ export default async function SharePage({
 
     if (type === 'claim') {
       url.pathname = '/profile'
-      url.search = ''
+      // Preserve ref parameter for referral tracking from claim shares
+      if (ref) {
+        url.searchParams.set('ref', ref)
+      }
+      // Preserve level parameter if provided
+      if (level) {
+        url.searchParams.set('level', level)
+      }
       return url.toString()
     }
 

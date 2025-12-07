@@ -22,6 +22,8 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  AlertCircle,
+  X,
 } from 'lucide-react'
 import { ImportTokenModal } from '@/components/wallet/ImportTokenModal'
 import Link from 'next/link'
@@ -41,6 +43,7 @@ import {
   getTotalRewardsDistributed,
   getRewardsBreakdown,
   CONTRACT_ADDRESSES,
+  checkReferralEligibility,
 } from '@/lib/contracts'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { useChainId } from 'wagmi'
@@ -171,6 +174,10 @@ function ProfileContent() {
     transactionHash?: string
   } | null>(null)
   const [breakdownExpanded, setBreakdownExpanded] = useState(false)
+  const [referrerAddress, setReferrerAddress] = useState<Address | null>(null)
+  const [showReferralNotification, setShowReferralNotification] = useState(false)
+  const [referralEligible, setReferralEligible] = useState<boolean | null>(null)
+  const [referralIneligibleReason, setReferralIneligibleReason] = useState<string | null>(null)
 
   // Prevent hydration mismatch by ensuring we render only after mounting
   useEffect(() => {
@@ -206,6 +213,8 @@ function ProfileContent() {
     }
     
     if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
+      const referrerAddr = ref as Address
+      setReferrerAddress(referrerAddr)
       try {
         localStorage.setItem('referrer_pending', ref)
         console.log('✅ Profile: Referrer address saved (pending):', ref)
@@ -216,8 +225,37 @@ function ProfileContent() {
       } catch (e) {
         console.error('Failed to save referrer to localStorage:', e)
       }
+    } else {
+      setReferrerAddress(null)
+      setShowReferralNotification(false)
     }
   }, [hasMounted, searchParams, address])
+
+  // Check referral eligibility when address and referrer are available
+  useEffect(() => {
+    if (!address || !referrerAddress || !isConnected) {
+      setReferralEligible(null)
+      setReferralIneligibleReason(null)
+      setShowReferralNotification(false)
+      return
+    }
+
+    async function checkEligibility() {
+      if (!address) return
+      
+      try {
+        const eligibility = await checkReferralEligibility(address)
+        setReferralEligible(eligibility.eligible)
+        setReferralIneligibleReason(eligibility.reason || null)
+        setShowReferralNotification(true)
+      } catch (error) {
+        console.error('Error checking referral eligibility:', error)
+        setReferralEligible(true) // On error, assume eligible (contract will reject if not)
+        setShowReferralNotification(true)
+      }
+    }
+    checkEligibility()
+  }, [address, referrerAddress, isConnected])
 
   const loadProfileData = useCallback(
     async (userAddress: Address, options?: { showSpinner?: boolean }) => {
@@ -625,6 +663,82 @@ function ProfileContent() {
     }
   }
 
+  const ReferralNotification = () => {
+    if (!showReferralNotification || !referrerAddress) return null
+    
+    // Show loading state while checking eligibility
+    if (referralEligible === null) {
+      return (
+        <div className="mb-6 rounded-lg border-2 border-gray-600 bg-gray-900/50 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="mb-1 text-sm font-bold uppercase text-gray-300">Checking Referral Eligibility...</h3>
+              <p className="text-sm text-gray-400">Verifying if you're eligible for a referral reward.</p>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    
+    // Show ineligible message if user already used referral
+    if (referralEligible === false) {
+      return (
+        <div className="mb-6 rounded-lg border-2 border-brand-yellow/50 bg-brand-yellow/10 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <AlertCircle className="h-5 w-5 text-brand-yellow" />
+            </div>
+            <div className="flex-1">
+              <h3 className="mb-1 text-sm font-bold uppercase text-brand-yellow">Referral Not Eligible</h3>
+              <p className="text-sm text-gray-300">{referralIneligibleReason || 'You have already used a referral link. Each user can only receive referral rewards once.'}</p>
+              <p className="mt-2 text-xs text-gray-400">You can still submit cleanups and earn rewards, but you won't receive additional referral rewards.</p>
+            </div>
+            <button
+              onClick={() => setShowReferralNotification(false)}
+              className="flex-shrink-0 text-gray-400 hover:text-white"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )
+    }
+    
+    // Show eligible message - redirect to cleanup page
+    return (
+      <div className="mb-6 rounded-lg border-2 border-brand-green bg-brand-green/10 p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0">
+            <Users className="h-5 w-5 text-brand-green" />
+          </div>
+          <div className="flex-1">
+            <h3 className="mb-1 text-sm font-bold uppercase text-brand-green">🎉 You Were Invited!</h3>
+            <p className="text-sm text-gray-300">
+              You've been referred to DeCleanup Rewards! When you submit your first cleanup and it gets verified, both you and your referrer will earn <strong className="text-white">3 $bDCU</strong> each.
+            </p>
+            <Link href={`/cleanup?ref=${referrerAddress}`}>
+              <Button className="mt-3 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]">
+                <Leaf className="h-4 w-4" />
+                Submit Your First Cleanup
+              </Button>
+            </Link>
+          </div>
+          <button
+            onClick={() => setShowReferralNotification(false)}
+            className="flex-shrink-0 text-gray-400 hover:text-white"
+            aria-label="Dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
       <div className="mx-auto max-w-2xl">
@@ -660,6 +774,9 @@ function ProfileContent() {
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
         </div>
+
+        {/* Referral Notification */}
+        <ReferralNotification />
 
         {/* Stats Grid - Total Balance and Total Rewards */}
         <div className="mb-6 grid gap-4 sm:grid-cols-2">

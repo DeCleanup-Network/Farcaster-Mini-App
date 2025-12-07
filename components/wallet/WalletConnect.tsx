@@ -80,9 +80,18 @@ export function WalletConnect() {
         return isInFarcaster
       }
       
-      // In Farcaster (mobile): Hide browser wallet, show WalletConnect
+      // In Farcaster (mobile): Allow browser wallet as fallback if Farcaster connector fails
+      // Show WalletConnect as additional option
       if (isInFarcaster) {
-        if (isInjected) return false // Hide browser wallet in Farcaster
+        // Allow injected wallet (MetaMask) in Farcaster as fallback option
+        // This helps when Farcaster connector has issues
+        if (isInjected) {
+          // Check if window.ethereum exists (MetaMask or other injected wallet)
+          if (typeof window !== 'undefined' && (window as any)?.ethereum) {
+            return true // Show MetaMask as fallback option in Farcaster
+          }
+          return false
+        }
         if (isWalletConnect) return true // Show WalletConnect in Farcaster
         return false
       }
@@ -445,12 +454,17 @@ export function WalletConnect() {
     const attemptConnect = setTimeout(() => {
       if (!isConnected && farcasterConnector && !manuallyDisconnected) {
         try {
+          console.log('Attempting to connect with Farcaster connector...')
           connect({ connector: farcasterConnector })
-        } catch (error) {
+        } catch (error: any) {
           console.warn('Farcaster connect attempt failed:', error)
+          // If Farcaster connector fails, log the error for debugging
+          if (error?.message) {
+            console.error('Farcaster connection error:', error.message)
+          }
         }
       }
-    }, 500) // Small delay to allow auto-connect to happen first
+    }, 1000) // Increased delay to 1 second to allow auto-connect to happen first
 
     return () => clearTimeout(attemptConnect)
   }, [mounted, isInFarcaster, farcasterConnector, isConnected, connect, manuallyDisconnected, connector])

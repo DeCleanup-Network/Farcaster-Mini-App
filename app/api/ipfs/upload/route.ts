@@ -95,8 +95,9 @@ export async function POST(request: NextRequest) {
 
     // Upload to Pinata via server (no CORS issues)
     // Use AbortController for timeout (Vercel serverless functions have 10s timeout on Hobby plan)
+    // Increased timeout to 45 seconds for larger files and slower connections
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 25000) // 25 seconds timeout
+    const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 seconds timeout
     
     let response: Response
     try {
