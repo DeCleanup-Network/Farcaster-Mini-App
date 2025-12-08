@@ -79,12 +79,20 @@ const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 
 // Get default RainbowKit connectors (MetaMask, WalletConnect, Coinbase Wallet, etc.)
 // This only works on client side, so we check for window
-const { connectors: defaultConnectors } = typeof window !== 'undefined' && walletConnectProjectId
-  ? getDefaultWallets({
+// Use lazy initialization to avoid SSR issues with Node.js modules
+let defaultConnectors: any[] = []
+if (typeof window !== 'undefined' && walletConnectProjectId) {
+  try {
+    const { connectors } = getDefaultWallets({
       appName: APP_NAME,
       projectId: walletConnectProjectId,
     })
-  : { connectors: [] }
+    defaultConnectors = connectors
+  } catch (error) {
+    console.warn('Failed to initialize RainbowKit connectors:', error)
+    defaultConnectors = []
+  }
+}
 
 // Add Farcaster Mini App connector (priority connector - must be first)
 // This ensures Farcaster wallet is prioritized when running inside Farcaster/Warpcast

@@ -6,11 +6,13 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function POST(request: NextRequest) {
   try {
-    // Get API keys from server-side environment variables (not NEXT_PUBLIC_*)
-    const pinataApiKey = process.env.PINATA_API_KEY || process.env.NEXT_PUBLIC_PINATA_API_KEY
-    const pinataSecretKey = process.env.PINATA_SECRET_KEY || process.env.NEXT_PUBLIC_PINATA_SECRET_KEY
+    // Get API keys from server-side environment variables ONLY
+    // CRITICAL: Never use NEXT_PUBLIC_* for secrets - they are exposed to client-side
+    const pinataApiKey = process.env.PINATA_API_KEY
+    const pinataSecretKey = process.env.PINATA_SECRET_KEY
 
     if (!pinataApiKey || !pinataSecretKey) {
+      console.error('Pinata API keys not configured - missing PINATA_API_KEY or PINATA_SECRET_KEY')
       return NextResponse.json(
         { error: 'Pinata API keys not configured on server' },
         { status: 500 }
@@ -39,17 +41,60 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate file type - only allow images
+    const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
+    
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      return NextResponse.json(
+        { error: `Invalid file type: ${file.type}. Only image files (JPEG, PNG, WebP, GIF) are allowed.` },
+        { status: 400 }
+      )
+    }
+
+    // Also validate file extension as additional security layer
+    const fileName = file.name.toLowerCase()
+    const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => fileName.endsWith(ext))
+    if (!hasValidExtension) {
+      return NextResponse.json(
+        { error: 'Invalid file extension. Only image files are allowed.' },
+        { status: 400 }
+      )
+    }
+
     // Create new FormData for Pinata
     const pinataFormData = new FormData()
     pinataFormData.append('file', file)
 
     // Parse and add metadata if provided
+    // Validate metadata structure to prevent DoS and injection
     if (metadataStr) {
       try {
+        // Limit metadata size to prevent DoS
+        if (metadataStr.length > 10000) {
+          throw new Error('Metadata too large')
+        }
+        
         const metadata = JSON.parse(metadataStr)
+        
+        // Validate metadata structure
+        if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) {
+          throw new Error('Invalid metadata structure')
+        }
+        
+        // Ensure name is a string if present
+        if (metadata.name && typeof metadata.name !== 'string') {
+          throw new Error('Invalid metadata.name type')
+        }
+        
+        // Validate keyvalues if present
+        if (metadata.keyvalues && (typeof metadata.keyvalues !== 'object' || Array.isArray(metadata.keyvalues))) {
+          throw new Error('Invalid metadata.keyvalues type')
+        }
+        
         pinataFormData.append('pinataMetadata', JSON.stringify(metadata))
       } catch (e) {
-        // If metadata is invalid JSON, create default metadata
+        // If metadata is invalid, create default metadata
         const defaultMetadata = {
           name: file.name,
           keyvalues: {
@@ -72,10 +117,31 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse and add options if provided
+    // Validate options structure to prevent DoS and injection
     if (optionsStr) {
       try {
+        // Limit options size to prevent DoS
+        if (optionsStr.length > 5000) {
+          throw new Error('Options too large')
+        }
+        
         const options = JSON.parse(optionsStr)
-        pinataFormData.append('pinataOptions', JSON.stringify(options))
+        
+        // Validate options structure
+        if (typeof options !== 'object' || options === null || Array.isArray(options)) {
+          throw new Error('Invalid options structure')
+        }
+        
+        // Only allow safe options
+        const safeOptions: any = {}
+        if (options.cidVersion !== undefined) {
+          safeOptions.cidVersion = Number(options.cidVersion) === 1 ? 1 : 0
+        }
+        if (options.wrapWithDirectory !== undefined) {
+          safeOptions.wrapWithDirectory = Boolean(options.wrapWithDirectory)
+        }
+        
+        pinataFormData.append('pinataOptions', JSON.stringify(safeOptions))
       } catch (e) {
         // Default options if invalid
         const defaultOptions = {
