@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useAccount, useConnect, useChainId } from 'wagmi'
+import { useAccount, useConnect, useChainId, useDisconnect } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { Wallet, LogOut, ChevronDown } from 'lucide-react'
 import { isFarcasterContext } from '@/lib/farcaster'
@@ -23,7 +23,9 @@ export function WalletConnect() {
   const { isConnected, connector } = useAccount()
   const chainId = useChainId()
   const { connect, connectors } = useConnect()
+  const { disconnect } = useDisconnect()
   const [isInFarcaster, setIsInFarcaster] = useState(false)
+  const [manuallyDisconnected, setManuallyDisconnected] = useState(false)
 
   // Find Farcaster connector
   const farcasterConnector = connectors.find(
@@ -53,40 +55,10 @@ export function WalletConnect() {
     }
   }, [])
 
-  // Auto-connect Farcaster connector if in Farcaster context and not connected
-  // According to Farcaster docs: farcasterMiniApp connector automatically connects if wallet is already connected
-  // We only need to manually connect if user is in Farcaster context but not connected
-  useEffect(() => {
-    if (!mounted) return
-    
-    // If already connected, no need to auto-connect
-    if (isConnected) {
-      return
-    }
-    
-    // Only attempt manual connection if in Farcaster context and have Farcaster connector
-    if (!isInFarcaster || !farcasterConnector) return
-
-    // According to docs: If user already has a connected wallet, connector will auto-connect
-    // We only need to manually trigger connection if auto-connect didn't happen
-    // Use a small delay to let the connector try auto-connect first
-    const attemptConnect = setTimeout(() => {
-      if (!isConnected && farcasterConnector) {
-        try {
-          console.log('Attempting to connect with Farcaster connector...')
-          connect({ connector: farcasterConnector })
-        } catch (error: any) {
-          console.warn('Farcaster connect attempt failed:', error)
-          // If Farcaster connector fails, log the error for debugging
-          if (error?.message) {
-            console.error('Farcaster connection error:', error.message)
-          }
-        }
-      }
-    }, 1000) // 1 second delay to allow auto-connect to happen first
-
-    return () => clearTimeout(attemptConnect)
-  }, [mounted, isInFarcaster, farcasterConnector, isConnected, connect])
+  // REMOVED: Aggressive auto-connect logic
+  // Let RainbowKit handle connector selection naturally
+  // Farcaster connector will still be available in the wallet selection modal
+  // Users can choose their preferred wallet, including Farcaster if they want
 
   // Log connection state changes
   useEffect(() => {
@@ -169,20 +141,30 @@ export function WalletConnect() {
           // Connected - show account button
           return (
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-2 py-1.5 sm:px-3 sm:py-2">
+              <div 
+                className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-2 py-1.5 sm:px-3 sm:py-2 cursor-pointer hover:border-brand-green transition-colors"
+                onClick={openAccountModal}
+                title={`Click to view account details or disconnect. Full address: ${account.address}`}
+              >
                 <Wallet className="h-3 w-3 text-brand-green sm:h-4 sm:w-4" />
-                <span 
-                  className="text-xs font-medium text-white sm:text-sm cursor-pointer hover:text-brand-green transition-colors"
-                  onClick={openAccountModal}
-                  title={`Full address: ${account.address}`}
-                >
+                <span className="text-xs font-medium text-white sm:text-sm">
                   {account.displayName}
                 </span>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={openAccountModal}
+                onClick={async () => {
+                  setManuallyDisconnected(true)
+                  try {
+                    await disconnect()
+                    console.log('Wallet disconnected successfully')
+                  } catch (error) {
+                    console.error('Error disconnecting wallet:', error)
+                    // Fallback: try opening account modal which has disconnect option
+                    openAccountModal()
+                  }
+                }}
                 className="gap-2 border-2 border-gray-700 bg-black text-white hover:bg-gray-900 text-xs sm:text-sm"
               >
                 <LogOut className="h-3 w-3 sm:h-4 sm:w-4" />
