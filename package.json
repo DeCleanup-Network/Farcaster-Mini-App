@@ -14,11 +14,11 @@
     "generate:metadata": "node scripts/generateImpactMetadata.js"
   },
   "dependencies": {
-    "@celo/contractkit": "^10.0.2",
     "@farcaster/miniapp-sdk": "^0.2.1",
     "@farcaster/miniapp-wagmi-connector": "^1.1.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-slot": "^1.2.4",
+    "@rainbow-me/rainbowkit": "^2.2.10",
     "@tanstack/react-query": "^5.90.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

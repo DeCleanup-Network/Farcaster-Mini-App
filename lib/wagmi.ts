@@ -1,6 +1,6 @@
 import { base, baseSepolia } from 'wagmi/chains'
 import { createConfig, http } from 'wagmi'
-import { walletConnect, injected } from 'wagmi/connectors'
+import { getDefaultWallets } from '@rainbow-me/rainbowkit'
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector'
 import { defineChain, type Chain } from 'viem'
 
@@ -70,48 +70,37 @@ const APP_ICON_URL =
   process.env.NEXT_PUBLIC_MINIAPP_ICON_URL ||
   'https://gateway.pinata.cloud/ipfs/bafybeiatsp354gtary234ie6irpa5x56q3maykjynkbe3f2hj6lq7pbvba?filename=icon.png'
 
-// Wagmi configuration with Farcaster wallet support
+// Wagmi configuration with RainbowKit and Farcaster wallet support
 // IMPORTANT: Only initialize connectors on client side to avoid SSR errors
 // All wallet connectors require browser APIs and will fail during server-side rendering
+
+// Get WalletConnect project ID from environment
+const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+
+// Get default RainbowKit connectors (MetaMask, WalletConnect, Coinbase Wallet, etc.)
+// This only works on client side, so we check for window
+const { connectors: defaultConnectors } = typeof window !== 'undefined' && walletConnectProjectId
+  ? getDefaultWallets({
+      appName: APP_NAME,
+      projectId: walletConnectProjectId,
+    })
+  : { connectors: [] }
+
+// Add Farcaster Mini App connector (priority connector - must be first)
+// This ensures Farcaster wallet is prioritized when running inside Farcaster/Warpcast
+const farcasterConnector = typeof window !== 'undefined' ? farcasterMiniApp() : null
+
+// Combine connectors: Farcaster first (priority), then default RainbowKit wallets
+// This ensures Farcaster connector is always available and prioritized
 const connectors = typeof window !== 'undefined'
   ? [
-      farcasterMiniApp(),
-      // Add injected connector (Browser wallet/MetaMask) for desktop users
-      injected({
-        shimDisconnect: true, // Keep connection state after disconnect
-      }),
+      ...(farcasterConnector ? [farcasterConnector] : []),
+      ...defaultConnectors,
     ]
   : []
 
-// Only add WalletConnect if Project ID is configured and on client side
-// WalletConnect shows wallet list with "open wallet" button (not QR code)
-// Use dynamic URL to avoid metadata mismatch warnings (localhost vs production)
-const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
-if (typeof window !== 'undefined' && walletConnectProjectId && walletConnectProjectId.trim() !== '') {
-  try {
-    // Get current URL dynamically to match the actual page URL
-    // This fixes the "metadata.url differs from actual page url" warning
-    const currentUrl = window.location.origin
-    
-    connectors.push(
-      walletConnect({
-        projectId: walletConnectProjectId,
-        metadata: {
-          name: APP_NAME,
-          description: APP_DESCRIPTION,
-          url: currentUrl, // Use current URL (localhost in dev, production in prod)
-          icons: [APP_ICON_URL],
-        },
-        // showQrModal controls whether to show QR code or wallet list
-        // true = QR code modal, false = wallet list modal
-        // Setting to true to ensure modal opens, then we can adjust
-        showQrModal: true,
-      }) as any // Type assertion needed due to WalletConnect type incompatibility
-    )
-  } catch (error) {
-    console.warn('WalletConnect connector initialization failed:', error)
-  }
-} else if (typeof window !== 'undefined') {
+// Warn if WalletConnect Project ID is missing (but don't fail - Farcaster and injected wallets still work)
+if (typeof window !== 'undefined' && !walletConnectProjectId) {
   console.warn('WalletConnect Project ID not configured. WalletConnect will not be available. Get your Project ID at https://cloud.reown.com')
 }
 
