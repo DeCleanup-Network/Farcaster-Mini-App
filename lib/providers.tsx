@@ -21,11 +21,13 @@ const RainbowKitProviderWithTheme = dynamic(
       overlayBlur: 'small',
     })
     // Return provider component with custom theme
-    return ({ children, ...props }: any) => (
+    const RainbowKitProviderWithCustomTheme = ({ children, ...props }: any) => (
       <mod.RainbowKitProvider theme={customTheme} {...props}>
         {children}
       </mod.RainbowKitProvider>
     )
+    RainbowKitProviderWithCustomTheme.displayName = 'RainbowKitProviderWithCustomTheme'
+    return RainbowKitProviderWithCustomTheme
   }),
   { 
     ssr: false,
