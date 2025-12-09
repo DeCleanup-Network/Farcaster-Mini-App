@@ -71,6 +71,15 @@ export function ErrorHandler() {
         return
       }
       
+      // Suppress logger initialization errors (library issue, not our code)
+      if (
+        message.includes('is not a function') &&
+        (messageLower.includes('logger') || messageLower.includes('sb.h6') || messageLower.includes('sb.iP'))
+      ) {
+        // Silently ignore - this is a library initialization issue
+        return
+      }
+      
       // Log all other errors normally
       originalError.apply(console, args)
     }
@@ -141,6 +150,19 @@ export function ErrorHandler() {
         } catch (e) {
           console.warn('Failed to clear WalletConnect storage in ErrorHandler:', e)
         }
+        return
+      }
+      
+      // Handle logger initialization errors (library issue)
+      const isLoggerError = 
+        errorMessage.includes('is not a function') &&
+        (errorString.includes('logger') || errorString.includes('sb.h6') || errorString.includes('sb.iP') || 
+         errorString.includes('(0,sb.h6)') || errorString.includes('(0,sb.iP)'))
+      
+      if (isLoggerError) {
+        // Silently ignore - this is a library initialization issue
+        event.preventDefault()
+        console.debug('Logger initialization error (ignored):', errorMessage)
         return
       }
       

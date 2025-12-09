@@ -486,9 +486,6 @@ export default function Home() {
                   On Farcaster, connects you to your Farcaster wallet
                 </p>
               </div>
-              <p className="text-xs text-gray-500">
-                You can also use the wallet button in the header.
-              </p>
             </div>
           )}
         </section>
