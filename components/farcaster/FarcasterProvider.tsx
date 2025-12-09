@@ -25,99 +25,108 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
   const [context, setContext] = useState<FarcasterContextData | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [readyCalled, setReadyCalled] = useState(false)
 
-  // Call ready() as early as possible - this is critical for Base.dev and Farcaster
   useEffect(() => {
-    // Immediately try to call ready() - don't wait for anything
-    const callReady = async () => {
-      try {
-        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
-          await sdk.actions.ready()
-          console.log('✅ Farcaster SDK ready() called early - splash screen hidden')
-        }
-      } catch (error: any) {
-        // Silently fail - will retry in main init
-        console.debug('Early ready() call failed (will retry):', error?.message)
-      }
+    if (typeof window === 'undefined') {
+      setIsLoading(false)
+      return
     }
-    
-    // Call immediately
-    callReady()
-  }, [])
 
-  useEffect(() => {
-    async function init() {
-      // Wait for DOM to be ready
-      if (typeof window === 'undefined') {
-        setIsLoading(false)
+    const isBaseDev = window.location.hostname.includes('base.dev') || 
+                      window.location.hostname.includes('basebuild.org') ||
+                      window.location.hostname.includes('base.org')
+
+    async function callReadyOnce() {
+      if (readyCalled) {
+        if (isBaseDev || process.env.NODE_ENV === 'development') {
+          console.warn('⚠️ ready() already called, skipping duplicate call')
+        }
         return
       }
 
       try {
-        // According to Farcaster docs: "After your app loads, you must call sdk.actions.ready()"
-        // This hides the splash screen and displays your content
-        // Important: Call ready() as early as possible, but after DOM is ready
-        // Always try to call ready() - it will fail gracefully if not in Farcaster context
-        try {
-          // Check if SDK actions are available
-          if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
-            await sdk.actions.ready()
-            console.log('✅ Farcaster SDK ready() called successfully - splash screen hidden')
-          } else {
-            console.log('Farcaster SDK actions.ready() not available')
+        console.log('🔄 Calling sdk.actions.ready() after React mount...')
+        
+        const sdkInstance = sdk || (window as any).farcaster?.sdk
+        const readyFunction = sdkInstance?.actions?.ready
+        
+        if (!readyFunction || typeof readyFunction !== 'function') {
+          const debugInfo = {
+            hasSdk: !!sdk,
+            hasWindowSdk: !!(window as any).farcaster?.sdk,
+            hasActions: !!sdkInstance?.actions,
+            hasReady: !!readyFunction
           }
-        } catch (readyError: any) {
-          // If ready() fails, it might not be in Farcaster context (e.g., regular browser)
-          // This is OK - we'll continue anyway
-          const errorMessage = readyError?.message || String(readyError || '')
-          if (errorMessage.includes('not available') || errorMessage.includes('context') || errorMessage.includes('undefined')) {
-            console.log('Farcaster SDK not in Farcaster context (browser mode):', errorMessage)
-          } else {
-            console.warn('Farcaster SDK ready() failed:', errorMessage)
+          if (isBaseDev || process.env.NODE_ENV === 'development') {
+            console.warn('⚠️ SDK actions.ready() not available:', debugInfo)
           }
+          setIsLoading(false)
+          return
         }
 
-        // Then initialize and get context
-        const initialized = await initializeFarcaster()
-        if (initialized) {
-          const farcasterContext = await getFarcasterContext()
-          // Type assertion needed as SDK types may not match exactly
-          setContext(farcasterContext as FarcasterContextData | null)
-          setIsInitialized(true)
+        await readyFunction({ disableNativeGestures: true })
+        
+        setReadyCalled(true)
+        console.log('✅ sdk.actions.ready() called successfully - splash screen hidden', isBaseDev ? '(Base.dev)' : '')
+        
+        try {
+          const initialized = await initializeFarcaster()
+          if (initialized) {
+            const farcasterContext = await getFarcasterContext()
+            setContext(farcasterContext as FarcasterContextData | null)
+            setIsInitialized(true)
+          }
+        } catch (contextError) {
+          console.error('Failed to initialize Farcaster context:', contextError)
         }
-      } catch (error) {
-        console.error('Failed to initialize Farcaster:', error)
+      } catch (readyError: any) {
+        const errorMessage = readyError?.message || String(readyError || '')
+        const isContextError = errorMessage.includes('not available') || 
+                               errorMessage.includes('context') || 
+                               errorMessage.includes('undefined')
+        
+        if (isContextError) {
+          if (isBaseDev || process.env.NODE_ENV === 'development') {
+            console.log('ℹ️ Not in Farcaster context (browser mode):', errorMessage)
+          }
+        } else {
+          console.error('❌ sdk.actions.ready() failed:', {
+            message: errorMessage,
+            error: readyError,
+            stack: readyError?.stack
+          })
+        }
       } finally {
         setIsLoading(false)
       }
     }
 
-    // Wait for DOM to be fully ready before calling ready()
-    // This ensures the app is fully loaded and ready to display
-    // For Next.js, we need to wait for hydration to complete
     const readyState = document.readyState as 'loading' | 'interactive' | 'complete'
     
-    const handleReady = () => {
-      // Small delay to ensure React hydration is complete
+    if (readyState === 'complete') {
       setTimeout(() => {
-        init()
-      }, 50)
-    }
-    
-    if (readyState === 'complete' || readyState === 'interactive') {
-      // DOM already loaded or interactive, call immediately
-      handleReady()
+        callReadyOnce()
+      }, 100)
+    } else if (readyState === 'interactive') {
+      setTimeout(() => {
+        callReadyOnce()
+      }, 150)
     } else {
-      // Still loading, wait for DOM to be ready
-      window.addEventListener('DOMContentLoaded', handleReady, { once: true })
-      window.addEventListener('load', handleReady, { once: true })
+      const handleDOMReady = () => {
+        setTimeout(() => {
+          callReadyOnce()
+        }, 100)
+      }
+      window.addEventListener('DOMContentLoaded', handleDOMReady, { once: true })
+      window.addEventListener('load', handleDOMReady, { once: true })
       
       return () => {
-        window.removeEventListener('DOMContentLoaded', handleReady)
-        window.removeEventListener('load', handleReady)
+        window.removeEventListener('DOMContentLoaded', handleDOMReady)
+        window.removeEventListener('load', handleDOMReady)
       }
     }
-  }, [])
+  }, [readyCalled])
 
   return (
     <FarcasterContext.Provider value={{ context, isInitialized, isLoading }}>

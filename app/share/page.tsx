@@ -55,32 +55,19 @@ export async function generateMetadata({
   const shareQuery = buildQueryString({ ref, type, level })
   const shareUrl = `${SITE_URL}/share${shareQuery}`
 
-  // Build the Farcaster action URL that will launch the miniapp
   const farcasterActionUrl = buildFarcasterActionUrl(type, ref, level)
   
   const EMBED_METADATA = {
     version: '1',
-    imageUrl, // This is the preview image that shows in feeds
+    imageUrl,
     button: {
       title: 'Open DeCleanup Rewards',
       action: {
-        type: 'launch_miniapp', // Use "launch_miniapp" for new implementations
+        type: 'launch_frame',
         url: farcasterActionUrl,
         name: 'DeCleanup Rewards',
-          splashImageUrl:
-          'https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png',
+        splashImageUrl: 'https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png',
         splashBackgroundColor: '#000000',
-      },
-    },
-  }
-  // Backward compatibility metadata (for older Farcaster clients)
-  const EMBED_METADATA_FRAME = {
-    ...EMBED_METADATA,
-    button: {
-      ...EMBED_METADATA.button,
-      action: {
-        ...EMBED_METADATA.button.action,
-        type: 'launch_frame', // Backward compatibility
       },
     },
   }
@@ -121,11 +108,8 @@ export async function generateMetadata({
       'twitter:image': imageUrl,
       'twitter:image:alt': title,
       'twitter:card': 'summary_large_image',
-      // Farcaster mini app metadata for proper embed recognition
-      // This is what Farcaster crawlers look for to generate previews
-      // Per Farcaster docs: https://miniapps.farcaster.xyz/docs/guides/sharing
       'fc:miniapp': JSON.stringify(EMBED_METADATA),
-      'fc:frame': JSON.stringify(EMBED_METADATA_FRAME), // For backward compatibility with older Farcaster clients
+      'fc:frame': JSON.stringify(EMBED_METADATA),
     },
   }
 }

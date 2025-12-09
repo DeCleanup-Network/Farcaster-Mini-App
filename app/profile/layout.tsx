@@ -37,7 +37,7 @@ export const metadata: Metadata = {
       button: {
         title: 'Open DeCleanup Rewards',
         action: {
-          type: 'launch_miniapp', // Use "launch_miniapp" for new implementations
+          type: 'launch_frame',
           url: FARCASTER_MINIAPP_URL,
           name: 'DeCleanup Rewards',
           splashImageUrl: 'https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png',
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
       button: {
         title: 'Open DeCleanup Rewards',
         action: {
-          type: 'launch_frame', // Backward compatibility
+          type: 'launch_frame',
           url: FARCASTER_MINIAPP_URL,
           name: 'DeCleanup Rewards',
           splashImageUrl: 'https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png',

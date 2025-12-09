@@ -24,32 +24,18 @@ const bebasNeue = Bebas_Neue({
   subsets: ["latin"],
 });
 
-// Farcaster Mini App embed metadata configuration
-// Required for Farcaster embeds & previews - must match homeUrl in manifest
-// Per Farcaster docs: https://miniapps.farcaster.xyz/docs/guides/sharing
 const FARCASTER_MINIAPP_URL = "https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards";
 const EMBED_METADATA = {
-  version: "1", // Must be "1" per Farcaster docs
+  version: "1",
   imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png",
   button: {
     title: "Open DeCleanup Rewards",
     action: {
-      type: "launch_miniapp", // Use "launch_miniapp" for new implementations (or "launch_frame" for backward compatibility)
+      type: "launch_frame",
       url: FARCASTER_MINIAPP_URL,
       name: "DeCleanup Rewards",
       splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png",
       splashBackgroundColor: "#000000",
-    },
-  },
-};
-// Backward compatibility metadata (for older Farcaster clients)
-const EMBED_METADATA_FRAME = {
-  ...EMBED_METADATA,
-  button: {
-    ...EMBED_METADATA.button,
-    action: {
-      ...EMBED_METADATA.button.action,
-      type: "launch_frame", // Backward compatibility
     },
   },
 };
@@ -96,7 +82,7 @@ export const metadata: Metadata = {
   },
   other: {
     "fc:miniapp": JSON.stringify(EMBED_METADATA),
-    "fc:frame": JSON.stringify(EMBED_METADATA_FRAME), // For backward compatibility with older Farcaster clients
+    "fc:frame": JSON.stringify(EMBED_METADATA),
   },
 };
 
