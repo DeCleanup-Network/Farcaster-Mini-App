@@ -26,6 +26,25 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
+  // Call ready() as early as possible - this is critical for Base.dev and Farcaster
+  useEffect(() => {
+    // Immediately try to call ready() - don't wait for anything
+    const callReady = async () => {
+      try {
+        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
+          await sdk.actions.ready()
+          console.log('✅ Farcaster SDK ready() called early - splash screen hidden')
+        }
+      } catch (error: any) {
+        // Silently fail - will retry in main init
+        console.debug('Early ready() call failed (will retry):', error?.message)
+      }
+    }
+    
+    // Call immediately
+    callReady()
+  }, [])
+
   useEffect(() => {
     async function init() {
       // Wait for DOM to be ready
@@ -38,23 +57,24 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
         // According to Farcaster docs: "After your app loads, you must call sdk.actions.ready()"
         // This hides the splash screen and displays your content
         // Important: Call ready() as early as possible, but after DOM is ready
-        // We check if SDK is available before calling to avoid errors in non-Farcaster contexts
-        if (typeof window !== 'undefined' && (window as any).farcaster?.sdk) {
-          try {
+        // Always try to call ready() - it will fail gracefully if not in Farcaster context
+        try {
+          // Check if SDK actions are available
+          if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
             await sdk.actions.ready()
             console.log('✅ Farcaster SDK ready() called successfully - splash screen hidden')
-          } catch (readyError: any) {
-            // If ready() fails, it might not be in Farcaster context (e.g., regular browser)
-            // This is OK - we'll continue anyway
-            if (readyError?.message?.includes('not available') || readyError?.message?.includes('context')) {
-              console.log('Farcaster SDK not in Farcaster context (browser mode)')
-            } else {
-              console.warn('Farcaster SDK ready() failed:', readyError?.message || readyError)
-            }
+          } else {
+            console.log('Farcaster SDK actions.ready() not available')
           }
-        } else {
-          // SDK not available - likely not in Farcaster context
-          console.log('Farcaster SDK not available (likely not in Farcaster context)')
+        } catch (readyError: any) {
+          // If ready() fails, it might not be in Farcaster context (e.g., regular browser)
+          // This is OK - we'll continue anyway
+          const errorMessage = readyError?.message || String(readyError || '')
+          if (errorMessage.includes('not available') || errorMessage.includes('context') || errorMessage.includes('undefined')) {
+            console.log('Farcaster SDK not in Farcaster context (browser mode):', errorMessage)
+          } else {
+            console.warn('Farcaster SDK ready() failed:', errorMessage)
+          }
         }
 
         // Then initialize and get context
