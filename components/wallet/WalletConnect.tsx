@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useAccount, useChainId, useDisconnect, useConnect } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { Wallet, LogOut, ChevronDown } from 'lucide-react'
@@ -18,26 +18,49 @@ import { Button } from '@/components/ui/button'
  */
 export function WalletConnect() {
   const [mounted, setMounted] = useState(false)
-  const { isConnected, connector } = useAccount()
+  const [forceUpdate, setForceUpdate] = useState(0)
+  const { isConnected, connector, address } = useAccount()
   const chainId = useChainId()
   const { disconnect } = useDisconnect()
   const { connect, connectors, isPending } = useConnect()
+  const previousConnectedRef = useRef(false)
+  const previousAddressRef = useRef<string | undefined>(undefined)
 
   // Initialize on mount
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Log connection state changes
+  // Monitor connection state changes and force UI update when WalletConnect connects
   useEffect(() => {
-    if (isConnected && mounted) {
-      console.log('Connected wallet:', {
+    // Detect when connection state changes from disconnected to connected
+    const justConnected = !previousConnectedRef.current && isConnected && address
+    const addressChanged = previousAddressRef.current !== address && isConnected && address
+    
+    if (justConnected || addressChanged) {
+      console.log('Wallet connection detected:', {
         connector: connector?.name,
         connectorId: connector?.id,
         chainId,
+        address,
+        justConnected,
+        addressChanged,
       })
+      
+      // Force UI update by changing a state value
+      // This ensures RainbowKit modal detects the connection and updates UI
+      setForceUpdate(prev => prev + 1)
+      
+      // Small delay to ensure state propagates, then force another update
+      setTimeout(() => {
+        setForceUpdate(prev => prev + 1)
+      }, 100)
     }
-  }, [isConnected, connector?.name, connector?.id, chainId, mounted])
+    
+    // Update refs for next comparison
+    previousConnectedRef.current = isConnected
+    previousAddressRef.current = address
+  }, [isConnected, connector?.name, connector?.id, chainId, address])
 
   // Show consistent initial state on server and client
   if (!mounted) {
@@ -49,8 +72,9 @@ export function WalletConnect() {
   }
 
   // Use RainbowKit's ConnectButton.Custom to match brand design
+  // Add key prop that changes on connection to force re-render when WalletConnect connects
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-end gap-1" key={`wallet-connect-${forceUpdate}-${isConnected}-${address}`}>
       <ConnectButton.Custom>
         {({
           account,

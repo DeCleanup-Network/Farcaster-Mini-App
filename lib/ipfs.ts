@@ -52,7 +52,7 @@ export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
     } catch (error: any) {
       clearTimeout(timeoutId)
       if (error.name === 'AbortError') {
-        throw new Error('Upload timeout - file may be too large. Please try a smaller image (max 4MB) or check your internet connection.')
+        throw new Error('Upload timeout - file may be too large. Please try a smaller image (max 10MB) or check your internet connection.')
       }
       throw error
     }
@@ -63,7 +63,7 @@ export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
       
       // Handle timeout specifically
       if (response.status === 408) {
-        throw new Error('Upload timeout - file may be too large. Please try a smaller image (max 4MB per image) or check your internet connection.')
+        throw new Error('Upload timeout - file may be too large. Please try a smaller image (max 10MB per image) or check your internet connection.')
       }
       
       throw new Error(`Failed to upload to IPFS: ${errorData.error || response.statusText || 'Network error'}`)

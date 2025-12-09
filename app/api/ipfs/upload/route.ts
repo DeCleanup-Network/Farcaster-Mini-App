@@ -7,21 +7,43 @@ export const maxDuration = 60 // 60 seconds for large uploads
 /**
  * API Route to proxy IPFS uploads to Pinata
  * This avoids CORS issues and keeps API keys server-side
- * 
- * Note: Vercel Hobby plan has 4.5MB body size limit
- * For larger files, consider upgrading to Pro plan or using direct client upload
  */
 export async function POST(request: NextRequest) {
   try {
-    // Get API keys from server-side environment variables ONLY
-    // CRITICAL: Never use NEXT_PUBLIC_* for secrets - they are exposed to client-side
-    const pinataApiKey = process.env.PINATA_API_KEY
-    const pinataSecretKey = process.env.PINATA_SECRET_KEY
+    // Get API keys from server-side environment variables
+    // Support both PINATA_API_KEY (preferred) and NEXT_PUBLIC_PINATA_API_KEY (fallback for compatibility)
+    // NOTE: NEXT_PUBLIC_* variables are exposed to client-side, so PINATA_API_KEY is more secure
+    const pinataApiKey = process.env.PINATA_API_KEY || process.env.NEXT_PUBLIC_PINATA_API_KEY
+    const pinataSecretKey = process.env.PINATA_SECRET_KEY || process.env.NEXT_PUBLIC_PINATA_SECRET_KEY
 
     if (!pinataApiKey || !pinataSecretKey) {
-      console.error('Pinata API keys not configured - missing PINATA_API_KEY or PINATA_SECRET_KEY')
+      // Better error logging to help debug
+      const missingKeys = []
+      if (!pinataApiKey) missingKeys.push('PINATA_API_KEY (or NEXT_PUBLIC_PINATA_API_KEY)')
+      if (!pinataSecretKey) missingKeys.push('PINATA_SECRET_KEY (or NEXT_PUBLIC_PINATA_SECRET_KEY)')
+      
+      // Debug: Check actual values (without exposing them)
+      const debugInfo = {
+        missing: missingKeys,
+        hasApiKey: !!pinataApiKey,
+        hasSecretKey: !!pinataSecretKey,
+        apiKeyLength: pinataApiKey?.length || 0,
+        secretKeyLength: pinataSecretKey?.length || 0,
+        envKeys: Object.keys(process.env).filter(k => k.includes('PINATA')),
+        hasNextPublicApiKey: !!process.env.NEXT_PUBLIC_PINATA_API_KEY,
+        hasNextPublicSecretKey: !!process.env.NEXT_PUBLIC_PINATA_SECRET_KEY,
+        nextPublicApiKeyLength: process.env.NEXT_PUBLIC_PINATA_API_KEY?.length || 0,
+        nextPublicSecretKeyLength: process.env.NEXT_PUBLIC_PINATA_SECRET_KEY?.length || 0,
+        nodeEnv: process.env.NODE_ENV,
+      }
+      
+      console.error('Pinata API keys not configured:', debugInfo)
+      
       return NextResponse.json(
-        { error: 'Pinata API keys not configured on server' },
+        { 
+          error: 'Pinata API keys not configured on server',
+          details: `Missing: ${missingKeys.join(', ')}. Please set these in your environment variables (.env.local for local dev, or in your deployment platform settings).`
+        },
         { status: 500 }
       )
     }
@@ -39,33 +61,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate file size: each image must be max 4MB to avoid Vercel body size limits
-    // Vercel Hobby plan has 4.5MB limit, so we use 4MB to be safe
-    const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4 MB per image (Vercel limit is 4.5MB)
+    // Validate file size: each image must be max 10MB
+    const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB per image
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: `Image size must be less than 4 MB per image. This image is ${(file.size / (1024 * 1024)).toFixed(2)} MB. Please compress your image and try again.` },
-        { status: 400 }
-      )
-    }
-
-    // Validate file type - only allow images
-    const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-    const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif']
-    
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        { error: `Invalid file type: ${file.type}. Only image files (JPEG, PNG, WebP, GIF) are allowed.` },
-        { status: 400 }
-      )
-    }
-
-    // Also validate file extension as additional security layer
-    const fileName = file.name.toLowerCase()
-    const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => fileName.endsWith(ext))
-    if (!hasValidExtension) {
-      return NextResponse.json(
-        { error: 'Invalid file extension. Only image files are allowed.' },
+        { error: `Image size must be less than 10 MB per image. This image is ${(file.size / (1024 * 1024)).toFixed(2)} MB.` },
         { status: 400 }
       )
     }
@@ -75,31 +75,9 @@ export async function POST(request: NextRequest) {
     pinataFormData.append('file', file)
 
     // Parse and add metadata if provided
-    // Validate metadata structure to prevent DoS and injection
     if (metadataStr) {
       try {
-        // Limit metadata size to prevent DoS
-        if (metadataStr.length > 10000) {
-          throw new Error('Metadata too large')
-        }
-        
         const metadata = JSON.parse(metadataStr)
-        
-        // Validate metadata structure
-        if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) {
-          throw new Error('Invalid metadata structure')
-        }
-        
-        // Ensure name is a string if present
-        if (metadata.name && typeof metadata.name !== 'string') {
-          throw new Error('Invalid metadata.name type')
-        }
-        
-        // Validate keyvalues if present
-        if (metadata.keyvalues && (typeof metadata.keyvalues !== 'object' || Array.isArray(metadata.keyvalues))) {
-          throw new Error('Invalid metadata.keyvalues type')
-        }
-        
         pinataFormData.append('pinataMetadata', JSON.stringify(metadata))
       } catch (e) {
         // If metadata is invalid, create default metadata
@@ -125,31 +103,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse and add options if provided
-    // Validate options structure to prevent DoS and injection
     if (optionsStr) {
       try {
-        // Limit options size to prevent DoS
-        if (optionsStr.length > 5000) {
-          throw new Error('Options too large')
-        }
-        
         const options = JSON.parse(optionsStr)
-        
-        // Validate options structure
-        if (typeof options !== 'object' || options === null || Array.isArray(options)) {
-          throw new Error('Invalid options structure')
-        }
-        
-        // Only allow safe options
-        const safeOptions: any = {}
-        if (options.cidVersion !== undefined) {
-          safeOptions.cidVersion = Number(options.cidVersion) === 1 ? 1 : 0
-        }
-        if (options.wrapWithDirectory !== undefined) {
-          safeOptions.wrapWithDirectory = Boolean(options.wrapWithDirectory)
-        }
-        
-        pinataFormData.append('pinataOptions', JSON.stringify(safeOptions))
+        pinataFormData.append('pinataOptions', JSON.stringify(options))
       } catch (e) {
         // Default options if invalid
         const defaultOptions = {
@@ -168,10 +125,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Upload to Pinata via server (no CORS issues)
-    // Use AbortController for timeout (Vercel serverless functions have 10s timeout on Hobby plan)
-    // Increased timeout to 45 seconds for larger files and slower connections
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 seconds timeout
+    const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 seconds timeout
     
     let response: Response
     try {

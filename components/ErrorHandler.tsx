@@ -14,7 +14,38 @@ export function ErrorHandler() {
     const originalError = console.error
     
     console.warn = (...args: any[]) => {
-      const message = args.map(arg => String(arg)).join(' ')
+      // Ensure args is an array
+      const safeArgs = Array.isArray(args) ? args : [args]
+      
+      // Build message string for filtering - handle Error objects specially
+      const message = safeArgs.map(arg => {
+        try {
+          if (arg === null || arg === undefined) return String(arg)
+          // Handle Error objects specially
+          if (arg instanceof Error) {
+            return arg.message || arg.toString() || 'Error'
+          }
+          if (typeof arg === 'object') {
+            // Try to extract meaningful info from error-like objects
+            if (arg.error || arg.message) {
+              return String(arg.error || arg.message)
+            }
+            try {
+              const str = JSON.stringify(arg)
+              if (str === '{}' && arg.toString && arg.toString !== Object.prototype.toString) {
+                return String(arg)
+              }
+              return str
+            } catch {
+              return String(arg)
+            }
+          }
+          return String(arg)
+        } catch {
+          return '[Unable to stringify]'
+        }
+      }).join(' ')
+      
       // Suppress WalletConnect QR code update warnings (harmless library issue)
       if (
         message.includes('w3m-connecting-wc-qrcode') ||
@@ -24,13 +55,64 @@ export function ErrorHandler() {
         // Silently ignore - this is a known WalletConnect library issue
         return
       }
-      // Log all other warnings normally
-      originalWarn.apply(console, args)
+      
+      // Log all other warnings normally - pass original args directly
+      try {
+        if (typeof originalWarn === 'function') {
+          // Direct call - console.warn doesn't need 'this' binding
+          originalWarn(...args)
+        } else {
+          console.log('Warning:', ...args)
+        }
+      } catch (e) {
+        // If direct call fails, try with apply
+        try {
+          if (typeof originalWarn === 'function') {
+            originalWarn.apply(console, args)
+          } else {
+            console.log('Warning:', ...args)
+          }
+        } catch {
+          console.log('Warning:', message)
+        }
+      }
     }
     
     // Suppress connection reset errors (expected user actions)
     console.error = (...args: any[]) => {
-      const message = args.map(arg => String(arg)).join(' ')
+      // Ensure args is an array
+      const safeArgs = Array.isArray(args) ? args : [args]
+      
+      // Build message string for filtering - handle Error objects specially
+      const message = safeArgs.map(arg => {
+        try {
+          if (arg === null || arg === undefined) return String(arg)
+          // Handle Error objects specially - they don't JSON.stringify well
+          if (arg instanceof Error) {
+            return arg.message || arg.toString() || 'Error'
+          }
+          if (typeof arg === 'object') {
+            // Try to extract meaningful info from error-like objects
+            if (arg.error || arg.message) {
+              return String(arg.error || arg.message)
+            }
+            // For plain objects, try JSON.stringify but fallback to toString
+            try {
+              const str = JSON.stringify(arg)
+              // If JSON.stringify returns just "{}", try toString
+              if (str === '{}' && arg.toString && arg.toString !== Object.prototype.toString) {
+                return String(arg)
+              }
+              return str
+            } catch {
+              return String(arg)
+            }
+          }
+          return String(arg)
+        } catch {
+          return '[Unable to stringify]'
+        }
+      }).join(' ')
       const messageLower = message.toLowerCase()
       
       // Suppress Next.js dev WebSocket errors
@@ -90,8 +172,29 @@ export function ErrorHandler() {
         return
       }
       
-      // Log all other errors normally
-      originalError.apply(console, args)
+      // Log all other errors normally - safely call originalError
+      // Pass original args directly (don't modify them) to preserve Error objects
+      try {
+        if (typeof originalError === 'function') {
+          // Direct call - console.error doesn't need 'this' binding
+          originalError(...args)
+        } else {
+          // Fallback if originalError is not a function
+          console.log('Error:', ...args)
+        }
+      } catch (e) {
+        // If direct call fails, try with apply
+        try {
+          if (typeof originalError === 'function') {
+            originalError.apply(console, args)
+          } else {
+            console.log('Error:', ...args)
+          }
+        } catch {
+          // Last resort: just log the message
+          console.log('Error:', message)
+        }
+      }
     }
     
     return () => {

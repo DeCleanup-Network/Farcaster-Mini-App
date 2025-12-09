@@ -43,7 +43,7 @@ Reach Web3 users where they already are, leverage Farcaster's social graph for o
 ## Features
 
 ### **Core Cleanup**
-- **Submit Cleanup**: Upload before/after photos with automatic geotagging (max 4MB per image)
+- **Submit Cleanup**: Upload before/after photos with automatic geotagging (max 10MB per image)
 - **Enhanced Impact Report**: Optional detailed metrics (+5 $bDCU bonus)
 
 ### **Rewards & Gamification**
