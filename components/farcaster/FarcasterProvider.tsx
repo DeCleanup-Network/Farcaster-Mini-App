@@ -75,24 +75,22 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
     // Wait for DOM to be fully ready before calling ready()
     // This ensures the app is fully loaded and ready to display
     // For Next.js, we need to wait for hydration to complete
-    if (document.readyState === 'complete') {
-      // DOM already loaded, call immediately
-      init()
+    const readyState = document.readyState as 'loading' | 'interactive' | 'complete'
+    
+    const handleReady = () => {
+      // Small delay to ensure React hydration is complete
+      setTimeout(() => {
+        init()
+      }, 50)
+    }
+    
+    if (readyState === 'complete' || readyState === 'interactive') {
+      // DOM already loaded or interactive, call immediately
+      handleReady()
     } else {
-      // Wait for DOM to be ready
-      const handleReady = () => {
-        // Small delay to ensure React hydration is complete
-        setTimeout(() => {
-          init()
-        }, 50)
-      }
-      
-      if (document.readyState === 'interactive' || document.readyState === 'complete') {
-        handleReady()
-      } else {
-        window.addEventListener('DOMContentLoaded', handleReady, { once: true })
-        window.addEventListener('load', handleReady, { once: true })
-      }
+      // Still loading, wait for DOM to be ready
+      window.addEventListener('DOMContentLoaded', handleReady, { once: true })
+      window.addEventListener('load', handleReady, { once: true })
       
       return () => {
         window.removeEventListener('DOMContentLoaded', handleReady)
