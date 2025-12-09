@@ -190,10 +190,7 @@ export function WalletConnect() {
       {/* Network info */}
       <div className="flex flex-col items-end gap-0.5 w-full">
         <span className="text-[10px] text-muted-foreground/70 text-right">
-          Use it for browser app
-        </span>
-        <span className="text-[10px] text-muted-foreground/70 text-right">
-          Base Sepolia
+          Use, when on web app. Base Sepolia
         </span>
       </div>
     </div>

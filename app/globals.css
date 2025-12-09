@@ -143,6 +143,22 @@
     @apply touch-manipulation;
   }
   
+  /* iOS Safe Area support for notched devices */
+  @supports (padding: max(0px)) {
+    .safe-area-inset-bottom {
+      padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    }
+    .safe-area-inset-top {
+      padding-top: max(1rem, env(safe-area-inset-top));
+    }
+    .safe-area-inset-left {
+      padding-left: max(1rem, env(safe-area-inset-left));
+    }
+    .safe-area-inset-right {
+      padding-right: max(1rem, env(safe-area-inset-right));
+    }
+  }
+  
   /* Brand colors */
   .bg-brand-green {
     background-color: var(--color-brand-green);

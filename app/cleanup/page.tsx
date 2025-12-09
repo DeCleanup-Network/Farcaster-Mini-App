@@ -439,10 +439,10 @@ function CleanupContent() {
             }
 
             // Validate file size
-            const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB per image
+            const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4 MB per image (Vercel limit is 4.5MB)
             if (file.size > MAX_FILE_SIZE) {
               const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2)
-              const errorMsg = `Image size must be less than 10 MB per image. This image is ${fileSizeMB} MB.`
+              const errorMsg = `Image size must be less than 4 MB per image. This image is ${fileSizeMB} MB. Please compress your image and try again.`
               setPhotoError(errorMsg)
               alert(errorMsg)
               return
@@ -1340,7 +1340,7 @@ function CleanupContent() {
                   Upload Before Photo
                 </h1>
                 <p className="text-sm text-gray-400">
-                  Upload before and after cleanup photos with geotag. Supported formats: JPEG, JPG, HEIC. Maximum size per image: 10 MB.
+                  Upload before and after cleanup photos with geotag. Supported formats: JPEG, JPG, HEIC. Maximum size per image: 4 MB.
                 </p>
                 <div className="mt-3 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
                   <p className="text-xs text-blue-300">

@@ -483,7 +483,7 @@ export default function Home() {
                   {isPending ? 'Connecting...' : 'Log In'}
                 </Button>
                 <p className="mt-2 text-xs text-muted-foreground text-center">
-                  On Farcaster, connects you to your Farcaster wallet
+                  Use, when on Farcaster. Connects you with FC wallet
                 </p>
               </div>
             </div>

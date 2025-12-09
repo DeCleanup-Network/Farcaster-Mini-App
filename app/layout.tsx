@@ -119,7 +119,7 @@ export default function RootLayout({
             <FarcasterProvider>
               <AppHeader />
               <NetworkChecker />
-              <main className="min-h-screen pt-20 pb-16">
+              <main className="min-h-screen pt-20 pb-20 safe-area-inset-bottom">
                 {children}
               </main>
               <BottomNav />

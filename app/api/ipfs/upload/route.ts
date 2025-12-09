@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Configure runtime for longer execution time (Vercel serverless functions)
+export const runtime = 'nodejs'
+export const maxDuration = 60 // 60 seconds for large uploads
+
 /**
  * API Route to proxy IPFS uploads to Pinata
  * This avoids CORS issues and keeps API keys server-side
+ * 
+ * Note: Vercel Hobby plan has 4.5MB body size limit
+ * For larger files, consider upgrading to Pro plan or using direct client upload
  */
 export async function POST(request: NextRequest) {
   try {
@@ -32,11 +39,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate file size: each image must be max 10MB (not total)
-    const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB per image
+    // Validate file size: each image must be max 4MB to avoid Vercel body size limits
+    // Vercel Hobby plan has 4.5MB limit, so we use 4MB to be safe
+    const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4 MB per image (Vercel limit is 4.5MB)
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: `Image size must be less than 10 MB per image. This image is ${(file.size / (1024 * 1024)).toFixed(2)} MB.` },
+        { error: `Image size must be less than 4 MB per image. This image is ${(file.size / (1024 * 1024)).toFixed(2)} MB. Please compress your image and try again.` },
         { status: 400 }
       )
     }
