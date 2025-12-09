@@ -80,6 +80,16 @@ export function ErrorHandler() {
         return
       }
       
+      // Suppress WalletConnect proposal expired errors (expected - user took too long to scan/connect)
+      if (
+        message.includes('Proposal expired') ||
+        messageLower.includes('proposal expired') ||
+        messageLower.includes('proposal has expired')
+      ) {
+        // Silently ignore - user can retry connection
+        return
+      }
+      
       // Log all other errors normally
       originalError.apply(console, args)
     }
@@ -162,7 +172,20 @@ export function ErrorHandler() {
       if (isLoggerError) {
         // Silently ignore - this is a library initialization issue
         event.preventDefault()
-        console.debug('Logger initialization error (ignored):', errorMessage)
+        return
+      }
+      
+      // Handle WalletConnect proposal expired errors (expected - user took too long to scan/connect)
+      const isProposalExpired = 
+        errorMessage.includes('Proposal expired') ||
+        errorString.includes('proposal expired') ||
+        errorString.includes('proposal has expired') ||
+        error?.message?.includes('Proposal expired')
+      
+      if (isProposalExpired) {
+        // Silently handle - user can retry connection
+        event.preventDefault()
+        console.debug('WalletConnect proposal expired (user can retry) - silently handled')
         return
       }
       
@@ -199,6 +222,19 @@ export function ErrorHandler() {
         // Silently handle - this is expected when user cancels/closes connection
         event.preventDefault()
         console.debug('Connection reset (user action) - silently handled')
+        return
+      }
+      
+      // Handle WalletConnect proposal expired errors in ErrorEvent
+      const isProposalExpired = 
+        errorMessage.includes('Proposal expired') ||
+        errorString.includes('proposal expired') ||
+        errorString.includes('proposal has expired')
+      
+      if (isProposalExpired) {
+        // Silently handle - user can retry connection
+        event.preventDefault()
+        console.debug('WalletConnect proposal expired (user can retry) - silently handled')
         return
       }
       

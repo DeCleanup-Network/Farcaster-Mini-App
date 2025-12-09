@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useAccount, useChainId, useDisconnect } from 'wagmi'
+import { useAccount, useChainId, useDisconnect, useConnect } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { Wallet, LogOut, ChevronDown } from 'lucide-react'
 import { REQUIRED_CHAIN_ID } from '@/lib/wagmi'
@@ -21,6 +21,7 @@ export function WalletConnect() {
   const { isConnected, connector } = useAccount()
   const chainId = useChainId()
   const { disconnect } = useDisconnect()
+  const { connect, connectors, isPending } = useConnect()
 
   // Initialize on mount
   useEffect(() => {
@@ -78,15 +79,59 @@ export function WalletConnect() {
 
           // Not connected - show connect button
           if (!connected) {
+            const handleConnect = (e: React.MouseEvent) => {
+              e.preventDefault()
+              e.stopPropagation()
+              
+              // Try RainbowKit modal first (must be synchronous for Safari)
+              if (openConnectModal && typeof openConnectModal === 'function') {
+                try {
+                  console.log('Opening RainbowKit connect modal...')
+                  openConnectModal()
+                } catch (error) {
+                  console.warn('RainbowKit modal failed:', error)
+                  // Fallback: Try connecting directly (async, but triggered from sync handler)
+                  handleDirectConnect()
+                }
+              } else {
+                // Fallback if modal function not available
+                handleDirectConnect()
+              }
+            }
+
+            const handleDirectConnect = async () => {
+              // Fallback: Try connecting directly with first available connector
+              // This works better in Safari when modal fails
+              const availableConnectors = connectors.filter(c => c.ready)
+              if (availableConnectors.length > 0) {
+                try {
+                  // Prefer MetaMask or injected wallet for Safari
+                  const metaMaskConnector = availableConnectors.find(
+                    c => c.id === 'metaMask' || c.id === 'injected' || c.name.toLowerCase().includes('metamask')
+                  )
+                  const connectorToUse = metaMaskConnector || availableConnectors[0]
+                  console.log('Connecting directly with:', connectorToUse.name)
+                  await connect({ connector: connectorToUse })
+                } catch (connectError) {
+                  console.error('Direct connect failed:', connectError)
+                  // Last resort: show alert
+                  alert('Please install MetaMask or another Web3 wallet to connect.')
+                }
+              } else {
+                alert('No wallets available. Please install MetaMask or another Web3 wallet.')
+              }
+            }
+
             return (
               <div className="flex flex-col items-end gap-1">
                 <Button
                   size="sm"
-                  onClick={openConnectModal}
-                  className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm"
+                  onClick={handleConnect}
+                  disabled={isPending}
+                  className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm disabled:opacity-50"
                 >
                   <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span>Connect Wallet</span>
+                  <span>{isPending ? 'Connecting...' : 'Connect Wallet'}</span>
                 </Button>
               </div>
             )

@@ -19,8 +19,14 @@ const RainbowKitProviderWithTheme = dynamic(
       overlayBlur: 'small',
     })
     // Return provider component with custom theme
+    // Configure modal for Safari compatibility
     const RainbowKitProviderWithCustomTheme = ({ children, ...props }: any) => (
-      <mod.RainbowKitProvider theme={customTheme} {...props}>
+      <mod.RainbowKitProvider 
+        theme={customTheme} 
+        modalSize="compact"
+        initialChain={undefined}
+        {...props}
+      >
         {children}
       </mod.RainbowKitProvider>
     )

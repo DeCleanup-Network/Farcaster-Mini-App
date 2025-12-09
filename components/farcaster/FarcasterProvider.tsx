@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { initializeFarcaster, getFarcasterContext } from '@/lib/farcaster'
+import { sdk } from '@farcaster/miniapp-sdk'
 import type { FarcasterContext as FarcasterContextData } from '@/types/farcaster'
 
 interface FarcasterContextType {
@@ -27,7 +28,26 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function init() {
+      // Wait for DOM to be ready
+      if (typeof window === 'undefined') {
+        setIsLoading(false)
+        return
+      }
+
       try {
+        // Call ready() immediately - this is critical for Farcaster/Base Build
+        // According to docs: "After your app loads, you must call sdk.actions.ready()"
+        // This hides the splash screen and displays your content
+        try {
+          await sdk.actions.ready()
+          console.log('✅ Farcaster SDK ready() called successfully')
+        } catch (readyError) {
+          // If ready() fails, it might not be in Farcaster context (e.g., regular browser)
+          // This is OK - we'll continue anyway
+          console.log('Farcaster SDK ready() not available (likely not in Farcaster context):', readyError)
+        }
+
+        // Then initialize and get context
         const initialized = await initializeFarcaster()
         if (initialized) {
           const farcasterContext = await getFarcasterContext()
@@ -42,7 +62,13 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    init()
+    // Call init after a short delay to ensure DOM is ready
+    // This is especially important for Next.js SSR/hydration
+    const timer = setTimeout(() => {
+      init()
+    }, 100)
+
+    return () => clearTimeout(timer)
   }, [])
 
   return (

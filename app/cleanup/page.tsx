@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useAccount, useChainId, useSwitchChain } from 'wagmi'
+import { useAccount, useChainId, useSwitchChain, useConnect } from 'wagmi'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -47,6 +47,7 @@ function CleanupContent() {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
+  const { connect, connectors, isPending: isConnecting } = useConnect()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [mounted, setMounted] = useState(false)
@@ -105,6 +106,7 @@ function CleanupContent() {
   const [referralEligible, setReferralEligible] = useState<boolean | null>(null)
   const [referralIneligibleReason, setReferralIneligibleReason] = useState<string | null>(null)
   
+  // Read referrer from URL - run once on mount, preserve across wallet connections
   useEffect(() => {
     if (!mounted || typeof window === 'undefined') return
     
@@ -132,51 +134,64 @@ function CleanupContent() {
       }
     }
     
-      if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
-        const referrerAddr = ref as Address
+    if (ref && /^0x[a-fA-F0-9]{40}$/.test(ref)) {
+      const referrerAddr = ref as Address
+      // Only set if not already set (preserve during wallet connection)
+      if (!referrerAddress) {
         setReferrerAddress(referrerAddr)
-        // Persist referrer in localStorage so it's available when user submits
-          // Store referrer even before address is available
-          const referrerKey = `referrer_pending`
+      }
+      // Always persist to localStorage (even if already set)
       try {
-          localStorage.setItem(referrerKey, referrerAddr)
+        // Store referrer even before address is available
+        localStorage.setItem('referrer_pending', referrerAddr)
         console.log('✅ Referrer address from URL saved:', referrerAddr)
+        
+        // If address is available, also store it scoped to address
+        if (address) {
+          const referrerKeyScoped = `referrer_${address.toLowerCase()}`
+          localStorage.setItem(referrerKeyScoped, referrerAddr)
+          console.log('✅ Referrer address saved for address:', address)
+        }
       } catch (e) {
         console.error('Failed to save referrer to localStorage:', e)
       }
-          
-          // If address is available, also store it scoped to address
-          if (address) {
-            const referrerKeyScoped = `referrer_${address.toLowerCase()}`
-        try {
-            localStorage.setItem(referrerKeyScoped, referrerAddr)
-          console.log('✅ Referrer address saved for address:', address)
-        } catch (e) {
-          console.error('Failed to save scoped referrer:', e)
-          }
-        }
     } else {
-        // If no ref in URL, check localStorage for saved referrer
-      try {
-        const referrerKeyPending = localStorage.getItem('referrer_pending')
-        if (referrerKeyPending && /^0x[a-fA-F0-9]{40}$/.test(referrerKeyPending)) {
-          setReferrerAddress(referrerKeyPending as Address)
-          console.log('✅ Referrer address from localStorage (pending):', referrerKeyPending)
-        }
-        
-        if (address) {
-          const referrerKey = `referrer_${address.toLowerCase()}`
-          const savedReferrer = localStorage.getItem(referrerKey)
-          if (savedReferrer && /^0x[a-fA-F0-9]{40}$/.test(savedReferrer)) {
-            setReferrerAddress(savedReferrer as Address)
-            console.log('✅ Referrer address from localStorage:', savedReferrer)
+      // If no ref in URL, check localStorage for saved referrer
+      // Only do this if we don't already have a referrer set
+      if (!referrerAddress) {
+        try {
+          const referrerKeyPending = localStorage.getItem('referrer_pending')
+          if (referrerKeyPending && /^0x[a-fA-F0-9]{40}$/.test(referrerKeyPending)) {
+            setReferrerAddress(referrerKeyPending as Address)
+            console.log('✅ Referrer address from localStorage (pending):', referrerKeyPending)
+          } else if (address) {
+            // Check for address-scoped referrer
+            const referrerKey = `referrer_${address.toLowerCase()}`
+            const savedReferrer = localStorage.getItem(referrerKey)
+            if (savedReferrer && /^0x[a-fA-F0-9]{40}$/.test(savedReferrer)) {
+              setReferrerAddress(savedReferrer as Address)
+              console.log('✅ Referrer address from localStorage:', savedReferrer)
+            }
           }
+        } catch (e) {
+          console.error('Failed to read referrer from localStorage:', e)
         }
-      } catch (e) {
-        console.error('Failed to read referrer from localStorage:', e)
       }
     }
-  }, [mounted, searchParams, address])
+  }, [mounted, searchParams]) // Removed address dependency to prevent reset on wallet connect
+  
+  // Sync referrer to address-scoped storage when address becomes available
+  useEffect(() => {
+    if (address && referrerAddress) {
+      try {
+        const referrerKeyScoped = `referrer_${address.toLowerCase()}`
+        localStorage.setItem(referrerKeyScoped, referrerAddress)
+        console.log('✅ Referrer synced to address-scoped storage:', address)
+      } catch (e) {
+        console.error('Failed to sync referrer to address-scoped storage:', e)
+      }
+    }
+  }, [address, referrerAddress])
 
   // Check referral eligibility when address and referrer are available
   useEffect(() => {
@@ -1097,6 +1112,13 @@ function CleanupContent() {
   }
 
   if (!isConnected) {
+    // Get available connectors for wallet connection
+    const availableConnectors = connectors.filter(c => c.ready)
+    const metaMaskConnector = availableConnectors.find(
+      c => c.id === 'metaMask' || c.id === 'injected' || c.name.toLowerCase().includes('metamask')
+    )
+    const primaryConnector = metaMaskConnector || availableConnectors[0]
+    
     return (
       <div className="min-h-screen bg-background px-4 py-8 pb-20">
         <div className="mx-auto max-w-md rounded-lg border border-gray-800 bg-gray-900 p-6 text-center">
@@ -1106,9 +1128,37 @@ function CleanupContent() {
           <p className="mb-6 text-gray-400">
             Please connect your wallet to submit a cleanup.
           </p>
+          
+          {/* Wallet connect button */}
+          {primaryConnector && (
+            <Button
+              size="lg"
+              onClick={async () => {
+                try {
+                  await connect({ connector: primaryConnector })
+                } catch (error: any) {
+                  console.error('Wallet connect failed:', error)
+                  if (error?.code !== 4001) {
+                    alert('Failed to connect wallet. Please try again or use the wallet button in the header.')
+                  }
+                }
+              }}
+              disabled={isConnecting}
+              className="mb-4 w-full gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
+            >
+              {isConnecting ? 'Connecting...' : `Connect ${primaryConnector.name}`}
+            </Button>
+          )}
+          
+          <p className="text-xs text-gray-500">
+            You can also use the wallet button in the header.
+          </p>
+          
           {/* Only show back button if there's no referral */}
           {!referrerAddress && (
-            <BackButton href="/" label="Go Back" />
+            <div className="mt-4">
+              <BackButton href="/" label="Go Back" />
+            </div>
           )}
         </div>
       </div>
