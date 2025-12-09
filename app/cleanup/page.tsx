@@ -772,7 +772,9 @@ function CleanupContent() {
         
         // Only pass hasForm=true if we actually have valid form data
         // This prevents contract mismatch where hasImpactForm=true but impactReportHash is empty
-        const actualHasForm = isFormValid && impactFormDataHash !== null
+        const hasValidFormData = isFormValid && impactFormDataHash !== null
+        const actualHasForm: boolean = hasValidFormData
+        const finalImpactReportHash: string = hasValidFormData && impactFormDataHash ? impactFormDataHash : ''
         
         const cleanupId = await submitCleanup(
           beforeHash.hash,
@@ -781,7 +783,7 @@ function CleanupContent() {
           location.lng,
           finalReferrerAddress, // Use referrer from URL if available and eligible
           actualHasForm,
-          (actualHasForm && impactFormDataHash) ? impactFormDataHash : '',
+          finalImpactReportHash,
           feeValue, // Include fee if required
           chainId // Pass chainId from useChainId hook to avoid detection bugs
         )

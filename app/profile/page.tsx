@@ -49,6 +49,8 @@ import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } f
 import { useChainId } from 'wagmi'
 import { shareCast, generateReferralLink, generateClaimShareLink, formatReferralMessage, formatImpactShareMessage } from '@/lib/farcaster'
 import { SuccessModal } from '@/components/ui/success-modal'
+import { useFeatureLock } from '@/lib/hooks/useFeatureLock'
+import { FeatureLockedNotice } from '@/components/ui/FeatureLockedNotice'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   ? 'Basescan (Sepolia)'
@@ -133,6 +135,7 @@ function ProfileContent() {
   const searchParams = useSearchParams()
   const [hasMounted, setHasMounted] = useState(false)
   const [loading, setLoading] = useState(true)
+  const featureLock = useFeatureLock()
   const [profileData, setProfileData] = useState({
     dcuBalance: 0,
     stakedDCU: 0,
@@ -956,9 +959,15 @@ function ProfileContent() {
                     </p>
                   </div>
                   <ClaimFeeDisplay />
+                  {featureLock.isLocked && <FeatureLockedNotice />}
                   <Button
+                    disabled={featureLock.isLocked || isClaiming}
                     onClick={async () => {
                       if (!cleanupStatus.cleanupId || isClaiming) return
+                      if (featureLock.isLocked) {
+                        alert(featureLock.lockMessage)
+                        return
+                      }
 
                       try {
                         setIsClaiming(true)
@@ -1097,6 +1106,11 @@ function ProfileContent() {
                       </>
                     )}
                   </Button>
+                  {featureLock.isLocked && (
+                    <p className="mt-2 text-xs text-yellow-400 text-center">
+                      Connect Farcaster wallet to claim
+                    </p>
+                  )}
                 </div>
               )}
 

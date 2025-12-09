@@ -3,7 +3,7 @@ import { createConfig, http } from 'wagmi'
 import { getDefaultWallets } from '@rainbow-me/rainbowkit'
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector'
 import { defineChain, type Chain } from 'viem'
-import { isFarcasterContext } from './farcaster'
+import { isFarcaster } from './farcaster-detection'
 
 const baseMainnetRpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'
 const baseSepoliaRpcUrl = process.env.NEXT_PUBLIC_TESTNET_RPC_URL || 'https://sepolia.base.org'
@@ -99,12 +99,18 @@ if (typeof window !== 'undefined' && walletConnectProjectId) {
 // This ensures Farcaster wallet is prioritized when running inside Farcaster/Warpcast
 const farcasterConnector = typeof window !== 'undefined' ? farcasterMiniApp() : null
 
-// Include all connectors in config
+// Filter connectors based on environment:
+// - In Farcaster: Only Farcaster connector (RainbowKit/WalletConnect don't work in iframe)
+// - In Browser: All connectors (Farcaster, MetaMask, WalletConnect, etc.)
 const connectors = typeof window !== 'undefined'
-  ? [
-      ...(farcasterConnector ? [farcasterConnector] : []),
-      ...defaultConnectors,
-    ]
+  ? isFarcaster()
+    ? // In Farcaster: Only Farcaster wallet works
+      farcasterConnector ? [farcasterConnector] : []
+    : // In Browser: All wallets available
+      [
+        ...(farcasterConnector ? [farcasterConnector] : []),
+        ...defaultConnectors,
+      ]
   : []
 
 // Warn if WalletConnect Project ID is missing (but don't fail - Farcaster and injected wallets still work)
