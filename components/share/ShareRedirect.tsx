@@ -14,7 +14,7 @@ export function ShareRedirect({ redirectUrl }: ShareRedirectProps) {
     // Then redirect client-side
     // Note: For Farcaster embeds, we actually want to stay on this page so the embed metadata is available
     // Only redirect if user navigates away or if this is a direct visit (not an embed fetch)
-    const isCrawler = /bot|crawler|spider|crawling/i.test(navigator.userAgent) || 
+    const isCrawler = /bot|crawler|spider|crawling|facebookexternalhit|twitterbot|linkedinbot|slackbot|whatsapp|farcaster/i.test(navigator.userAgent) || 
                       !navigator.userAgent // Some crawlers don't send user agent
     
     if (!isCrawler) {
@@ -23,9 +23,9 @@ export function ShareRedirect({ redirectUrl }: ShareRedirectProps) {
       const timer = setTimeout(() => {
         // Use replace instead of href to avoid adding to history
         // This helps preserve URL parameters in Safari
-        // Shorter delay for better UX - crawlers should have read metadata by now
+        // Longer delay to ensure crawlers have time to read metadata
         window.location.replace(redirectUrl)
-      }, 1000) // 1 second - enough for crawlers, better UX for users
+      }, 2000) // 2 seconds - gives crawlers more time to read metadata
 
       return () => clearTimeout(timer)
     }
@@ -33,12 +33,15 @@ export function ShareRedirect({ redirectUrl }: ShareRedirectProps) {
   }, [redirectUrl])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-black">
-      <div className="text-center">
-        <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-brand-green" />
-        <p className="text-white">Redirecting to DeCleanup Rewards...</p>
+    <>
+      {/* Explicit meta tags for crawlers that might not read Next.js metadata */}
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <div className="text-center">
+          <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-brand-green" />
+          <p className="text-white">Redirecting to DeCleanup Rewards...</p>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 

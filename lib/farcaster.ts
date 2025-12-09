@@ -71,26 +71,16 @@ export type EIP1193Provider = {
 }
 
 // Initialize Farcaster SDK
-// Note: ready() should be called separately in FarcasterProvider
-// This function is kept for backward compatibility but ready() is called directly
+// Note: ready() is called in FarcasterProvider - this function just initializes context
 export const initializeFarcaster = async () => {
   try {
-    // Check if we're in Farcaster context before calling ready()
-    // ready() should already be called in FarcasterProvider, but we call it here too as fallback
-    if (typeof window !== 'undefined') {
-      try {
-        await sdk.actions.ready()
-        console.log('✅ Farcaster SDK initialized (ready() called)')
-      } catch (readyError: any) {
-        // If ready() fails, we might not be in Farcaster context
-        // This is OK for regular browser usage
-        if (readyError?.message?.includes('not available') || readyError?.message?.includes('context')) {
-          console.log('Farcaster SDK not in Farcaster context (browser mode)')
-        } else {
-          console.warn('Farcaster SDK ready() failed:', readyError)
-        }
-      }
+    // ready() is called separately in FarcasterProvider after app is fully loaded
+    // This function just ensures SDK is available and returns success
+    if (typeof window !== 'undefined' && (window as any).farcaster?.sdk) {
+      return true
     }
+    // If SDK not available, we're likely not in Farcaster context (browser mode)
+    // This is OK - return true anyway
     return true
   } catch (error) {
     console.error('Failed to initialize Farcaster SDK:', error)

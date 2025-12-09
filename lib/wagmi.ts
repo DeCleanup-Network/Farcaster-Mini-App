@@ -68,7 +68,7 @@ const MINIAPP_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decl
 const APP_DESCRIPTION = 'Clean up, share proof, and earn tokenized environmental rewards on Base.'
 const APP_ICON_URL =
   process.env.NEXT_PUBLIC_MINIAPP_ICON_URL ||
-  'https://gateway.pinata.cloud/ipfs/bafkreidndtdixffpiadhogqyj55rdqbrualxwhd3if4whev6pdtkzxu254?filename=DCUIconNEW.png'
+  'https://gateway.pinata.cloud/ipfs/bafybeieny7btv4icyd5oqhbtiafbdvpxtebxjmxqfv6vajly6ggwqpisde?filename=DCUIconNEW.png'
 
 // Wagmi configuration with RainbowKit and Farcaster wallet support
 // IMPORTANT: Only initialize connectors on client side to avoid SSR errors

@@ -26,29 +26,44 @@ const bebasNeue = Bebas_Neue({
 
 // Farcaster Mini App embed metadata configuration
 // Required for Farcaster embeds & previews - must match homeUrl in manifest
-// Per Farcaster docs: version must be "1" (not "next"), and we should only use fc:miniapp (not fc:frame)
+// Per Farcaster docs: https://miniapps.farcaster.xyz/docs/guides/sharing
 const FARCASTER_MINIAPP_URL = "https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards";
 const EMBED_METADATA = {
-  version: "1", // Must be "1" per Farcaster docs, not "next"
-  imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeidcmqm6tz7gfcucbzevgxiqeriq55tvw3n5m7y5aoqmruxnrjvdxq?filename=DCUSocialNEW.png",
+  version: "1", // Must be "1" per Farcaster docs
+  imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png",
   button: {
     title: "Open DeCleanup Rewards",
     action: {
-      type: "launch_frame",
-      url: FARCASTER_MINIAPP_URL, // Use Farcaster miniapp URL format
+      type: "launch_miniapp", // Use "launch_miniapp" for new implementations (or "launch_frame" for backward compatibility)
+      url: FARCASTER_MINIAPP_URL,
       name: "DeCleanup Rewards",
-      splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafybeigl3upt374fi2k54dw3sthwz2me2ktgrbvmnpthnajo6olzo75s6e?filename=DCUSplashNEW.png",
+      splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png",
       splashBackgroundColor: "#000000",
     },
   },
 };
+// Backward compatibility metadata (for older Farcaster clients)
+const EMBED_METADATA_FRAME = {
+  ...EMBED_METADATA,
+  button: {
+    ...EMBED_METADATA.button,
+    action: {
+      ...EMBED_METADATA.button.action,
+      type: "launch_frame", // Backward compatibility
+    },
+  },
+};
 
-const OG_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeidcmqm6tz7gfcucbzevgxiqeriq55tvw3n5m7y5aoqmruxnrjvdxq?filename=DCUSocialNEW.png"
+const OG_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png"
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://miniapp.decleanup.net"
 
 export const metadata: Metadata = {
   title: "DeCleanup Rewards - Tokenize Your Environmental Impact",
   description: "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/favicon.ico', // Apple touch icon (uses same favicon)
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -81,8 +96,7 @@ export const metadata: Metadata = {
   },
   other: {
     "fc:miniapp": JSON.stringify(EMBED_METADATA),
-    // Removed "fc:frame" - per Farcaster docs: "DO NOT use fc:frame meta tag for new implementations"
-    // Only use fc:miniapp for new Mini Apps
+    "fc:frame": JSON.stringify(EMBED_METADATA_FRAME), // For backward compatibility with older Farcaster clients
   },
 };
 

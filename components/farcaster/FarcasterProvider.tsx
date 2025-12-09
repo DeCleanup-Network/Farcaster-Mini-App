@@ -35,16 +35,26 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        // Call ready() immediately - this is critical for Farcaster/Base Build
-        // According to docs: "After your app loads, you must call sdk.actions.ready()"
+        // According to Farcaster docs: "After your app loads, you must call sdk.actions.ready()"
         // This hides the splash screen and displays your content
-        try {
-          await sdk.actions.ready()
-          console.log('✅ Farcaster SDK ready() called successfully')
-        } catch (readyError) {
-          // If ready() fails, it might not be in Farcaster context (e.g., regular browser)
-          // This is OK - we'll continue anyway
-          console.log('Farcaster SDK ready() not available (likely not in Farcaster context):', readyError)
+        // Important: Call ready() as early as possible, but after DOM is ready
+        // We check if SDK is available before calling to avoid errors in non-Farcaster contexts
+        if (typeof window !== 'undefined' && (window as any).farcaster?.sdk) {
+          try {
+            await sdk.actions.ready()
+            console.log('✅ Farcaster SDK ready() called successfully - splash screen hidden')
+          } catch (readyError: any) {
+            // If ready() fails, it might not be in Farcaster context (e.g., regular browser)
+            // This is OK - we'll continue anyway
+            if (readyError?.message?.includes('not available') || readyError?.message?.includes('context')) {
+              console.log('Farcaster SDK not in Farcaster context (browser mode)')
+            } else {
+              console.warn('Farcaster SDK ready() failed:', readyError?.message || readyError)
+            }
+          }
+        } else {
+          // SDK not available - likely not in Farcaster context
+          console.log('Farcaster SDK not available (likely not in Farcaster context)')
         }
 
         // Then initialize and get context
@@ -62,13 +72,33 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Call init after a short delay to ensure DOM is ready
-    // This is especially important for Next.js SSR/hydration
-    const timer = setTimeout(() => {
+    // Wait for DOM to be fully ready before calling ready()
+    // This ensures the app is fully loaded and ready to display
+    // For Next.js, we need to wait for hydration to complete
+    if (document.readyState === 'complete') {
+      // DOM already loaded, call immediately
       init()
-    }, 100)
-
-    return () => clearTimeout(timer)
+    } else {
+      // Wait for DOM to be ready
+      const handleReady = () => {
+        // Small delay to ensure React hydration is complete
+        setTimeout(() => {
+          init()
+        }, 50)
+      }
+      
+      if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        handleReady()
+      } else {
+        window.addEventListener('DOMContentLoaded', handleReady, { once: true })
+        window.addEventListener('load', handleReady, { once: true })
+      }
+      
+      return () => {
+        window.removeEventListener('DOMContentLoaded', handleReady)
+        window.removeEventListener('load', handleReady)
+      }
+    }
   }, [])
 
   return (

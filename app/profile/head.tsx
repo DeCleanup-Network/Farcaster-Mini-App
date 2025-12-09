@@ -1,5 +1,6 @@
+// Embed image (3:2 aspect ratio) used in fc:miniapp meta tags for sharing
 const SHARE_IMAGE_URL =
-  'https://gateway.pinata.cloud/ipfs/bafybeidcmqm6tz7gfcucbzevgxiqeriq55tvw3n5m7y5aoqmruxnrjvdxq?filename=DCUSocialNEW.png'
+  'https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png'
 const TITLE = 'My Impact Product · Earn Tokens on Base | DeCleanup Rewards'
 const DESCRIPTION = 'Track your cleanups, earn tokens, and trade on Base with DeCleanup Rewards.'
 

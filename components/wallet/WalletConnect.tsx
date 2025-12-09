@@ -107,6 +107,16 @@ export function WalletConnect() {
               e.preventDefault()
               e.stopPropagation()
               
+              // Detect iOS Safari - it has issues with modals
+              const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+              
+              // For iOS Safari, skip modal and connect directly (modals don't work well)
+              if (isIOSSafari) {
+                console.log('iOS Safari detected, connecting directly...')
+                handleDirectConnect()
+                return
+              }
+              
               // Try RainbowKit modal first (must be synchronous for Safari)
               if (openConnectModal && typeof openConnectModal === 'function') {
                 try {
@@ -129,20 +139,41 @@ export function WalletConnect() {
               const availableConnectors = connectors.filter(c => c.ready)
               if (availableConnectors.length > 0) {
                 try {
-                  // Prefer MetaMask or injected wallet for Safari
-                  const metaMaskConnector = availableConnectors.find(
-                    c => c.id === 'metaMask' || c.id === 'injected' || c.name.toLowerCase().includes('metamask')
-                  )
-                  const connectorToUse = metaMaskConnector || availableConnectors[0]
-                  console.log('Connecting directly with:', connectorToUse.name)
+                  // Detect iOS Safari
+                  const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+                  
+                  // For iOS Safari, prefer injected/MetaMask over WalletConnect (WalletConnect has issues on iOS)
+                  let connectorToUse
+                  if (isIOSSafari) {
+                    // iOS Safari: Prefer MetaMask/injected, avoid WalletConnect
+                    connectorToUse = availableConnectors.find(
+                      c => (c.id === 'metaMask' || c.id === 'injected' || c.name.toLowerCase().includes('metamask')) &&
+                           !c.id.includes('walletConnect') && !c.name.toLowerCase().includes('walletconnect')
+                    ) || availableConnectors.find(c => !c.id.includes('walletConnect')) || availableConnectors[0]
+                    console.log('iOS Safari detected, using connector:', connectorToUse.name)
+                  } else {
+                    // Other browsers: Prefer MetaMask or injected wallet
+                    connectorToUse = availableConnectors.find(
+                      c => c.id === 'metaMask' || c.id === 'injected' || c.name.toLowerCase().includes('metamask')
+                    ) || availableConnectors[0]
+                    console.log('Connecting directly with:', connectorToUse.name)
+                  }
+                  
                   await connect({ connector: connectorToUse })
-                } catch (connectError) {
+                } catch (connectError: any) {
                   console.error('Direct connect failed:', connectError)
-                  // Last resort: show alert
-                  alert('Please install MetaMask or another Web3 wallet to connect.')
+                  const errorMsg = connectError?.message || String(connectError || 'Unknown error')
+                  
+                  // Don't show alert for user rejections
+                  if (!errorMsg.toLowerCase().includes('rejected') && 
+                      !errorMsg.toLowerCase().includes('denied') &&
+                      !errorMsg.toLowerCase().includes('user cancelled')) {
+                    // Last resort: show alert
+                    alert('Connection failed. Please ensure your wallet is unlocked and try again.')
+                  }
                 }
               } else {
-                alert('No wallets available. Please install MetaMask or another Web3 wallet.')
+                alert('No wallets available. Please install MetaMask or another Web3 wallet to connect.')
               }
             }
 

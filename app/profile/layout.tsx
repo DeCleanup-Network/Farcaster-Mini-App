@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
-const PROFILE_IMAGE_URL = 'https://gateway.pinata.cloud/ipfs/bafybeidcmqm6tz7gfcucbzevgxiqeriq55tvw3n5m7y5aoqmruxnrjvdxq?filename=DCUSocialNEW.png'
+// Embed image (3:2 aspect ratio) used in fc:miniapp meta tags for sharing
+const PROFILE_IMAGE_URL = 'https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png'
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 
 export const metadata: Metadata = {
@@ -36,10 +37,24 @@ export const metadata: Metadata = {
       button: {
         title: 'Open DeCleanup Rewards',
         action: {
-          type: 'launch_frame',
+          type: 'launch_miniapp', // Use "launch_miniapp" for new implementations
           url: FARCASTER_MINIAPP_URL,
           name: 'DeCleanup Rewards',
-          splashImageUrl: 'https://gateway.pinata.cloud/ipfs/bafybeigl3upt374fi2k54dw3sthwz2me2ktgrbvmnpthnajo6olzo75s6e?filename=DCUSplashNEW.png',
+          splashImageUrl: 'https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png',
+          splashBackgroundColor: '#000000',
+        },
+      },
+    }),
+    'fc:frame': JSON.stringify({
+      version: '1',
+      imageUrl: PROFILE_IMAGE_URL,
+      button: {
+        title: 'Open DeCleanup Rewards',
+        action: {
+          type: 'launch_frame', // Backward compatibility
+          url: FARCASTER_MINIAPP_URL,
+          name: 'DeCleanup Rewards',
+          splashImageUrl: 'https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png',
           splashBackgroundColor: '#000000',
         },
       },

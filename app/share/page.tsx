@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 import { ShareRedirect } from '@/components/share/ShareRedirect'
 
 // Preview image for sharing (used for both referral and claim)
+// This is the embed image (3:2 aspect ratio) used in fc:miniapp meta tags
 const SHARE_IMAGE_URL =
-  'https://gateway.pinata.cloud/ipfs/bafybeidcmqm6tz7gfcucbzevgxiqeriq55tvw3n5m7y5aoqmruxnrjvdxq?filename=DCUSocialNEW.png'
+  'https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png'
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
 
@@ -63,12 +64,23 @@ export async function generateMetadata({
     button: {
       title: 'Open DeCleanup Rewards',
       action: {
-        type: 'launch_frame',
+        type: 'launch_miniapp', // Use "launch_miniapp" for new implementations
         url: farcasterActionUrl,
         name: 'DeCleanup Rewards',
-        splashImageUrl:
-          'https://gateway.pinata.cloud/ipfs/bafybeigl3upt374fi2k54dw3sthwz2me2ktgrbvmnpthnajo6olzo75s6e?filename=DCUSplashNEW.png',
+          splashImageUrl:
+          'https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png',
         splashBackgroundColor: '#000000',
+      },
+    },
+  }
+  // Backward compatibility metadata (for older Farcaster clients)
+  const EMBED_METADATA_FRAME = {
+    ...EMBED_METADATA,
+    button: {
+      ...EMBED_METADATA.button,
+      action: {
+        ...EMBED_METADATA.button.action,
+        type: 'launch_frame', // Backward compatibility
       },
     },
   }
@@ -105,12 +117,15 @@ export async function generateMetadata({
       'og:image:height': '630',
       'og:image:type': 'image/png',
       'og:image:secure_url': imageUrl,
+      'og:url': shareUrl,
       'twitter:image': imageUrl,
       'twitter:image:alt': title,
       'twitter:card': 'summary_large_image',
       // Farcaster mini app metadata for proper embed recognition
       // This is what Farcaster crawlers look for to generate previews
+      // Per Farcaster docs: https://miniapps.farcaster.xyz/docs/guides/sharing
       'fc:miniapp': JSON.stringify(EMBED_METADATA),
+      'fc:frame': JSON.stringify(EMBED_METADATA_FRAME), // For backward compatibility with older Farcaster clients
     },
   }
 }
@@ -177,8 +192,8 @@ export default async function SharePage({
         type: 'launch_frame',
         url: farcasterActionUrl,
         name: 'DeCleanup Rewards',
-        splashImageUrl:
-          'https://gateway.pinata.cloud/ipfs/bafybeigl3upt374fi2k54dw3sthwz2me2ktgrbvmnpthnajo6olzo75s6e?filename=DCUSplashNEW.png',
+          splashImageUrl:
+          'https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png',
         splashBackgroundColor: '#000000',
       },
     },

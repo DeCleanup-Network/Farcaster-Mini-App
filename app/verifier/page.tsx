@@ -462,9 +462,14 @@ export default function VerifierPage() {
         const isExpired = Date.now() - timestamp > 24 * 60 * 60 * 1000
         if (verifiedAddress?.toLowerCase() === address.toLowerCase() && !isExpired) {
           // Address matches and not expired, verify against contract
+          console.log('Found stored verification, re-verifying against contract...')
           verifyAgainstContract(address)
           return
+        } else {
+          console.log('Stored verification expired or address mismatch, requiring new signature')
         }
+      } else {
+        console.log('No stored verification found, requiring signature')
       }
       // Need to sign
       setNeedsSignature(true)
@@ -474,6 +479,16 @@ export default function VerifierPage() {
       setNeedsSignature(true)
       setLoading(false)
     }
+  }
+
+  // Function to clear stored verification (for debugging/re-authentication)
+  function clearStoredVerification() {
+    localStorage.removeItem(VERIFIED_VERIFIER_KEY)
+    setIsVerifier(false)
+    setNeedsSignature(true)
+    setLoading(false)
+    setError(null)
+    console.log('Cleared stored verification')
   }
 
   async function verifyAgainstContract(addr: Address) {
@@ -508,10 +523,13 @@ export default function VerifierPage() {
       const checkPromise = isVerifierFn(addr)
       const isAuthorized = await Promise.race([checkPromise, timeoutPromise]) as Awaited<typeof checkPromise>
       console.log('Verifier check result:', isAuthorized)
+      console.log('Contract address used:', contractAddress)
+      console.log('Address being checked:', addr)
       
       setIsVerifier(isAuthorized)
       
       if (isAuthorized) {
+        console.log('✅ Address is verified as verifier, storing and loading cleanups...')
         // Store verification
         localStorage.setItem(VERIFIED_VERIFIER_KEY, JSON.stringify({
           verifiedAddress: addr,
@@ -519,7 +537,9 @@ export default function VerifierPage() {
         }))
         await loadCleanups()
       } else {
-        setError(`Address ${addr} is not in the verifier allowlist.`)
+        const errorMsg = `Address ${addr} is not in the verifier allowlist. Please ensure this address is added to the VERIFIER_ADDRESSES in the contract.`
+        console.error('❌ Verifier check failed:', errorMsg)
+        setError(errorMsg)
         setIsVerifier(false)
       }
     } catch (error) {
@@ -1279,6 +1299,17 @@ export default function VerifierPage() {
             <p className="mt-6 text-xs text-gray-500">
               This signature proves you control the wallet address. We'll check if it's whitelisted as a verifier.
             </p>
+
+            <div className="mt-4">
+              <Button
+                onClick={clearStoredVerification}
+                variant="outline"
+                size="sm"
+                className="border-gray-700 text-gray-400 hover:text-white"
+              >
+                Clear Stored Verification & Retry
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -1332,6 +1363,20 @@ export default function VerifierPage() {
                   ⚠ Contract address not configured. Set NEXT_PUBLIC_VERIFICATION_CONTRACT in .env.local
                 </p>
               )}
+            </div>
+            <div className="mb-4">
+              <Button
+                onClick={() => {
+                  clearStoredVerification()
+                  if (address) {
+                    verifyAgainstContract(address)
+                  }
+                }}
+                variant="outline"
+                className="border-gray-700 text-gray-400 hover:text-white"
+              >
+                Force Re-check Verifier Status
+              </Button>
             </div>
             <div className="rounded-lg border border-gray-700 bg-gray-900 p-4 text-left">
               <p className="mb-2 text-sm font-semibold text-white">Troubleshooting:</p>
