@@ -1324,7 +1324,7 @@ function ProfileContent() {
                         <Button
                           onClick={() => {
                             if (!address) return
-                            const link = generateClaimShareLink(address, profileData.level, 'web', false)
+                            const link = generateClaimShareLink(address, profileData.level, 'web', true)
                             const text = formatImpactShareMessage(profileData.level, link, 'web')
                             const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
                             window.open(xUrl, '_blank')
@@ -1340,7 +1340,7 @@ function ProfileContent() {
                         <Button
                           onClick={async () => {
                             if (!address) return
-                            const link = generateClaimShareLink(address, profileData.level, 'copy', false)
+                            const link = generateClaimShareLink(address, profileData.level, 'copy', true)
                             const message = formatImpactShareMessage(profileData.level, link, 'copy')
                             try {
                               await navigator.clipboard.writeText(message)

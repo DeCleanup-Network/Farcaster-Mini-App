@@ -5,7 +5,7 @@ export const MINIAPP_URL =
   process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 const FARCASTER_HANDLE = '@base'
 const REFERRAL_COPY_FARCASTER =
-  'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on Base\n\n'
+  'Join me in @decleanupnet Rewards! Clean up, share proof, earn tokens, and trade on Base\n\n'
 const REFERRAL_COPY_WEB =
   'Join me in @decleanupnet Rewards! Clean up, share proof, earn tokens, and trade on @base.\n\n'
 const REFERRAL_COPY_COPY =
@@ -28,6 +28,11 @@ export const formatReferralMessage = (
   
   // Add tip message only for Farcaster app referrals
   const tip = type === 'farcaster' ? FARCASTER_WALLET_TIP : ''
+  
+  // For Farcaster, add "Referral link for Farcaster mini app" before the link
+  if (type === 'farcaster') {
+    return `${copy}Referral link for Farcaster mini app\n\n${referralLink}${tip}`
+  }
   
   return `${copy}${referralLink}${tip}`
 }

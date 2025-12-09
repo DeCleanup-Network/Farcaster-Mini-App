@@ -536,11 +536,10 @@ export default function Home() {
 
                 <Button
                   onClick={async () => {
-                    const { formatReferralMessage } = await import('@/lib/farcaster')
-                    // For X/Telegram, use direct web app URL to avoid WalletConnect issues in in-app browsers
-                    const webAppUrl = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
-                    const directReferralLink = `${webAppUrl}/cleanup?ref=${address}`
-                    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(formatReferralMessage(directReferralLink, 'web'))}`
+                    const { generateReferralLink, formatReferralMessage } = await import('@/lib/farcaster')
+                    const referralLink = generateReferralLink(address, 'web', true)
+                    const text = formatReferralMessage(referralLink, 'web')
+                    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
                     window.open(xUrl, '_blank')
                   }}
                   variant="outline"
@@ -555,7 +554,7 @@ export default function Home() {
                 <Button
                   onClick={async () => {
                     const { generateReferralLink, formatReferralMessage } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address, 'copy', false)
+                    const referralLink = generateReferralLink(address, 'copy', true)
                     try {
                       const copyText = formatReferralMessage(referralLink, 'copy')
                       await navigator.clipboard.writeText(copyText)

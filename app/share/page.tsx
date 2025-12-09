@@ -165,7 +165,7 @@ export default async function SharePage({
   const shareQuery = buildQueryString({ ref, type, level })
   const shareUrl = `${SITE_URL}/share${shareQuery}`
 
-  const farcasterActionUrl = buildFarcasterActionUrl(type, ref)
+  const farcasterActionUrl = buildFarcasterActionUrl(type, ref, level)
   
   const EMBED_METADATA = {
     version: '1',
