@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { WalletConnect } from '@/components/wallet/WalletConnect'
 import { SuccessModal } from '@/components/ui/success-modal'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
@@ -11,8 +10,8 @@ import type { Connector } from 'wagmi'
 import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, X } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
 import { claimImpactProductFromVerification, getClaimFee, getUserLevel } from '@/lib/contracts'
-import { isFarcasterContext, formatReferralMessage } from '@/lib/farcaster'
-import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
+import { isFarcasterContext } from '@/lib/farcaster'
+import { REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   ? 'Basescan (Sepolia)'
@@ -481,8 +480,11 @@ export default function Home() {
                   onClick={() => handleConnect(primaryConnector)}
                 >
                   <Wallet className="h-5 w-5" />
-                  {isPending ? 'Connecting...' : isInFarcaster && farcasterConnector ? 'Connect Farcaster Wallet' : primaryConnector ? `Connect ${primaryConnector.name}` : 'No Wallets Available'}
+                  {isPending ? 'Connecting...' : 'Log In'}
                 </Button>
+                <p className="mt-2 text-xs text-muted-foreground text-center">
+                  On Farcaster, connects you to your Farcaster wallet
+                </p>
               </div>
               <p className="text-xs text-gray-500">
                 You can also use the wallet button in the header.

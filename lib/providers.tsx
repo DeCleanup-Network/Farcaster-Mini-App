@@ -5,8 +5,6 @@ import { WagmiProvider } from 'wagmi'
 import { config } from './wagmi'
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { isFarcaster } from './farcaster-detection'
-import { FarcasterWalletProvider } from '@/components/farcaster/FarcasterWalletProvider'
 
 // Dynamically import RainbowKitProvider and theme to avoid SSR issues with Node.js modules
 const RainbowKitProviderWithTheme = dynamic(
@@ -49,29 +47,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
   )
 
   const [mounted, setMounted] = useState(false)
-  const [inFarcaster, setInFarcaster] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-    // Check Farcaster environment after mount
-    setInFarcaster(isFarcaster())
   }, [])
 
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         {mounted ? (
-          inFarcaster ? (
-            // Inside Farcaster: Use Farcaster Wallet Provider, NO RainbowKit
-            <FarcasterWalletProvider>
-              {children}
-            </FarcasterWalletProvider>
-          ) : (
-            // In browser: Use RainbowKit with full wallet support
-            <RainbowKitProviderWithTheme>
-              {children}
-            </RainbowKitProviderWithTheme>
-          )
+          // Always use RainbowKit - it handles all wallet connections
+          <RainbowKitProviderWithTheme>
+            {children}
+          </RainbowKitProviderWithTheme>
         ) : (
           // Render children without providers during SSR
           children
