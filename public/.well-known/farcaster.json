@@ -11,9 +11,9 @@
     "version": "1",
     "name": "DeCleanup Rewards",
     "homeUrl": "https://farcaster-mini-app-umber.vercel.app",
-    "iconUrl": "https://gateway.pinata.cloud/ipfs/bafkreicdyq37dkuel7njhxinmkdm5werrgeqghfzqoviotgveqbzeg7qym?filename=icon1.png",
+    "iconUrl": "https://gateway.pinata.cloud/ipfs/bafkreidndtdixffpiadhogqyj55rdqbrualxwhd3if4whev6pdtkzxu254?filename=DCUIconNEW.png",
     "castShareUrl": "https://farcaster-mini-app-umber.vercel.app",
-    "splashImageUrl": "https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png",
+    "splashImageUrl": "https://gateway.pinata.cloud/ipfs/bafybeigl3upt374fi2k54dw3sthwz2me2ktgrbvmnpthnajo6olzo75s6e?filename=DCUSplashNEW.png",
     "splashBackgroundColor": "#000000",
     "subtitle": "Tokenize Cleanup Impact",
     "description": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
@@ -28,7 +28,7 @@
     "tagline": "Clean Up, Snap, Earn",
     "ogTitle": "DeCleanup Rewards",
     "ogDescription": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
-    "ogImageUrl": "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png",
+    "ogImageUrl": "https://gateway.pinata.cloud/ipfs/bafybeidcmqm6tz7gfcucbzevgxiqeriq55tvw3n5m7y5aoqmruxnrjvdxq?filename=DCUSocialNEW.png",
     "noindex": false
   }
 }

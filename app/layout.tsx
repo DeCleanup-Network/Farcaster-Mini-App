@@ -6,7 +6,7 @@ import { FarcasterProvider } from "@/components/farcaster/FarcasterProvider";
 import { NetworkChecker } from "@/components/network/NetworkChecker";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { AppHeader } from "@/components/navigation/AppHeader";
-import { ErrorHandler } from "@/components/ErrorHandler";
+import { ErrorHandler, ErrorBoundary } from "@/components/ErrorHandler";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,20 +30,20 @@ const bebasNeue = Bebas_Neue({
 const FARCASTER_MINIAPP_URL = "https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards";
 const EMBED_METADATA = {
   version: "1", // Must be "1" per Farcaster docs, not "next"
-  imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png",
+  imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeidcmqm6tz7gfcucbzevgxiqeriq55tvw3n5m7y5aoqmruxnrjvdxq?filename=DCUSocialNEW.png",
   button: {
     title: "Open DeCleanup Rewards",
     action: {
       type: "launch_frame",
       url: FARCASTER_MINIAPP_URL, // Use Farcaster miniapp URL format
       name: "DeCleanup Rewards",
-      splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png",
+      splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafybeigl3upt374fi2k54dw3sthwz2me2ktgrbvmnpthnajo6olzo75s6e?filename=DCUSplashNEW.png",
       splashBackgroundColor: "#000000",
     },
   },
 };
 
-const OG_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png"
+const OG_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeidcmqm6tz7gfcucbzevgxiqeriq55tvw3n5m7y5aoqmruxnrjvdxq?filename=DCUSocialNEW.png"
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://miniapp.decleanup.net"
 
 export const metadata: Metadata = {
@@ -114,16 +114,18 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${bebasNeue.variable} antialiased min-h-screen`}
       >
         <ErrorHandler />
-        <Providers>
-          <FarcasterProvider>
-            <AppHeader />
-            <NetworkChecker />
-            <main className="min-h-screen pt-20 pb-16">
-              {children}
-            </main>
-            <BottomNav />
-          </FarcasterProvider>
-        </Providers>
+        <ErrorBoundary>
+          <Providers>
+            <FarcasterProvider>
+              <AppHeader />
+              <NetworkChecker />
+              <main className="min-h-screen pt-20 pb-16">
+                {children}
+              </main>
+              <BottomNav />
+            </FarcasterProvider>
+          </Providers>
+        </ErrorBoundary>
       </body>
     </html>
   );

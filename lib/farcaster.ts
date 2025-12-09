@@ -11,6 +11,9 @@ const REFERRAL_COPY_WEB =
 const REFERRAL_COPY_COPY =
   'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on Base.\n\n'
 
+// Tip message for Farcaster app referrals
+const FARCASTER_WALLET_TIP = '\n\nTIP: For best experience use Farcaster wallet when connecting.'
+
 // Profile share messages
 export const formatReferralMessage = (
   referralLink: string,
@@ -22,7 +25,11 @@ export const formatReferralMessage = (
       : type === 'web'
       ? REFERRAL_COPY_WEB
       : REFERRAL_COPY_COPY
-  return `${copy}${referralLink}`
+  
+  // Add tip message only for Farcaster app referrals
+  const tip = type === 'farcaster' ? FARCASTER_WALLET_TIP : ''
+  
+  return `${copy}${referralLink}${tip}`
 }
 
 // Claim share messages
@@ -41,12 +48,19 @@ export const formatImpactShareMessage = (
   const hasLevel = typeof parsedLevel === 'number' && Number.isFinite(parsedLevel) && parsedLevel > 0
   const levelLabel = hasLevel ? `Level ${parsedLevel} Impact Product` : 'an Impact Product'
   
+  let message: string
   if (type === 'farcaster') {
-    return `Just minted ${levelLabel} by @decleanupnet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
+    message = `Just minted ${levelLabel} by @decleanupnet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
   } else if (type === 'web') {
-    return `Just minted ${levelLabel} by @DeCleanupNet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
+    message = `Just minted ${levelLabel} by @DeCleanupNet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
+  } else {
+    message = `Just minted ${levelLabel} by @DeCleanupNet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
   }
-  return `Just minted ${levelLabel} by @DeCleanupNet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
+  
+  // Add tip message only for Farcaster app sharing
+  const tip = type === 'farcaster' ? FARCASTER_WALLET_TIP : ''
+  
+  return `${message}${tip}`
 }
 
 // EIP-1193 Provider type (for wallet integration)
@@ -101,12 +115,7 @@ export const isFarcasterContext = (): boolean => {
       return false
     }
     // Check if we're actually in Farcaster by checking for SDK context
-    // Also check for Farcaster-specific user agent or frame context
     const hasSdkContext = !!sdk.context
-    const isInFrame = window.self !== window.top
-    const hasFarcasterUA = /farcaster|warpcast/i.test(navigator.userAgent)
-    
-    // Only return true if we have SDK context (most reliable indicator)
     return hasSdkContext
   } catch {
     return false

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "NODE_OPTIONS=--no-deprecation NEXT_TELEMETRY_DISABLED=1 next dev",
+    "dev:network": "NODE_OPTIONS=--no-deprecation NEXT_TELEMETRY_DISABLED=1 next dev -H 0.0.0.0",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",

@@ -1,10 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useAccount, useConnect, useChainId, useDisconnect } from 'wagmi'
+import { useAccount, useChainId, useDisconnect } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { Wallet, LogOut, ChevronDown } from 'lucide-react'
-import { isFarcasterContext } from '@/lib/farcaster'
 import { REQUIRED_CHAIN_ID } from '@/lib/wagmi'
 import { Button } from '@/components/ui/button'
 
@@ -15,50 +14,19 @@ import { Button } from '@/components/ui/button'
  * - Custom styled button matching brand design (green with black text)
  * - Beautiful wallet connection UI via RainbowKit modals
  * - Automatic chain switching via RainbowKit
- * - Farcaster connector auto-connect support
  * - Network validation display
  */
 export function WalletConnect() {
   const [mounted, setMounted] = useState(false)
   const { isConnected, connector } = useAccount()
   const chainId = useChainId()
-  const { connect, connectors } = useConnect()
   const { disconnect } = useDisconnect()
-  const [isInFarcaster, setIsInFarcaster] = useState(false)
   const [manuallyDisconnected, setManuallyDisconnected] = useState(false)
-
-  // Find Farcaster connector
-  const farcasterConnector = connectors.find(
-    c => {
-      const name = c.name.toLowerCase()
-      const id = c.id?.toLowerCase() || ''
-      return name.includes('farcaster') ||
-        name.includes('frame') ||
-        name.includes('miniapp') ||
-        id.includes('farcaster') ||
-        id.includes('frame') ||
-        id.includes('miniapp')
-    }
-  )
 
   // Initialize on mount
   useEffect(() => {
     setMounted(true)
-    const inFarcaster = isFarcasterContext()
-    setIsInFarcaster(inFarcaster)
-    
-    // Debug: Log available connectors
-    if (typeof window !== 'undefined') {
-      console.log('Available connectors:', connectors.map(c => ({ name: c.name, id: c.id })))
-      console.log('Farcaster connector:', farcasterConnector?.name)
-      console.log('Is in Farcaster context:', inFarcaster)
-    }
   }, [])
-
-  // REMOVED: Aggressive auto-connect logic
-  // Let RainbowKit handle connector selection naturally
-  // Farcaster connector will still be available in the wallet selection modal
-  // Users can choose their preferred wallet, including Farcaster if they want
 
   // Log connection state changes
   useEffect(() => {
@@ -66,7 +34,6 @@ export function WalletConnect() {
       console.log('Connected wallet:', {
         connector: connector?.name,
         connectorId: connector?.id,
-        isFarcaster: connector?.name?.toLowerCase().includes('farcaster'),
         chainId,
       })
     }
@@ -113,14 +80,16 @@ export function WalletConnect() {
           // Not connected - show connect button
           if (!connected) {
             return (
-              <Button
-                size="sm"
-                onClick={openConnectModal}
-                className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm"
-              >
-                <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>Connect Wallet</span>
-              </Button>
+              <div className="flex flex-col items-end gap-1">
+                <Button
+                  size="sm"
+                  onClick={openConnectModal}
+                  className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm"
+                >
+                  <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span>Connect Wallet</span>
+                </Button>
+              </div>
             )
           }
 

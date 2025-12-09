@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
-const PROFILE_IMAGE_URL = 'https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png'
+const PROFILE_IMAGE_URL = 'https://gateway.pinata.cloud/ipfs/bafybeidcmqm6tz7gfcucbzevgxiqeriq55tvw3n5m7y5aoqmruxnrjvdxq?filename=DCUSocialNEW.png'
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 
 export const metadata: Metadata = {
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
           type: 'launch_frame',
           url: FARCASTER_MINIAPP_URL,
           name: 'DeCleanup Rewards',
-          splashImageUrl: 'https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png',
+          splashImageUrl: 'https://gateway.pinata.cloud/ipfs/bafybeigl3upt374fi2k54dw3sthwz2me2ktgrbvmnpthnajo6olzo75s6e?filename=DCUSplashNEW.png',
           splashBackgroundColor: '#000000',
         },
       },

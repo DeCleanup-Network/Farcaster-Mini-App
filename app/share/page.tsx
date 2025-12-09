@@ -3,7 +3,7 @@ import { ShareRedirect } from '@/components/share/ShareRedirect'
 
 // Preview image for sharing (used for both referral and claim)
 const SHARE_IMAGE_URL =
-  'https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png'
+  'https://gateway.pinata.cloud/ipfs/bafybeidcmqm6tz7gfcucbzevgxiqeriq55tvw3n5m7y5aoqmruxnrjvdxq?filename=DCUSocialNEW.png'
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
 
@@ -67,7 +67,7 @@ export async function generateMetadata({
         url: farcasterActionUrl,
         name: 'DeCleanup Rewards',
         splashImageUrl:
-          'https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png',
+          'https://gateway.pinata.cloud/ipfs/bafybeigl3upt374fi2k54dw3sthwz2me2ktgrbvmnpthnajo6olzo75s6e?filename=DCUSplashNEW.png',
         splashBackgroundColor: '#000000',
       },
     },
@@ -178,7 +178,7 @@ export default async function SharePage({
         url: farcasterActionUrl,
         name: 'DeCleanup Rewards',
         splashImageUrl:
-          'https://gateway.pinata.cloud/ipfs/bafybeicjskgrgnb3qfbkyz55huxihmnseuxtwdflr26we26zi42km3croy?filename=splash.png',
+          'https://gateway.pinata.cloud/ipfs/bafybeigl3upt374fi2k54dw3sthwz2me2ktgrbvmnpthnajo6olzo75s6e?filename=DCUSplashNEW.png',
         splashBackgroundColor: '#000000',
       },
     },

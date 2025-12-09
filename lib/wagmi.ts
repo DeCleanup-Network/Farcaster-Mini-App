@@ -3,6 +3,7 @@ import { createConfig, http } from 'wagmi'
 import { getDefaultWallets } from '@rainbow-me/rainbowkit'
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector'
 import { defineChain, type Chain } from 'viem'
+import { isFarcasterContext } from './farcaster'
 
 const baseMainnetRpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'
 const baseSepoliaRpcUrl = process.env.NEXT_PUBLIC_TESTNET_RPC_URL || 'https://sepolia.base.org'
@@ -68,7 +69,7 @@ const MINIAPP_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decl
 const APP_DESCRIPTION = 'Clean up, share proof, and earn tokenized environmental rewards on Base.'
 const APP_ICON_URL =
   process.env.NEXT_PUBLIC_MINIAPP_ICON_URL ||
-  'https://gateway.pinata.cloud/ipfs/bafybeiatsp354gtary234ie6irpa5x56q3maykjynkbe3f2hj6lq7pbvba?filename=icon.png'
+  'https://gateway.pinata.cloud/ipfs/bafkreidndtdixffpiadhogqyj55rdqbrualxwhd3if4whev6pdtkzxu254?filename=DCUIconNEW.png'
 
 // Wagmi configuration with RainbowKit and Farcaster wallet support
 // IMPORTANT: Only initialize connectors on client side to avoid SSR errors
@@ -98,8 +99,7 @@ if (typeof window !== 'undefined' && walletConnectProjectId) {
 // This ensures Farcaster wallet is prioritized when running inside Farcaster/Warpcast
 const farcasterConnector = typeof window !== 'undefined' ? farcasterMiniApp() : null
 
-// Combine connectors: Farcaster first (priority), then default RainbowKit wallets
-// This ensures Farcaster connector is always available and prioritized
+// Include all connectors in config
 const connectors = typeof window !== 'undefined'
   ? [
       ...(farcasterConnector ? [farcasterConnector] : []),

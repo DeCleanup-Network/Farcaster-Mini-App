@@ -625,6 +625,14 @@ function CleanupContent() {
   }
 
   const handleSubmitEnhanced = async () => {
+    // Validate that the form has at least locationType filled before proceeding
+    // This prevents submitting hasImpactForm=true with empty impactReportHash
+    if (!enhancedData.locationType || enhancedData.locationType.trim() === '') {
+      alert('Please fill in at least the location type in the impact report form.')
+      return
+    }
+    
+    // Only set hasImpactForm to true if form is valid
     setHasImpactForm(true)
     await submitCleanupFlow(true)
   }
@@ -674,9 +682,11 @@ function CleanupContent() {
       setBeforePhotoIPFSHash(beforeHash.hash)
       setAfterPhotoIPFSHash(afterHash.hash)
 
-      // Upload enhanced impact report data to IPFS if form was submitted
+      // Upload enhanced impact report data to IPFS if form was submitted and valid
+      // Validate that locationType is filled (required field) before uploading
       let impactFormDataHash: string | null = null
-      if (hasForm && enhancedData.locationType) {
+      const isFormValid = hasForm && enhancedData.locationType && enhancedData.locationType.trim() !== ''
+      if (isFormValid) {
         try {
           console.log('Uploading enhanced impact report data to IPFS...')
           const impactData = {
@@ -760,14 +770,18 @@ function CleanupContent() {
           ? referrerAddress 
           : null
         
+        // Only pass hasForm=true if we actually have valid form data
+        // This prevents contract mismatch where hasImpactForm=true but impactReportHash is empty
+        const actualHasForm = isFormValid && impactFormDataHash !== null
+        
         const cleanupId = await submitCleanup(
           beforeHash.hash,
           afterHash.hash,
           location.lat,
           location.lng,
           finalReferrerAddress, // Use referrer from URL if available and eligible
-          hasForm,
-          impactFormDataHash || '',
+          actualHasForm,
+          (actualHasForm && impactFormDataHash) ? impactFormDataHash : '',
           feeValue, // Include fee if required
           chainId // Pass chainId from useChainId hook to avoid detection bugs
         )

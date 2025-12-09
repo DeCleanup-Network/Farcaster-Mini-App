@@ -1,5 +1,5 @@
 const SHARE_IMAGE_URL =
-  'https://gateway.pinata.cloud/ipfs/bafybeic5xwp2kpoqvc24uvl5upren5t5h473upqxyuu2ui3jedtvruzhru?filename=social.png'
+  'https://gateway.pinata.cloud/ipfs/bafybeidcmqm6tz7gfcucbzevgxiqeriq55tvw3n5m7y5aoqmruxnrjvdxq?filename=DCUSocialNEW.png'
 const TITLE = 'Submit Cleanups · Earn Tokens on Base | DeCleanup Rewards'
 const DESCRIPTION = 'Clean up, share proof, earn tokens, and trade on Base with DeCleanup Rewards.'
 

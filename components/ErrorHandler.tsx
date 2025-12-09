@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Component, ReactNode } from 'react'
 
 /**
  * Global error handler for unhandled promise rejections and WebSocket errors
@@ -33,6 +33,16 @@ export function ErrorHandler() {
       const message = args.map(arg => String(arg)).join(' ')
       const messageLower = message.toLowerCase()
       
+      // Suppress Next.js dev WebSocket errors
+      if (
+        message === 'Connection interrupted while trying to subscribe' ||
+        message.includes('Connection interrupted while trying to subscribe') ||
+        (messageLower.includes('connection interrupted') && messageLower.includes('subscribe'))
+      ) {
+        // Silently ignore - this is a Next.js dev WebSocket/HMR error
+        return
+      }
+      
       // Suppress connection reset errors - these are expected when users cancel connections
       if (
         message.includes('Connection request reset') ||
@@ -41,6 +51,23 @@ export function ErrorHandler() {
         message.includes('UserRejectedRequestError')
       ) {
         // Silently ignore - user can retry connection
+        return
+      }
+      
+      // Suppress WalletConnect localhost allowlist errors (development-only configuration issue)
+      if (
+        message.includes('not found on Allowlist') ||
+        message.includes('update configuration on cloud.reown.com') ||
+        (messageLower.includes('origin') && messageLower.includes('not found on allowlist'))
+      ) {
+        // This is a development-only issue - WalletConnect requires localhost to be whitelisted
+        // Log a helpful message instead of showing an error
+        if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+          console.info(
+            '💡 WalletConnect: To use WalletConnect on localhost, add your origin to the allowlist at https://cloud.reown.com',
+            '\n   This is only needed for local development. Production URLs are automatically allowed.'
+          )
+        }
         return
       }
       
@@ -64,7 +91,8 @@ export function ErrorHandler() {
       // ONLY catch the EXACT Next.js dev errors - be very conservative
       const isNextJsDevError = 
         errorMessage === 'Connection interrupted while trying to subscribe' ||
-        (errorString.includes('connection interrupted') && errorString.includes('subscribe') && errorString.includes('next')) ||
+        errorMessage.includes('Connection interrupted while trying to subscribe') ||
+        (errorString.includes('connection interrupted') && errorString.includes('subscribe')) ||
         (errorString.includes('nextjs_original-stack-frames') && errorString.includes('fetch api cannot load'))
       
       if (isNextJsDevError) {
@@ -129,6 +157,8 @@ export function ErrorHandler() {
       // ONLY catch the EXACT Next.js dev errors - be very conservative
       const isNextJsDevError = 
         errorMessage === 'Connection interrupted while trying to subscribe' ||
+        errorMessage.includes('Connection interrupted while trying to subscribe') ||
+        (errorString.includes('connection interrupted') && errorString.includes('subscribe')) ||
         (errorString.includes('nextjs_original-stack-frames') && errorString.includes('fetch api cannot load'))
       
       if (isNextJsDevError) {
@@ -167,5 +197,83 @@ export function ErrorHandler() {
   }, [])
   
   return null // This component doesn't render anything
+}
+
+// React Error Boundary to catch React component errors
+interface ErrorBoundaryState {
+  hasError: boolean
+  error: Error | null
+}
+
+export class ErrorBoundary extends Component<
+  { children: ReactNode },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    // Check if this is a Next.js dev error we should ignore
+    const errorMessage = error?.message || String(error || '')
+    const errorString = errorMessage.toLowerCase()
+    
+    const isNextJsDevError = 
+      errorMessage === 'Connection interrupted while trying to subscribe' ||
+      errorMessage.includes('Connection interrupted while trying to subscribe') ||
+      (errorString.includes('connection interrupted') && errorString.includes('subscribe'))
+    
+    if (isNextJsDevError) {
+      // Don't set error state for Next.js dev errors - just log and continue
+      console.debug('Next.js dev error caught by ErrorBoundary (ignored):', errorMessage)
+      return { hasError: false, error: null }
+    }
+    
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    const errorMessage = error?.message || String(error || '')
+    const errorString = errorMessage.toLowerCase()
+    
+    const isNextJsDevError = 
+      errorMessage === 'Connection interrupted while trying to subscribe' ||
+      errorMessage.includes('Connection interrupted while trying to subscribe') ||
+      (errorString.includes('connection interrupted') && errorString.includes('subscribe'))
+    
+    if (isNextJsDevError) {
+      // Silently ignore Next.js dev errors
+      console.debug('Next.js dev error in ErrorBoundary (ignored):', errorMessage)
+      return
+    }
+    
+    // Log other errors for debugging
+    console.error('ErrorBoundary caught an error:', error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError && this.state.error) {
+      // Only show error UI for non-dev errors
+      const errorMessage = this.state.error?.message || String(this.state.error || '')
+      const errorString = errorMessage.toLowerCase()
+      
+      const isNextJsDevError = 
+        errorMessage === 'Connection interrupted while trying to subscribe' ||
+        errorMessage.includes('Connection interrupted while trying to subscribe') ||
+        (errorString.includes('connection interrupted') && errorString.includes('subscribe'))
+      
+      if (isNextJsDevError) {
+        // Don't show error UI for Next.js dev errors
+        return this.props.children
+      }
+      
+      // For other errors, you could show a fallback UI here
+      // For now, just return children to prevent breaking the app
+      return this.props.children
+    }
+
+    return this.props.children
+  }
 }
 

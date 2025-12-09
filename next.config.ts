@@ -44,7 +44,6 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
-  // Force clean build (removed recyclables route)
   // Ensure .well-known directory is served
   async headers() {
     return [
