@@ -1091,7 +1091,6 @@ function ProfileContent() {
                         setIsClaiming(false)
                       }
                     }}
-                    disabled={isClaiming}
                     className="w-full gap-2 bg-brand-yellow text-black hover:bg-[#e6e600] disabled:opacity-50"
                   >
                     {isClaiming ? (

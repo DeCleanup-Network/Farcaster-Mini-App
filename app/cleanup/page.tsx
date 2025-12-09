@@ -685,7 +685,7 @@ function CleanupContent() {
       // Upload enhanced impact report data to IPFS if form was submitted and valid
       // Validate that locationType is filled (required field) before uploading
       let impactFormDataHash: string | null = null
-      const isFormValid = hasForm && enhancedData.locationType && enhancedData.locationType.trim() !== ''
+      const isFormValid: boolean = Boolean(hasForm && enhancedData.locationType && enhancedData.locationType.trim() !== '')
       if (isFormValid) {
         try {
           console.log('Uploading enhanced impact report data to IPFS...')
@@ -772,7 +772,7 @@ function CleanupContent() {
         
         // Only pass hasForm=true if we actually have valid form data
         // This prevents contract mismatch where hasImpactForm=true but impactReportHash is empty
-        const hasValidFormData = isFormValid && impactFormDataHash !== null
+        const hasValidFormData: boolean = Boolean(isFormValid && impactFormDataHash !== null)
         const actualHasForm: boolean = hasValidFormData
         const finalImpactReportHash: string = hasValidFormData && impactFormDataHash ? impactFormDataHash : ''
         

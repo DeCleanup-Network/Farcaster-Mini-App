@@ -129,7 +129,7 @@ export function WalletConnect() {
   // Farcaster Mode: Show Farcaster wallet connect button (NO RainbowKit)
   if (inFarcaster) {
     const isFarcasterConnected = farcasterWallet?.isConnected || isFarcasterWallet()
-    const farcasterAddress = farcasterWallet?.address || (isConnected ? connector?.accounts?.[0] : null)
+    const farcasterAddress = farcasterWallet?.address || (isConnected && connector?.accounts && Array.isArray(connector.accounts) ? connector.accounts[0] : null)
 
     if (!isFarcasterConnected) {
       return (
