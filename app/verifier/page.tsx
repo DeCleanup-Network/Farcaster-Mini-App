@@ -18,7 +18,7 @@ const {
 } = contractsLib
 import { Address } from 'viem'
 import { waitForTransactionReceipt, getEnsName } from 'wagmi/actions'
-import { config, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUIRED_CHAIN_ID, REQUIRED_RPC_URL } from '@/lib/wagmi'
+import { getWagmiConfig, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUIRED_CHAIN_ID, REQUIRED_RPC_URL } from '@/lib/wagmi'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
 import { getIPFSUrl, getIPFSFallbackUrls } from '@/lib/ipfs'
 import { findCleanupsByWallet } from '@/lib/find-cleanup-by-wallet'
@@ -336,7 +336,7 @@ export default function VerifierPage() {
             try {
               // Only fetch if not already cached
               if (!ensNames.has(addr)) {
-                const name = await getEnsName(config, { 
+                const name = await getEnsName(getWagmiConfig(), { 
                   address: addr as `0x${string}`
                 })
                 if (name) {
@@ -781,7 +781,7 @@ export default function VerifierPage() {
       // Wait for transaction receipt first to ensure it was confirmed
       try {
         console.log('Waiting for transaction receipt...')
-        const receipt = await waitForTransactionReceipt(config, { 
+        const receipt = await waitForTransactionReceipt(getWagmiConfig(), { 
           hash,
           timeout: 120000, // 2 minute timeout
         })

@@ -5,7 +5,7 @@
 
 import { Address } from 'viem'
 import { readContract } from 'wagmi/actions'
-import { config } from './wagmi'
+import { getWagmiConfig } from './wagmi'
 import { CONTRACT_ADDRESSES, VERIFICATION_ABI } from './contracts'
 
 /**
@@ -28,7 +28,7 @@ export async function findCleanupsByWallet(
 
   try {
     // Get the cleanup counter to know the range
-    const counter = await readContract(config, {
+    const counter = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'cleanupCounter',
@@ -43,7 +43,7 @@ export async function findCleanupsByWallet(
     // Search from 1 to the search range
     for (let i = 1; i <= searchRange; i++) {
       try {
-        const status = await readContract(config, {
+        const status = await readContract(getWagmiConfig(), {
           address: CONTRACT_ADDRESSES.VERIFICATION,
           abi: VERIFICATION_ABI,
           functionName: 'getCleanupStatus',
@@ -108,7 +108,7 @@ export async function getCleanupById(cleanupId: bigint) {
   }
 
   try {
-    const details = await readContract(config, {
+    const details = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'getCleanup',

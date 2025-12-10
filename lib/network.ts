@@ -1,4 +1,4 @@
-import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_RPC_URL, config } from './wagmi'
+import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME, REQUIRED_RPC_URL, getWagmiConfig } from './wagmi'
 import { getAccount } from 'wagmi/actions'
 
 const NATIVE_CURRENCY = { name: 'Ether', symbol: 'ETH', decimals: 18 }
@@ -54,7 +54,7 @@ export async function tryAddRequiredChain(chainId?: number): Promise<boolean> {
   // Method 2: Through wagmi connector (WalletConnect)
   // This is especially important for Safari mobile where WalletConnect is used
   try {
-    const account = await getAccount(config)
+    const account = await getAccount(getWagmiConfig())
     if (account.connector) {
       const connector = account.connector as any
       

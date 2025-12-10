@@ -10,7 +10,7 @@ import {
   connect,
 } from 'wagmi/actions'
 import {
-  config,
+  getWagmiConfig,
   REQUIRED_CHAIN_ID,
   REQUIRED_CHAIN_NAME,
   REQUIRED_BLOCK_EXPLORER_URL,
@@ -76,10 +76,10 @@ async function handleWalletConnectStaleSession(error: any): Promise<void> {
       // Try to disconnect if possible
       try {
         const { getAccount } = await import('wagmi/actions')
-        const account = getAccount(config)
+        const account = getAccount(getWagmiConfig())
         if (account.isConnected && account.connector?.id?.includes('walletconnect')) {
           const { disconnect } = await import('wagmi/actions')
-          await disconnect(config)
+          await disconnect(getWagmiConfig())
         }
       } catch (disconnectError) {
         console.warn('Failed to disconnect during stale session cleanup:', disconnectError)
@@ -100,7 +100,7 @@ const BLOCK_EXPLORER_NAME =
   (REQUIRED_CHAIN_IS_TESTNET ? 'Basescan (Sepolia)' : 'Basescan')
 
 function getRequiredChain() {
-  return config.chains.find((chain) => chain.id === REQUIRED_CHAIN_ID)
+  return getWagmiConfig().chains.find((chain) => chain.id === REQUIRED_CHAIN_ID)
 }
 
 function getNetworkSetupMessage() {
@@ -217,7 +217,7 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
     // Now try to switch
     try {
       console.log(`[${context}] Attempting to switch chain - wallet should prompt...`)
-      await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
+      await switchChain(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
 
       // Poll for chain update
       let retries = 0
@@ -234,7 +234,7 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
       // If switch didn't work after polling, try one more time with longer delay
       console.log(`[${context}] Chain switch polling didn't detect change, trying one more switch attempt...`)
       await new Promise(resolve => setTimeout(resolve, 2000))
-      await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
+      await switchChain(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
       await new Promise(resolve => setTimeout(resolve, 3000))
       const finalCheck = await getCurrentChainId()
       if (finalCheck === REQUIRED_CHAIN_ID) {
@@ -270,7 +270,7 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
       if (errorMessage.includes('Chain not configured') || error?.code === 4902) {
         // For Safari/WalletConnect, we need to be more patient
         const isSafari = typeof window !== 'undefined' && /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-        const account = await getAccount(config)
+        const account = await getAccount(getWagmiConfig())
         const isWalletConnect = account.connector?.id?.includes('walletConnect') || 
                                 account.connector?.name?.toLowerCase().includes('walletconnect')
         const isSafariWalletConnect = isSafari && isWalletConnect
@@ -283,7 +283,7 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
         if (added) {
           await new Promise(resolve => setTimeout(resolve, addDelay))
           try {
-            await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
+            await switchChain(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
             // Poll again with longer delays for Safari
             let retries = 0
             while (retries < 5) {
@@ -305,7 +305,7 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
       }
 
       // If we still couldn't add/switch, provide helpful error message
-      const account = await getAccount(config)
+      const account = await getAccount(getWagmiConfig())
       const isWalletConnect = account.connector?.id?.includes('walletConnect') || 
                               account.connector?.name?.toLowerCase().includes('walletconnect')
       
@@ -347,7 +347,7 @@ function getTxExplorerUrl(transactionHash: string) {
 // Helper to ensure wallet is connected before transactions
 // CRITICAL: Must check connection status before writeContract to avoid WalletConnect QR hang
 async function ensureWalletConnected(): Promise<void> {
-  const account = getAccount(config)
+  const account = getAccount(getWagmiConfig())
   
   // Check if wallet is actually connected
   if (account.status !== 'connected' || !account.address) {
@@ -389,7 +389,7 @@ async function getCurrentChainId(): Promise<number | null> {
   try {
     // Try the standard getChainId first
     // This will throw if the connector doesn't support it
-    const chainId = await getChainId(config)
+    const chainId = await getChainId(getWagmiConfig())
     if (typeof window !== 'undefined') {
       window.removeEventListener('error', errorHandler)
     }
@@ -414,7 +414,7 @@ async function getCurrentChainId(): Promise<number | null> {
     
     // For other errors, try getting from account as fallback
     try {
-      const account = await getAccount(config)
+      const account = await getAccount(getWagmiConfig())
       if (account.chainId) {
         return account.chainId
       }
@@ -524,7 +524,7 @@ export async function getUserLevel(userAddress: Address): Promise<number> {
     throw new Error('Impact Product contract address not set')
   }
 
-  const level = await readContract(config, {
+  const level = await readContract(getWagmiConfig(), {
     address: CONTRACT_ADDRESSES.IMPACT_PRODUCT,
     abi: IMPACT_PRODUCT_ABI,
     functionName: 'userCurrentLevel',
@@ -542,7 +542,7 @@ export async function getUserTokenId(userAddress: Address): Promise<bigint> {
     throw new Error('Impact Product contract address not set')
   }
 
-  return await readContract(config, {
+  return await readContract(getWagmiConfig(), {
     address: CONTRACT_ADDRESSES.IMPACT_PRODUCT,
     abi: IMPACT_PRODUCT_ABI,
     functionName: 'getUserTokenId',
@@ -564,7 +564,7 @@ export async function getTokenURIForLevel(level: number): Promise<string> {
   }
 
   try {
-    return await readContract(config, {
+    return await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.IMPACT_PRODUCT,
       abi: IMPACT_PRODUCT_ABI,
       functionName: 'getTokenURIForLevel',
@@ -587,7 +587,7 @@ export async function getTokenURI(tokenId: bigint): Promise<string> {
     throw new Error('Impact Product contract address not set')
   }
 
-  return await readContract(config, {
+  return await readContract(getWagmiConfig(), {
     address: CONTRACT_ADDRESSES.IMPACT_PRODUCT,
     abi: IMPACT_PRODUCT_ABI,
     functionName: 'tokenURI',
@@ -628,7 +628,7 @@ export async function getPointsBalance(userAddress: Address): Promise<number> {
   // Priority 1: Try to read from Clanker token contract (if deployed)
   if (CONTRACT_ADDRESSES.BDCU_TOKEN) {
     try {
-      const tokenBalance = await readContract(config, {
+      const tokenBalance = await readContract(getWagmiConfig(), {
         address: CONTRACT_ADDRESSES.BDCU_TOKEN,
         abi: ERC20_ABI,
         functionName: 'balanceOf',
@@ -681,7 +681,7 @@ export async function getSubmissionFee(): Promise<{ fee: bigint; enabled: boolea
   }
 
   try {
-    const result = await readContract(config, {
+    const result = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'getSubmissionFee',
@@ -719,7 +719,7 @@ export async function getClaimFee(): Promise<{ fee: bigint; enabled: boolean }> 
   }
 
   try {
-    const result = await readContract(config, {
+    const result = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'getClaimFee',
@@ -763,7 +763,7 @@ export async function submitCleanup(
   await ensureWalletConnected()
   
   // Double-check account after connection guard
-  const account = getAccount(config)
+  const account = getAccount(getWagmiConfig())
   if (account.status !== 'connected' || !account.address) {
     throw new Error('Wallet connection lost. Please reconnect and try again.')
   }
@@ -853,7 +853,7 @@ export async function submitCleanup(
   
   try {
     // Use simulateContract to get the return value before submitting (for fallback)
-    const { result } = await simulateContract(config, {
+    const { result } = await simulateContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'submitCleanup',
@@ -959,7 +959,7 @@ export async function submitCleanup(
     if (finalCheckChainId !== null && finalCheckChainId !== REQUIRED_CHAIN_ID) {
       console.warn(`[submitCleanup] ${context}: Chain mismatch detected, attempting final switch...`)
       try {
-        await switchChain(config, { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
+        await switchChain(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
         // Farcaster needs longer wait after switch
         await new Promise(resolve => setTimeout(resolve, isFarcaster ? 3000 : 2000))
       } catch (switchError) {
@@ -987,7 +987,7 @@ export async function submitCleanup(
       accountStatus: account.status,
     })
 
-    hash = await writeContract(config as any, {
+    hash = await writeContract(getWagmiConfig() as any, {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'submitCleanup',
@@ -1045,7 +1045,7 @@ export async function submitCleanup(
   }
 
   // Wait for transaction receipt
-  const receipt = await waitForTransactionReceipt(config, { hash })
+  const receipt = await waitForTransactionReceipt(getWagmiConfig(), { hash })
   console.log('Transaction confirmed in block:', receipt.blockNumber)
   
   // Get cleanup ID from counter (counter - 1, since counter increments after submission)
@@ -1054,7 +1054,7 @@ export async function submitCleanup(
     // Wait a bit for the state to update
     await new Promise(resolve => setTimeout(resolve, 1000))
     
-    const cleanupCounter = await readContract(config, {
+    const cleanupCounter = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'cleanupCounter',
@@ -1088,7 +1088,7 @@ export async function submitCleanup(
     try {
       console.log('Retrying cleanup counter check after 2 seconds...')
       await new Promise(resolve => setTimeout(resolve, 2000))
-      const finalCounter = await readContract(config, {
+      const finalCounter = await readContract(getWagmiConfig(), {
         address: CONTRACT_ADDRESSES.VERIFICATION,
         abi: VERIFICATION_ABI,
         functionName: 'cleanupCounter',
@@ -1125,7 +1125,7 @@ export async function claimImpactProductFromVerification(
   await ensureWalletConnected()
   
   // Double-check account after connection guard
-  const account = getAccount(config)
+  const account = getAccount(getWagmiConfig())
   if (account.status !== 'connected' || !account.address) {
     throw new Error('Wallet connection lost. Please reconnect and try again.')
   }
@@ -1211,7 +1211,7 @@ export async function claimImpactProductFromVerification(
   // Account is already verified at the top of the function
   try {
     console.log('[claimImpactProduct] Account status:', account.status, 'Connector:', account.connector?.name || account.connector?.id)
-    const hash = await writeContract(config as any, {
+    const hash = await writeContract(getWagmiConfig() as any, {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'claimImpactProduct',
@@ -1341,7 +1341,7 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
     throw new Error('Verification contract address not set')
   }
 
-  const result = await readContract(config, {
+  const result = await readContract(getWagmiConfig(), {
     address: CONTRACT_ADDRESSES.VERIFICATION,
     abi: VERIFICATION_ABI,
     functionName: 'getCleanup',
@@ -1400,7 +1400,7 @@ export async function getCleanupCounter(): Promise<bigint> {
     throw new Error('Verification contract address not set')
   }
 
-  return await readContract(config, {
+  return await readContract(getWagmiConfig(), {
     address: CONTRACT_ADDRESSES.VERIFICATION,
     abi: VERIFICATION_ABI,
     functionName: 'cleanupCounter',
@@ -1443,7 +1443,7 @@ export async function isVerifier(address: Address): Promise<boolean> {
     // Wrap in additional try-catch to handle RPC errors gracefully
     let result: boolean
     try {
-      result = await readContract(config, {
+      result = await readContract(getWagmiConfig(), {
         address: CONTRACT_ADDRESSES.VERIFICATION,
         abi: VERIFICATION_ABI,
         functionName: 'isVerifier',
@@ -1514,7 +1514,7 @@ export async function isVerifier(address: Address): Promise<boolean> {
       // Try the old deprecated verifier() function as fallback
       try {
         console.log('isVerifier - Trying fallback to verifier() function...')
-        const oldVerifier = await readContract(config, {
+        const oldVerifier = await readContract(getWagmiConfig(), {
           address: CONTRACT_ADDRESSES.VERIFICATION,
           abi: VERIFICATION_ABI,
           functionName: 'verifier',
@@ -1551,7 +1551,7 @@ export async function getVerifierAddress(): Promise<Address> {
     throw new Error('Verification contract address not set')
   }
 
-  return await readContract(config, {
+  return await readContract(getWagmiConfig(), {
     address: CONTRACT_ADDRESSES.VERIFICATION,
     abi: VERIFICATION_ABI,
     functionName: 'verifier',
@@ -1571,7 +1571,7 @@ export async function verifyCleanup(
   await ensureWalletConnected()
   
   // Double-check account after connection guard
-  const account = getAccount(config)
+  const account = getAccount(getWagmiConfig())
   if (account.status !== 'connected' || !account.address) {
     throw new Error('Wallet connection lost. Please reconnect and try again.')
   }
@@ -1644,7 +1644,7 @@ export async function verifyCleanup(
     console.log(`[verification] Function: verifyCleanup, args:`, [cleanupId.toString(), level])
     console.log(`[verification] Account status:`, account.status, `Connector:`, account.connector?.name || account.connector?.id)
 
-    const hash = await writeContract(config as any, {
+    const hash = await writeContract(getWagmiConfig() as any, {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'verifyCleanup',
@@ -1760,7 +1760,7 @@ export async function rejectCleanup(
       )
     }
 
-    const hash = await writeContract(config as any, {
+    const hash = await writeContract(getWagmiConfig() as any, {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'rejectCleanup',
@@ -1827,7 +1827,7 @@ export async function getStreakCount(userAddress: Address): Promise<number> {
   }
 
   try {
-    const count = await readContract(config, {
+    const count = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
       abi: BDCU_REWARD_DISTRIBUTOR_ABI,
       functionName: 'getStreakCount',
@@ -1852,7 +1852,7 @@ export async function hasActiveStreak(userAddress: Address): Promise<boolean> {
   }
 
   try {
-    const hasStreak = await readContract(config, {
+    const hasStreak = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
       abi: BDCU_REWARD_DISTRIBUTOR_ABI,
       functionName: 'hasActiveStreak',
@@ -1876,7 +1876,7 @@ export async function hasReceivedReferralReward(userAddress: Address): Promise<b
   }
 
   try {
-    const hasReceived = await readContract(config, {
+    const hasReceived = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
       abi: BDCU_REWARD_DISTRIBUTOR_ABI,
       functionName: 'hasReceivedReferralReward',
@@ -1900,7 +1900,7 @@ export async function hasSubmittedCleanup(userAddress: Address): Promise<boolean
   }
 
   try {
-    const hasSubmitted = await readContract(config, {
+    const hasSubmitted = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
       functionName: 'hasSubmittedCleanup',
@@ -1960,7 +1960,7 @@ export async function getVerifierTokenEarnings(verifierAddress: Address): Promis
     console.log('Fetching verifier token earnings for:', verifierAddress)
     console.log('Using contract address:', CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR)
     
-    const totalDistributed = await readContract(config, {
+    const totalDistributed = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
       abi: BDCU_REWARD_DISTRIBUTOR_ABI,
       functionName: 'totalDistributed',
@@ -1999,7 +1999,7 @@ export async function getTotalRewardsDistributed(userAddress: Address): Promise<
   }
 
   try {
-    const totalDistributed = await readContract(config, {
+    const totalDistributed = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
       abi: BDCU_REWARD_DISTRIBUTOR_ABI,
       functionName: 'totalDistributed',
@@ -2377,7 +2377,7 @@ export async function checkVerificationContractLinked(): Promise<{ linked: boole
   }
 
   try {
-    const verificationContractAddress = await readContract(config, {
+    const verificationContractAddress = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
       abi: BDCU_REWARD_DISTRIBUTOR_ABI,
       functionName: 'verificationContract',
@@ -2409,7 +2409,7 @@ export async function checkRewardDistributorFunded(): Promise<{ funded: boolean;
   }
 
   try {
-    const balance = await readContract(config, {
+    const balance = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
       abi: BDCU_REWARD_DISTRIBUTOR_ABI,
       functionName: 'getContractBalance',

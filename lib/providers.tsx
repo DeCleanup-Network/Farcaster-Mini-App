@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
-import { config } from './wagmi'
+import { getWagmiConfig } from './wagmi'
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 
@@ -58,8 +58,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setMounted(true)
   }, [])
 
+  // Get wagmi config - will create minimal config for SSR, full config for client
+  // This ensures WagmiProvider always has a valid config
+  const wagmiConfig = getWagmiConfig()
+
   return (
-    <WagmiProvider config={config}>
+    <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         {mounted ? (
           // Always use RainbowKit - it handles all wallet connections
@@ -67,7 +71,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             {children}
           </RainbowKitProviderWithTheme>
         ) : (
-          // Render children without providers during SSR
+          // Render children without RainbowKit during SSR
           children
         )}
       </QueryClientProvider>
