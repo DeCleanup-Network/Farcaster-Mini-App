@@ -633,6 +633,12 @@ export default function Home() {
         {/* Footer Links */}
         <footer className="mt-8 border-t border-border pt-6 sm:mt-12">
           <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground sm:gap-6 sm:text-sm">
+            <a href="https://decleanup.net" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
+              WEBSITE
+            </a>
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSfWCK4WmO9T-WJOOZwuDiG3yEJVX23RX_AkIa6tZHZ0J9Tf3w/viewform?usp=header" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
+              BUG REPORT
+            </a>
             <a href="https://github.com/DeCleanup-Network" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
               GITHUB
             </a>

@@ -11,6 +11,16 @@
  */
 
 export async function runFarcasterDiagnostic() {
+  // Only run in browser environment (not during SSR)
+  if (typeof window === 'undefined') {
+    return {
+      manifest: false,
+      embedMeta: false,
+      sdkAvailable: false,
+      duration: 0,
+    }
+  }
+
   const start = Date.now()
   console.group('🧪 Farcaster Mini App Diagnostic')
 
@@ -25,7 +35,27 @@ export async function runFarcasterDiagnostic() {
     try {
       const resp = await fetch(url, { cache: 'no-cache' })
       console.log('⋅ Manifest HTTP status:', resp.status)
+      
+      // Check if response is actually JSON
+      const contentType = resp.headers.get('content-type') || ''
+      if (!contentType.includes('application/json') && !contentType.includes('json')) {
+        console.warn('⚠️ Manifest response is not JSON, content-type:', contentType)
+        const txt = await resp.text()
+        if (txt.trim().startsWith('<!DOCTYPE') || txt.trim().startsWith('<html')) {
+          console.error('❌ Manifest endpoint returned HTML instead of JSON (likely 404 or error page)')
+          return null
+        }
+      }
+      
       const txt = await resp.text()
+      
+      // Check if text looks like HTML before trying to parse as JSON
+      const trimmedTxt = txt.trim()
+      if (trimmedTxt.startsWith('<!DOCTYPE') || trimmedTxt.startsWith('<html') || trimmedTxt.startsWith('<')) {
+        console.error('❌ Manifest response is HTML, not JSON. Status:', resp.status)
+        return null
+      }
+      
       try {
         const json = JSON.parse(txt)
         console.log('⋅ Manifest JSON parsed, keys:', Object.keys(json))
@@ -50,6 +80,7 @@ export async function runFarcasterDiagnostic() {
         return json
       } catch (err) {
         console.error('❌ Manifest JSON parse error:', err)
+        console.error('⋅ Response preview:', txt.substring(0, 200))
         return null
       }
     } catch (err) {

@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import { useAccount } from 'wagmi'
 import type { Address } from 'viem'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
 import {
@@ -783,13 +784,25 @@ function ProfileContent() {
 
         {/* Stats Grid - Total Balance and Total Rewards */}
         <div className="mb-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
+          <div className="rounded-lg border border-gray-800 bg-gray-900 p-6 relative">
             <div className="mb-2 flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-brand-green" />
-              <h3 className="text-sm font-medium text-gray-400">
+              <h3 className="text-sm font-sans font-medium text-gray-400 normal-case">
                 Total $bDCU
               </h3>
               <ImportTokenModal type="token" onCopy={handleManualCopy} />
+            </div>
+            {/* Token logo in top right corner */}
+            <div className="absolute top-4 right-4">
+              <div className="relative h-12 w-12 rounded-full border-2 border-gray-700 bg-gray-800 p-1">
+                <Image
+                  src="https://gateway.pinata.cloud/ipfs/bafybeihjxa2ww6weqtutjtfh4hy4ac6aeiev242oqmy5amw4ashfwfkgda"
+                  alt="$bDCU Token"
+                  fill
+                  className="object-contain rounded-full"
+                  sizes="48px"
+                />
+              </div>
             </div>
             <p className="text-3xl font-bold text-white">
               {profileData.dcuBalance.toFixed(0)}
@@ -807,7 +820,7 @@ function ProfileContent() {
           <div className="rounded-lg border border-brand-green/30 bg-brand-green/5 p-6">
             <div className="mb-2 flex items-center gap-2">
               <Award className="h-5 w-5 text-brand-green" />
-              <h3 className="text-sm font-medium text-gray-300">
+              <h3 className="text-sm font-sans font-medium text-gray-300 normal-case">
                 Total Rewards
               </h3>
             </div>
@@ -851,7 +864,7 @@ function ProfileContent() {
                     </p>
                   </div>
                 </div>
-                <span className="text-lg font-bold text-white">
+                <span className="text-lg font-mono font-bold text-white">
                   {profileData.rewardsBreakdown.levelRewards.toFixed(2)} $bDCU
                 </span>
               </div>
@@ -864,7 +877,7 @@ function ProfileContent() {
                     <p className="text-xs text-gray-400">Rewards for referring new users</p>
                   </div>
                 </div>
-                <span className="text-lg font-bold text-white">
+                <span className="text-lg font-mono font-bold text-white">
                   {profileData.rewardsBreakdown.referralRewards.toFixed(2)} $bDCU
                 </span>
               </div>
@@ -877,7 +890,7 @@ function ProfileContent() {
                     <p className="text-xs text-gray-400">Weekly streak maintenance rewards</p>
                   </div>
                 </div>
-                <span className="text-lg font-bold text-white">
+                <span className="text-lg font-mono font-bold text-white">
                   {profileData.rewardsBreakdown.streakRewards.toFixed(2)} $bDCU
                 </span>
               </div>
@@ -890,7 +903,7 @@ function ProfileContent() {
                     <p className="text-xs text-gray-400">Submission of impact reports</p>
                   </div>
                 </div>
-                <span className="text-lg font-bold text-white">
+                <span className="text-lg font-mono font-bold text-white">
                   {profileData.rewardsBreakdown.impactFormRewards.toFixed(2)} $bDCU
                 </span>
               </div>
@@ -1279,7 +1292,7 @@ function ProfileContent() {
                   {profileData.dcuReward && (
                     <div className="rounded-lg border border-gray-800 bg-gray-800/60 p-3">
                       <p className="text-xs text-gray-400">Token Reward</p>
-                      <p className="text-lg font-semibold text-white">{profileData.dcuReward} $bDCU</p>
+                      <p className="text-lg font-mono font-semibold text-white">{profileData.dcuReward} $bDCU</p>
                     </div>
                   )}
                 </div>
