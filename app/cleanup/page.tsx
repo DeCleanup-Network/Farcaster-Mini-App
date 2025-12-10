@@ -838,14 +838,6 @@ function CleanupContent() {
         const errorName = submitError?.name || ''
         const errorDetails = submitError?.details || ''
 
-        // CRITICAL: Check for Celo Sepolia - this is a common mistake!
-        const isCeloError =
-          errorMessage.includes('CELO') ||
-          errorMessage.includes('Celo') ||
-          errorMessage.includes('44787') ||
-          errorMessage.includes('Celo Sepolia') ||
-          chainId === 44787
-
         // Check if it's truly a "chain not configured" error (not just a switch error)
         const isChainNotConfigured =
           errorDetails?.includes('Chain not configured') ||
@@ -859,28 +851,6 @@ function CleanupContent() {
           errorName === 'SwitchChainError' ||
           errorMessage.includes('switch chain') ||
           errorMessage.includes('SwitchChainError')
-
-        if (isCeloError) {
-          // Show very clear Celo error message
-          alert(
-            `❌ WRONG NETWORK: CELO SEPOLIA DETECTED!\n\n` +
-            `You are currently on Celo Sepolia Testnet, but this app requires ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
-            `Please switch to ${REQUIRED_CHAIN_NAME}:\n\n` +
-            `1. Open your wallet (MetaMask, Coinbase Wallet, etc.)\n` +
-            `2. Click the network dropdown at the top\n` +
-            `3. Select "${REQUIRED_CHAIN_NAME}" from the list\n` +
-            `4. If ${REQUIRED_CHAIN_NAME} is not in the list, add it:\n` +
-            `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
-            `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
-            `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
-            `   • Currency Symbol: ETH\n` +
-            `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
-            `5. Once on ${REQUIRED_CHAIN_NAME}, try submitting again.\n\n` +
-            `⚠️ Do NOT submit transactions on Celo - they will fail!`
-          )
-          setIsSubmitting(false)
-          return
-        }
 
         if (isChainNotConfigured) {
           // Show detailed instructions for adding the network
@@ -1171,7 +1141,6 @@ function CleanupContent() {
     
     // Show wrong network warning first (higher priority)
     if (isWrongNetwork) {
-      const isCelo = chainId === 44787
       return (
         <div className="mb-6 rounded-lg border border-red-500/50 bg-red-500/10 p-4">
           <div className="flex items-start gap-3">
@@ -1179,10 +1148,7 @@ function CleanupContent() {
             <div className="flex-1">
               <h3 className="mb-1 font-semibold text-red-400">Wrong Network</h3>
               <p className="mb-3 text-sm text-gray-300">
-                You're on Chain ID {chainId} ({describeChain(chainId)}).
-                {isCelo
-                    ? ' This looks like Celo Sepolia. Switch to Base Sepolia Testnet to continue.'
-                    : ' Please switch to the required network before submitting a cleanup.'}
+                You're on Chain ID {chainId} ({describeChain(chainId)}). Please switch to the required network before submitting a cleanup.
               </p>
               <Button
                 onClick={async () => {

@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { CheckCircle, XCircle, AlertCircle, ExternalLink, Loader2, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 
 export type TransactionModalType = 'success' | 'error' | 'info' | 'warning' | 'loading'
 
@@ -26,8 +27,6 @@ export interface TransactionModalProps {
   actionLabel?: string
   onAction?: () => void
 }
-
-const CELOSCAN_BASE_URL = 'https://sepolia.celoscan.io'
 
 export function TransactionModal({
   open,
@@ -81,8 +80,13 @@ export function TransactionModal({
   }
 
   const transactionUrl = transactionHash
-    ? `${CELOSCAN_BASE_URL}/tx/${transactionHash}`
+    ? `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${transactionHash}`
     : null
+  
+  // Get block explorer name (Basescan or Basescan Sepolia)
+  const blockExplorerName = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
+    ? 'Basescan (Sepolia)'
+    : 'Basescan'
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -121,7 +125,7 @@ export function TransactionModal({
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs text-brand-green hover:text-[#4a9a26]"
                       >
-                        View on CeloScan
+                        View on {blockExplorerName}
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     )}

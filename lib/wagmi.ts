@@ -114,6 +114,7 @@ export function getWagmiConfig() {
   // This won't work for actual wallet operations, but prevents build errors
   if (typeof window === 'undefined') {
     // Create minimal config for SSR - connectors will be empty but config structure is valid
+    // Note: getDefaultWallets is still valid in v2 when you need custom connector logic
     const { connectors: defaultConnectors } = getDefaultWallets({
       appName: APP_NAME,
       projectId: walletConnectProjectId!,
@@ -130,8 +131,9 @@ export function getWagmiConfig() {
   }
 
   // Get default RainbowKit connectors (MetaMask, WalletConnect, Coinbase Wallet, etc.)
-  // These are created statically - no conditionals needed
-  // walletConnectProjectId is validated at module load, so it's guaranteed to be a string here
+  // Note: getDefaultWallets is still valid in RainbowKit v2 when you need custom connector logic
+  // The migration guide recommends getDefaultConfig for simple cases, but getDefaultWallets
+  // is still available and appropriate when you need conditional connectors (like Farcaster)
   const { connectors: defaultConnectors } = getDefaultWallets({
     appName: APP_NAME,
     projectId: walletConnectProjectId!,
@@ -157,6 +159,7 @@ export function getWagmiConfig() {
   ]
 
   // Create config with all connectors
+  // Using createConfig directly is valid in v2 when you need custom connector logic
   _config = createConfig({
     chains: configuredChains,
     connectors,

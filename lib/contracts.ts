@@ -178,14 +178,6 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
     )
   }
 
-  // Check for Celo Sepolia (another common mistake - wrong testnet!)
-  if (currentChainId === 44787) {
-    throw new Error(
-      `Celo Sepolia Testnet detected (Chain ID: 44787). This app requires ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}), not Celo!\n\n` +
-      `Please switch to ${REQUIRED_CHAIN_NAME} in your wallet and try again.`
-    )
-  }
-
   const targetChain = getRequiredChain()
   if (!targetChain) {
     throw new Error(
@@ -819,25 +811,6 @@ export async function submitCleanup(
       // Don't throw error - let the transaction proceed and wallet will handle validation
       // This helps WalletConnect-MetaMask users
     } else {
-      // CRITICAL: Explicitly block Celo Sepolia - this is a common mistake
-      if (finalChainId === 44787) {
-    throw new Error(
-          `❌ CELO SEPOLIA DETECTED!\n\n` +
-          `You are on Celo Sepolia Testnet (Chain ID: 44787), but this app requires ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
-          `Please switch to ${REQUIRED_CHAIN_NAME} in your wallet before submitting.\n\n` +
-          `To add ${REQUIRED_CHAIN_NAME}:\n` +
-          `1. Open your wallet settings\n` +
-          `2. Go to Networks → Add Network\n` +
-          `3. Enter:\n` +
-          `   • Network Name: ${REQUIRED_CHAIN_NAME}\n` +
-          `   • RPC URL: ${REQUIRED_RPC_URL}\n` +
-          `   • Chain ID: ${REQUIRED_CHAIN_ID}\n` +
-          `   • Currency Symbol: ETH\n` +
-          `   • Block Explorer: ${REQUIRED_BLOCK_EXPLORER_URL}\n` +
-          `4. Switch to ${REQUIRED_CHAIN_NAME} and try again.`
-        )
-      }
-      
       if (finalChainId !== REQUIRED_CHAIN_ID) {
         throw new Error(
           `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet. ` +
@@ -890,12 +863,6 @@ export async function submitCleanup(
     const preTxChainId = await getCurrentChainId()
     // Only check if we got a valid chain ID (not null)
     if (preTxChainId !== null) {
-      if (preTxChainId === 44787) {
-        throw new Error(
-          `❌ STOP! You are on Celo Sepolia (Chain ID: 44787). ` +
-          `This transaction would fail. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) first.`
-        )
-      }
       if (preTxChainId !== REQUIRED_CHAIN_ID) {
         throw new Error(
           `Wrong network detected right before transaction. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}). ` +

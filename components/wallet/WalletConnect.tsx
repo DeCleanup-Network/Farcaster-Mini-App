@@ -145,28 +145,52 @@ export function WalletConnect() {
               e.preventDefault()
               e.stopPropagation()
               
-              // Detect iOS Safari - it has issues with modals
+              // Detect mobile browsers
+              const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
               const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
               
-              // For iOS Safari, skip modal and connect directly (modals don't work well)
-              if (isIOSSafari) {
-                console.log('iOS Safari detected, connecting directly...')
+              // Check if we have ready connectors first
+              const readyConnectors = connectors.filter(c => c.ready)
+              const hasReadyConnectors = readyConnectors.length > 0
+              
+              console.log('🔌 Connect button clicked:', {
+                isMobile,
+                isIOSSafari,
+                readyConnectors: readyConnectors.length,
+                hasModal: !!openConnectModal,
+              })
+              
+              // On mobile, prefer direct connect if connectors are ready
+              // RainbowKit modal works on mobile, but direct connect is more reliable
+              if (isMobile && hasReadyConnectors) {
+                console.log('Mobile with ready connectors: using direct connect')
                 handleDirectConnect()
                 return
               }
               
-              // Try RainbowKit modal first (must be synchronous for Safari)
+              // Try RainbowKit modal first (works well on desktop and some mobile browsers)
               if (openConnectModal && typeof openConnectModal === 'function') {
                 try {
                   console.log('Opening RainbowKit connect modal...')
                   openConnectModal()
+                  // On mobile, also set up a fallback in case modal doesn't work
+                  if (isMobile) {
+                    setTimeout(() => {
+                      // Check if connection happened after modal opened
+                      // If not, try direct connect as fallback
+                      if (!isConnected) {
+                        console.log('Modal opened but no connection detected, will try direct connect if user cancels')
+                      }
+                    }, 2000)
+                  }
                 } catch (error) {
                   console.warn('RainbowKit modal failed:', error)
-                  // Fallback: Try connecting directly (async, but triggered from sync handler)
+                  // Fallback: Try connecting directly
                   handleDirectConnect()
                 }
               } else {
                 // Fallback if modal function not available
+                console.log('Modal function not available, using direct connect')
                 handleDirectConnect()
               }
             }
@@ -180,13 +204,29 @@ export function WalletConnect() {
                   (window as any).farcaster?.sdk !== undefined
                 )
               
-              // Check for injected wallet (window.ethereum) - but NOT in Farcaster
-              const hasInjectedWallet = !isFarcasterEnv && typeof window !== 'undefined' && 
-                                       ((window as any).ethereum || (window as any).web3)
-              
               // Detect mobile browsers (iOS Safari, Chrome Mobile, etc.)
               const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
               const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+              
+              // Check for injected wallet (window.ethereum) - but NOT in Farcaster
+              // On mobile, this might not be available immediately
+              const hasInjectedWallet = !isFarcasterEnv && typeof window !== 'undefined' && 
+                                       ((window as any).ethereum || (window as any).web3)
+              
+              console.log('🔍 Mobile wallet detection:', {
+                isMobile,
+                isIOSSafari,
+                isFarcasterEnv,
+                hasInjectedWallet,
+                totalConnectors: connectors.length,
+                readyConnectors: connectors.filter(c => c.ready).length,
+                connectorDetails: connectors.map(c => ({
+                  id: c.id,
+                  name: c.name,
+                  ready: c.ready,
+                  type: c.type,
+                })),
+              })
               
               let availableConnectors = connectors.filter(c => c.ready)
               let connectorToUse
@@ -236,21 +276,37 @@ export function WalletConnect() {
                 }
               } else {
                 // NOT in Farcaster - use standard wallet connection logic
-                // On mobile, connectors may take longer to initialize, so wait and retry
-                if (availableConnectors.length === 0 && hasInjectedWallet) {
-                  console.log('Mobile: Waiting for connectors to initialize...')
-                  // Wait longer on mobile (up to 2 seconds with retries)
-                  for (let attempt = 0; attempt < 4; attempt++) {
-                    await new Promise(resolve => setTimeout(resolve, 500))
+                // CRITICAL: On mobile, connectors take longer to initialize
+                // Wait for connectors to become ready, especially on mobile
+                if (availableConnectors.length === 0) {
+                  console.log('⏳ No ready connectors found, waiting for initialization...')
+                  // Wait longer on mobile (up to 5 seconds with retries)
+                  const maxAttempts = isMobile ? 10 : 6
+                  const delay = isMobile ? 500 : 300
+                  
+                  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                    await new Promise(resolve => setTimeout(resolve, delay))
                     availableConnectors = connectors.filter(c => c.ready)
+                    console.log(`Attempt ${attempt + 1}/${maxAttempts}: ${availableConnectors.length} ready connectors`, {
+                      connectors: availableConnectors.map(c => ({ id: c.id, name: c.name, ready: c.ready })),
+                    })
                     if (availableConnectors.length > 0) {
-                      console.log(`Mobile: Connectors ready after ${(attempt + 1) * 500}ms`)
+                      console.log(`✅ Connectors ready after ${(attempt + 1) * delay}ms`)
                       break
                     }
                   }
                 }
                 
-                if (availableConnectors.length > 0 || hasInjectedWallet) {
+                // If still no connectors, check if we have injected wallet
+                // On mobile Safari, injected wallets might not show up as connectors immediately
+                if (availableConnectors.length === 0 && hasInjectedWallet) {
+                  console.log('⚠️ No ready connectors but injected wallet detected, waiting a bit more...')
+                  // Give it one more second for mobile wallets
+                  await new Promise(resolve => setTimeout(resolve, isMobile ? 1000 : 500))
+                  availableConnectors = connectors.filter(c => c.ready)
+                }
+                
+                if (availableConnectors.length > 0) {
                   // For iOS Safari, prefer injected/MetaMask over WalletConnect (WalletConnect has issues on iOS)
                   if (isIOSSafari) {
                     // iOS Safari: Prefer MetaMask/injected, avoid WalletConnect
@@ -260,7 +316,7 @@ export function WalletConnect() {
                     ) || availableConnectors.find(c => !c.id.includes('walletConnect'))
                     
                     if (connectorToUse) {
-                      console.log('iOS Safari detected, using connector:', connectorToUse.name)
+                      console.log('✅ iOS Safari detected, using connector:', connectorToUse.name)
                     }
                   } else if (isMobile) {
                     // Other mobile browsers: Prefer MetaMask or injected wallet, avoid WalletConnect
@@ -268,22 +324,41 @@ export function WalletConnect() {
                       c => (c.id === 'metaMask' || c.id === 'injected' || c.name.toLowerCase().includes('metamask')) &&
                            !c.id.includes('walletConnect')
                     ) || availableConnectors.find(c => !c.id.includes('walletConnect')) || availableConnectors[0]
-                    console.log('Mobile browser detected, using connector:', connectorToUse?.name || 'first available')
+                    console.log('✅ Mobile browser detected, using connector:', connectorToUse?.name || 'first available')
                   } else {
                     // Desktop browsers: Prefer MetaMask or injected wallet
                     connectorToUse = availableConnectors.find(
                       c => c.id === 'metaMask' || c.id === 'injected' || c.name.toLowerCase().includes('metamask')
                     ) || availableConnectors[0]
-                    console.log('Connecting directly with:', connectorToUse?.name || 'first available')
+                    console.log('✅ Desktop browser, using connector:', connectorToUse?.name || 'first available')
+                  }
+                } else if (hasInjectedWallet) {
+                  // Last resort: try to find injected connector even if not ready
+                  // On mobile, sometimes connectors aren't marked as ready but still work
+                  const injectedConnector = connectors.find(
+                    c => c.id === 'injected' || c.id === 'metaMask' || c.name.toLowerCase().includes('metamask')
+                  )
+                  if (injectedConnector) {
+                    console.log('⚠️ Using injected connector even though not marked as ready:', injectedConnector.name)
+                    connectorToUse = injectedConnector
                   }
                 }
               }
               
               if (!connectorToUse) {
+                console.error('❌ No connector available:', {
+                  isFarcasterEnv,
+                  hasInjectedWallet,
+                  availableConnectors: availableConnectors.length,
+                  allConnectors: connectors.map(c => ({ id: c.id, name: c.name, ready: c.ready })),
+                })
+                
                 if (isFarcasterEnv) {
                   alert('Farcaster wallet is not ready. Please wait a moment and try again.')
                 } else if (hasInjectedWallet) {
                   alert('Wallet detected but not ready. Please wait a moment and try again, or ensure your wallet is unlocked.')
+                } else if (isMobile) {
+                  alert('No wallets found. On mobile, please:\n\n1. Install MetaMask or another Web3 wallet app\n2. Open the wallet app and unlock it\n3. Return to this page and try again\n\nOr use the "Connect Wallet" button to scan a QR code with WalletConnect.')
                 } else {
                   alert('No wallets available. Please install MetaMask or another Web3 wallet to connect.')
                 }
