@@ -95,12 +95,18 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const readyFunction = sdkInstance?.actions?.ready
+        // Check if SDK is available - check multiple ways
+        const readyFunction = sdkInstance?.actions?.ready || 
+                             (sdkInstance && typeof (sdkInstance as any).ready === 'function' ? (sdkInstance as any).ready : null)
         
         // Check if SDK is available
         if (!readyFunction || typeof readyFunction !== 'function') {
           // Not in Farcaster context (browser mode) - this is OK
-          console.log('ℹ️ Farcaster SDK not available (browser mode) - app will work normally')
+          console.log('ℹ️ Farcaster SDK not available (browser mode) - app will work normally', {
+            hasSdkInstance: !!sdkInstance,
+            hasActions: !!sdkInstance?.actions,
+            hasReady: !!(sdkInstance?.actions?.ready),
+          })
           setIsLoading(false)
           return
         }
@@ -109,6 +115,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
         console.log('📞 About to call sdk.actions.ready()...', {
           timestamp: new Date().toISOString(),
           readyState: document.readyState,
+          sdkType: sdkInstance === sdk ? 'imported' : 'window',
         })
 
         // Call ready() once - this hides the splash screen and shows content
@@ -182,7 +189,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener('error', errorHandler)
     }
-  }, [readyCalled])
+  }, []) // Empty dependency array - run only once on mount (per Farcaster SDK docs)
 
   return (
     <FarcasterContext.Provider value={{ context, isInitialized, isLoading }}>
