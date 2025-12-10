@@ -42,14 +42,24 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
     }
 
     async function callReady() {
+      // Wait for SDK to be available (with retry for preview environments)
+      let sdkInstance = sdk || (window as any).farcaster?.sdk
+      let attempts = 0
+      const maxAttempts = 10 // Try for up to 2 seconds (10 * 200ms)
+      
+      while (!sdkInstance && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 200))
+        sdkInstance = sdk || (window as any).farcaster?.sdk
+        attempts++
+      }
+
       try {
-        // Get SDK instance (from import or window)
-        const sdkInstance = sdk || (window as any).farcaster?.sdk
         const readyFunction = sdkInstance?.actions?.ready
         
         // Check if SDK is available
         if (!readyFunction || typeof readyFunction !== 'function') {
           // Not in Farcaster context (browser mode) - this is OK
+          console.log('ℹ️ Farcaster SDK not available (browser mode)')
           setIsLoading(false)
           return
         }
