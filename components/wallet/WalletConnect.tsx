@@ -29,7 +29,45 @@ export function WalletConnect() {
   // Initialize on mount
   useEffect(() => {
     setMounted(true)
-  }, [])
+    
+    // Log connector status for debugging
+    const isFarcasterEnv = 
+      typeof window !== 'undefined' && (
+        window.location.search.includes('fc_wallet=1') ||
+        (window as any).farcaster?.sdk !== undefined
+      )
+    
+    if (isFarcasterEnv) {
+      console.log('🔵 Farcaster environment detected in WalletConnect')
+      console.log('Available connectors:', connectors.map(c => ({
+        id: c.id,
+        name: c.name,
+        ready: c.ready,
+        type: c.type,
+      })))
+      
+      const farcasterConnector = connectors.find(c => {
+        const name = c.name.toLowerCase()
+        const id = c.id?.toLowerCase() || ''
+        return name.includes('farcaster') || 
+               name.includes('frame') || 
+               name.includes('miniapp') ||
+               id.includes('farcaster') || 
+               id.includes('frame') || 
+               id.includes('miniapp')
+      })
+      
+      if (farcasterConnector) {
+        console.log('✅ Farcaster connector found:', {
+          id: farcasterConnector.id,
+          name: farcasterConnector.name,
+          ready: farcasterConnector.ready,
+        })
+      } else {
+        console.warn('⚠️ Farcaster environment but no Farcaster connector found!')
+      }
+    }
+  }, [connectors])
 
   // Monitor connection state changes and force UI update when WalletConnect connects
   useEffect(() => {
@@ -134,34 +172,85 @@ export function WalletConnect() {
             }
 
             const handleDirectConnect = async () => {
-              // Check for injected wallet (window.ethereum) even if connectors aren't ready yet
-              const hasInjectedWallet = typeof window !== 'undefined' && 
+              // CRITICAL: Check for Farcaster environment FIRST
+              // In Farcaster, we MUST use the Farcaster connector, not injected wallets
+              const isFarcasterEnv = 
+                typeof window !== 'undefined' && (
+                  window.location.search.includes('fc_wallet=1') ||
+                  (window as any).farcaster?.sdk !== undefined
+                )
+              
+              // Check for injected wallet (window.ethereum) - but NOT in Farcaster
+              const hasInjectedWallet = !isFarcasterEnv && typeof window !== 'undefined' && 
                                        ((window as any).ethereum || (window as any).web3)
               
               // Detect mobile browsers (iOS Safari, Chrome Mobile, etc.)
               const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
               const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
               
-              // On mobile, connectors may take longer to initialize, so wait and retry
               let availableConnectors = connectors.filter(c => c.ready)
               let connectorToUse
               
-              // If no connectors ready but we detect injected wallet, wait and retry
-              if (availableConnectors.length === 0 && hasInjectedWallet) {
-                console.log('Mobile: Waiting for connectors to initialize...')
-                // Wait longer on mobile (up to 2 seconds with retries)
-                for (let attempt = 0; attempt < 4; attempt++) {
-                  await new Promise(resolve => setTimeout(resolve, 500))
-                  availableConnectors = connectors.filter(c => c.ready)
-                  if (availableConnectors.length > 0) {
-                    console.log(`Mobile: Connectors ready after ${(attempt + 1) * 500}ms`)
-                    break
+              // PRIORITY 1: If in Farcaster environment, MUST use Farcaster connector
+              if (isFarcasterEnv) {
+                console.log('🔵 Farcaster environment detected, looking for Farcaster connector...')
+                
+                // Find Farcaster connector
+                const farcasterConnector = connectors.find(c => {
+                  const name = c.name.toLowerCase()
+                  const id = c.id?.toLowerCase() || ''
+                  return name.includes('farcaster') || 
+                         name.includes('frame') || 
+                         name.includes('miniapp') ||
+                         id.includes('farcaster') || 
+                         id.includes('frame') || 
+                         id.includes('miniapp')
+                })
+                
+                if (farcasterConnector) {
+                  // Wait for Farcaster connector to be ready (it may take time to initialize)
+                  if (!farcasterConnector.ready) {
+                    console.log('⏳ Farcaster connector not ready yet, waiting...')
+                    // Wait up to 3 seconds for Farcaster connector to be ready
+                    for (let attempt = 0; attempt < 6; attempt++) {
+                      await new Promise(resolve => setTimeout(resolve, 500))
+                      if (farcasterConnector.ready) {
+                        console.log(`✅ Farcaster connector ready after ${(attempt + 1) * 500}ms`)
+                        break
+                      }
+                    }
+                  }
+                  
+                  if (farcasterConnector.ready) {
+                    connectorToUse = farcasterConnector
+                    console.log('✅ Using Farcaster connector:', farcasterConnector.name)
+                  } else {
+                    console.warn('⚠️ Farcaster connector not ready after waiting')
+                    alert('Farcaster wallet is not ready. Please wait a moment and try again.')
+                    return
+                  }
+                } else {
+                  console.error('❌ Farcaster environment detected but no Farcaster connector found!')
+                  alert('Farcaster wallet connector not available. Please refresh the page.')
+                  return
+                }
+              } else {
+                // NOT in Farcaster - use standard wallet connection logic
+                // On mobile, connectors may take longer to initialize, so wait and retry
+                if (availableConnectors.length === 0 && hasInjectedWallet) {
+                  console.log('Mobile: Waiting for connectors to initialize...')
+                  // Wait longer on mobile (up to 2 seconds with retries)
+                  for (let attempt = 0; attempt < 4; attempt++) {
+                    await new Promise(resolve => setTimeout(resolve, 500))
+                    availableConnectors = connectors.filter(c => c.ready)
+                    if (availableConnectors.length > 0) {
+                      console.log(`Mobile: Connectors ready after ${(attempt + 1) * 500}ms`)
+                      break
+                    }
                   }
                 }
-              }
-              
-              if (availableConnectors.length > 0 || hasInjectedWallet) {
-                try {
+                
+                if (availableConnectors.length > 0 || hasInjectedWallet) {
                   // For iOS Safari, prefer injected/MetaMask over WalletConnect (WalletConnect has issues on iOS)
                   if (isIOSSafari) {
                     // iOS Safari: Prefer MetaMask/injected, avoid WalletConnect
@@ -187,31 +276,33 @@ export function WalletConnect() {
                     ) || availableConnectors[0]
                     console.log('Connecting directly with:', connectorToUse?.name || 'first available')
                   }
-                  
-                  if (!connectorToUse) {
-                    if (hasInjectedWallet) {
-                      alert('Wallet detected but not ready. Please wait a moment and try again, or ensure your wallet is unlocked.')
-                    } else {
-                      alert('No wallets available. Please install MetaMask or another Web3 wallet to connect.')
-                    }
-                    return
-                  }
-                  
-                  await connect({ connector: connectorToUse })
-                } catch (connectError: any) {
-                  console.error('Direct connect failed:', connectError)
-                  const errorMsg = connectError?.message || String(connectError || 'Unknown error')
-                  
-                  // Don't show alert for user rejections
-                  if (!errorMsg.toLowerCase().includes('rejected') && 
-                      !errorMsg.toLowerCase().includes('denied') &&
-                      !errorMsg.toLowerCase().includes('user cancelled')) {
-                    // Last resort: show alert
-                    alert('Connection failed. Please ensure your wallet is unlocked and try again.')
-                  }
                 }
-              } else {
-                alert('No wallets available. Please install MetaMask or another Web3 wallet to connect.')
+              }
+              
+              if (!connectorToUse) {
+                if (isFarcasterEnv) {
+                  alert('Farcaster wallet is not ready. Please wait a moment and try again.')
+                } else if (hasInjectedWallet) {
+                  alert('Wallet detected but not ready. Please wait a moment and try again, or ensure your wallet is unlocked.')
+                } else {
+                  alert('No wallets available. Please install MetaMask or another Web3 wallet to connect.')
+                }
+                return
+              }
+              
+              try {
+                await connect({ connector: connectorToUse })
+              } catch (connectError: any) {
+                console.error('Direct connect failed:', connectError)
+                const errorMsg = connectError?.message || String(connectError || 'Unknown error')
+                
+                // Don't show alert for user rejections
+                if (!errorMsg.toLowerCase().includes('rejected') && 
+                    !errorMsg.toLowerCase().includes('denied') &&
+                    !errorMsg.toLowerCase().includes('user cancelled')) {
+                  // Last resort: show alert
+                  alert('Connection failed. Please ensure your wallet is unlocked and try again.')
+                }
               }
             }
 
