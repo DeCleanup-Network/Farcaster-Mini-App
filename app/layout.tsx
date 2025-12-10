@@ -24,7 +24,7 @@ const bebasNeue = Bebas_Neue({
   subsets: ["latin"],
 });
 
-const FARCASTER_MINIAPP_URL = "https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards";
+const FARCASTER_MINIAPP_URL = "https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards";
 const EMBED_METADATA = {
   version: "1",
   imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png",

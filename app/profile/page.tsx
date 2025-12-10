@@ -796,7 +796,7 @@ function ProfileContent() {
             <div className="absolute top-4 right-4">
               <div className="relative h-12 w-12 rounded-full border-2 border-gray-700 bg-gray-800 p-1">
                 <Image
-                  src="https://gateway.pinata.cloud/ipfs/bafybeihjxa2ww6weqtutjtfh4hy4ac6aeiev242oqmy5amw4ashfwfkgda"
+                  src="https://gateway.pinata.cloud/ipfs/bafkreifk3qijhbmrcr6uadoihyinaayogc73hzbfc2hm3yvvrmdrbi4sn4?filename=DCUTokenLogo.png"
                   alt="$bDCU Token"
                   fill
                   className="object-contain rounded-full"

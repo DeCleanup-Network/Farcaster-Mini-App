@@ -2,7 +2,7 @@
 
 > **A mobile-first Farcaster Mini App that gamifies environmental cleanup through Impact Product NFTs, $bDCU token rewards, and on-chain engagement on Base.**
 
-**🌐 [Try the Farcaster Mini App](https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards)** | **🌍 [Web Version](https://farcaster-mini-app-umber.vercel.app)** | **📖 [System Architecture](docs/system-architecture.md)**
+**🌐 [Try the Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** | **🌍 [Web Version](https://farcaster-mini-app-umber.vercel.app)** | **📖 [System Architecture](docs/system-architecture.md)**
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
@@ -163,7 +163,7 @@ Contributions are welcome! Fork the repository, create a feature branch, and ope
 
 ## 🌐 Live Applications
 
-- **Farcaster Mini App**: [Open in Warpcast](https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards) – Native Farcaster experience
+- **Farcaster Mini App**: [Open in Warpcast](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards) – Native Farcaster experience
 - **Web Version**: [https://farcaster-mini-app-umber.vercel.app](https://farcaster-mini-app-umber.vercel.app) – Browser-accessible version
 
 ## 📚 Documentation

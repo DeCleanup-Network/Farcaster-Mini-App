@@ -273,7 +273,7 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
 
 // Farcaster miniapp link
 const FARCASTER_MINIAPP_URL =
-  'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
+  'https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards'
 const WEB_APP_URL =
   process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 
