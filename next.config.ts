@@ -45,6 +45,16 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+  // Redirect from old domain to new domain (if on old domain)
+  // Since both domains use the same Vercel project, we use request headers to detect domain
+  // The manifest is handled by app/.well-known/farcaster.json/route.ts which serves different manifests per domain
+  async redirects() {
+    // Note: Next.js redirects run at build time, so we can't use request headers here
+    // Instead, we'll use middleware or handle redirects in the app
+    // For now, we'll let the API route handle manifest serving
+    // and implement redirects via middleware or client-side if needed
+    return []
+  },
   // Ensure .well-known directory is served
   async headers() {
     return [

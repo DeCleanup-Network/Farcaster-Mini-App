@@ -83,6 +83,7 @@ export const metadata: Metadata = {
   other: {
     "fc:miniapp": JSON.stringify(EMBED_METADATA),
     "fc:frame": JSON.stringify(EMBED_METADATA),
+    "base:app_id": process.env.NEXT_PUBLIC_BASE_APP_ID || "691efb9475e001821817dc8b",
   },
 };
 
