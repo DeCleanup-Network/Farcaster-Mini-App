@@ -5,9 +5,10 @@ const nextConfig: NextConfig = {
   // Use webpack instead of Turbopack for better compatibility with RainbowKit/WalletConnect
   // Turbopack has issues with Node.js modules (pino/thread-stream) in client bundles
   // Set workspace root to silence lockfile warning
-  // Explicitly set to project root (parent directory of next.config.ts)
-  // Add empty turbopack config to allow webpack config
-  turbopack: {},
+  // Explicitly set to project root (current working directory)
+  turbopack: {
+    root: process.cwd(),
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Exclude Node.js-only modules from client bundle

@@ -1296,10 +1296,10 @@ function ProfileContent() {
                             if (sharing || !address) return
                             setSharing(true)
                             try {
-                              const farcasterLink = generateClaimShareLink(address, profileData.level, 'farcaster', false)
-                              const embedLink = generateClaimShareLink(address, profileData.level, 'web', true)
-                              const text = formatImpactShareMessage(profileData.level, farcasterLink, 'farcaster')
-                              await shareCast(text, embedLink)
+                              // Use web URL for both message and embed - Farcaster miniapp URLs don't support query params
+                              const claimLink = generateClaimShareLink(address, profileData.level, 'web', true)
+                              const text = formatImpactShareMessage(profileData.level, claimLink, 'farcaster')
+                              await shareCast(text, claimLink)
                             } catch (error) {
                               console.error('Failed to share:', error)
                             } finally {

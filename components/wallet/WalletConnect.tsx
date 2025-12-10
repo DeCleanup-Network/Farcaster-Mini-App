@@ -134,21 +134,35 @@ export function WalletConnect() {
             }
 
             const handleDirectConnect = async () => {
-              // Fallback: Try connecting directly with first available connector
-              // This works better in Safari when modal fails
-              const availableConnectors = connectors.filter(c => c.ready)
-              
               // Check for injected wallet (window.ethereum) even if connectors aren't ready yet
               const hasInjectedWallet = typeof window !== 'undefined' && 
                                        ((window as any).ethereum || (window as any).web3)
               
-              // Detect iOS Safari
+              // Detect mobile browsers (iOS Safari, Chrome Mobile, etc.)
+              const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
               const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+              
+              // On mobile, connectors may take longer to initialize, so wait and retry
+              let availableConnectors = connectors.filter(c => c.ready)
+              let connectorToUse
+              
+              // If no connectors ready but we detect injected wallet, wait and retry
+              if (availableConnectors.length === 0 && hasInjectedWallet) {
+                console.log('Mobile: Waiting for connectors to initialize...')
+                // Wait longer on mobile (up to 2 seconds with retries)
+                for (let attempt = 0; attempt < 4; attempt++) {
+                  await new Promise(resolve => setTimeout(resolve, 500))
+                  availableConnectors = connectors.filter(c => c.ready)
+                  if (availableConnectors.length > 0) {
+                    console.log(`Mobile: Connectors ready after ${(attempt + 1) * 500}ms`)
+                    break
+                  }
+                }
+              }
               
               if (availableConnectors.length > 0 || hasInjectedWallet) {
                 try {
                   // For iOS Safari, prefer injected/MetaMask over WalletConnect (WalletConnect has issues on iOS)
-                  let connectorToUse
                   if (isIOSSafari) {
                     // iOS Safari: Prefer MetaMask/injected, avoid WalletConnect
                     connectorToUse = availableConnectors.find(
@@ -156,26 +170,18 @@ export function WalletConnect() {
                            !c.id.includes('walletConnect') && !c.name.toLowerCase().includes('walletconnect')
                     ) || availableConnectors.find(c => !c.id.includes('walletConnect'))
                     
-                    // If no connector found but we have injected wallet, wait a bit for connectors to initialize
-                    if (!connectorToUse && hasInjectedWallet) {
-                      console.log('iOS Safari: Waiting for injected wallet connector to initialize...')
-                      await new Promise(resolve => setTimeout(resolve, 500))
-                      const refreshedConnectors = connectors.filter(c => c.ready)
-                      connectorToUse = refreshedConnectors.find(
-                        c => (c.id === 'metaMask' || c.id === 'injected' || c.name.toLowerCase().includes('metamask')) &&
-                             !c.id.includes('walletConnect')
-                      ) || refreshedConnectors.find(c => !c.id.includes('walletConnect')) || refreshedConnectors[0]
-                    }
-                    
                     if (connectorToUse) {
                       console.log('iOS Safari detected, using connector:', connectorToUse.name)
-                    } else if (hasInjectedWallet) {
-                      console.log('iOS Safari: Injected wallet detected but connector not ready. Please try again in a moment.')
-                      alert('Wallet detected but not ready. Please wait a moment and try again, or ensure MetaMask is unlocked.')
-                      return
                     }
+                  } else if (isMobile) {
+                    // Other mobile browsers: Prefer MetaMask or injected wallet, avoid WalletConnect
+                    connectorToUse = availableConnectors.find(
+                      c => (c.id === 'metaMask' || c.id === 'injected' || c.name.toLowerCase().includes('metamask')) &&
+                           !c.id.includes('walletConnect')
+                    ) || availableConnectors.find(c => !c.id.includes('walletConnect')) || availableConnectors[0]
+                    console.log('Mobile browser detected, using connector:', connectorToUse?.name || 'first available')
                   } else {
-                    // Other browsers: Prefer MetaMask or injected wallet
+                    // Desktop browsers: Prefer MetaMask or injected wallet
                     connectorToUse = availableConnectors.find(
                       c => c.id === 'metaMask' || c.id === 'injected' || c.name.toLowerCase().includes('metamask')
                     ) || availableConnectors[0]

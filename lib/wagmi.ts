@@ -71,46 +71,50 @@ const APP_ICON_URL =
   'https://gateway.pinata.cloud/ipfs/bafybeieny7btv4icyd5oqhbtiafbdvpxtebxjmxqfv6vajly6ggwqpisde?filename=DCUIconNEW.png'
 
 // Wagmi configuration with RainbowKit and Farcaster wallet support
-// IMPORTANT: Only initialize connectors on client side to avoid SSR errors
-// All wallet connectors require browser APIs and will fail during server-side rendering
+// CRITICAL: Connectors must be created 100% statically (NO conditionals, NO try/catch, NO fallbacks)
+// Wagmi + RainbowKit maintainers: "Never create connectors inside conditionals or inside useEffect"
+// Any conditional logic causes SSR → hydration mismatch → WalletConnect transport breaks
 
 // Get WalletConnect project ID from environment
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 
+// Validate WalletConnect Project ID - throw error on module load if missing
+// This prevents SSR from generating invalid connector config
+if (!walletConnectProjectId) {
+  throw new Error(
+    'WalletConnect Project ID is required. Set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID. ' +
+    'Get your Project ID at https://cloud.reown.com'
+  )
+}
+
 // Get default RainbowKit connectors (MetaMask, WalletConnect, Coinbase Wallet, etc.)
-// This only works on client side, so we check for window
-// Use lazy initialization to avoid SSR issues with Node.js modules
-let defaultConnectors: any[] = []
-if (typeof window !== 'undefined' && walletConnectProjectId) {
-  try {
-    const { connectors } = getDefaultWallets({
-      appName: APP_NAME,
-      projectId: walletConnectProjectId,
-    })
-    defaultConnectors = connectors
-  } catch (error) {
-    console.warn('Failed to initialize RainbowKit connectors:', error)
-    defaultConnectors = []
-  }
-}
+// MUST be static - NO try/catch, NO conditionals, NO fallbacks to []
+// If this throws during SSR, that's GOOD - it means misconfiguration is caught early
+const { connectors: defaultConnectors } = getDefaultWallets({
+  appName: APP_NAME,
+  projectId: walletConnectProjectId,
+})
 
-// Add Farcaster Mini App connector (priority connector - must be first)
-// This ensures Farcaster wallet is prioritized when running inside Farcaster/Warpcast
-const farcasterConnector = typeof window !== 'undefined' ? farcasterMiniApp() : null
+// CRITICAL: Only load Farcaster connector when actually inside Farcaster environment
+// Farcaster connector MUST be last (never first) to prevent wagmi from auto-selecting it
+// When Farcaster connector is first, wagmi tries to use it for WalletConnect → QR hangs
+// Detection: Check for Farcaster-specific query params or window.farcaster
+const isFarcasterEnv = typeof window !== 'undefined' && 
+  (window.location.search.includes('fc_wallet=1') || 
+   (window as any).farcaster?.sdk !== undefined)
 
-// Include all connectors - RainbowKit will handle which ones are available/usable
-// Farcaster connector first for priority, then default connectors (MetaMask, WalletConnect, etc.)
-const connectors = typeof window !== 'undefined'
-  ? [
-      ...(farcasterConnector ? [farcasterConnector] : []),
-      ...defaultConnectors,
-    ]
-  : []
+// Add Farcaster Mini App connector ONLY when in Farcaster environment
+// MUST be last in array to prevent auto-selection outside Farcaster
+// If not in Farcaster, this connector is not included (prevents semi-implemented connector)
+const farcasterConnector = isFarcasterEnv ? farcasterMiniApp() : null
 
-// Warn if WalletConnect Project ID is missing (but don't fail - Farcaster and injected wallets still work)
-if (typeof window !== 'undefined' && !walletConnectProjectId) {
-  console.warn('WalletConnect Project ID not configured. WalletConnect will not be available. Get your Project ID at https://cloud.reown.com')
-}
+// Include all connectors - Farcaster LAST (never first) to prevent auto-selection
+// CRITICAL: Default connectors first, Farcaster only when in FC environment
+// This ensures WalletConnect is always available and not overridden by Farcaster connector
+const connectors = [
+  ...defaultConnectors,
+  ...(farcasterConnector ? [farcasterConnector] : []),
+]
 
 export const config = createConfig({
   chains: configuredChains,
@@ -119,6 +123,9 @@ export const config = createConfig({
     [baseMainnet.id]: http(baseMainnetRpcUrl),
     [baseSepoliaChain.id]: http(baseSepoliaRpcUrl),
   },
+  // CRITICAL: autoConnect is false by default in wagmi v2
+  // This prevents wagmi from auto-selecting Farcaster connector outside FC environment
+  // Auto-connect would cause Farcaster connector to be selected → WalletConnect QR hangs
 })
 
 // Default/Base chain metadata exports

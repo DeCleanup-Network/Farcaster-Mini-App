@@ -27,49 +27,41 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [readyCalled, setReadyCalled] = useState(false)
 
+  // Call ready() once after React component mount and UI is rendered
+  // Following Farcaster SDK docs: call ready() in useEffect after mount, as soon as possible
+  // but only after UI has loaded enough to avoid reflows/jitter
   useEffect(() => {
     if (typeof window === 'undefined') {
       setIsLoading(false)
       return
     }
 
-    const isBaseDev = window.location.hostname.includes('base.dev') || 
-                      window.location.hostname.includes('basebuild.org') ||
-                      window.location.hostname.includes('base.org')
+    // Prevent duplicate calls
+    if (readyCalled) {
+      return
+    }
 
-    async function callReadyOnce() {
-      if (readyCalled) {
-        if (isBaseDev || process.env.NODE_ENV === 'development') {
-          console.warn('⚠️ ready() already called, skipping duplicate call')
-        }
-        return
-      }
-
+    async function callReady() {
       try {
-        console.log('🔄 Calling sdk.actions.ready() after React mount...')
-        
+        // Get SDK instance (from import or window)
         const sdkInstance = sdk || (window as any).farcaster?.sdk
         const readyFunction = sdkInstance?.actions?.ready
         
+        // Check if SDK is available
         if (!readyFunction || typeof readyFunction !== 'function') {
-          const debugInfo = {
-            hasSdk: !!sdk,
-            hasWindowSdk: !!(window as any).farcaster?.sdk,
-            hasActions: !!sdkInstance?.actions,
-            hasReady: !!readyFunction
-          }
-          if (isBaseDev || process.env.NODE_ENV === 'development') {
-            console.warn('⚠️ SDK actions.ready() not available:', debugInfo)
-          }
+          // Not in Farcaster context (browser mode) - this is OK
           setIsLoading(false)
           return
         }
 
+        // Call ready() once - this hides the splash screen and shows content
+        // Using disableNativeGestures to prevent gesture conflicts
         await readyFunction({ disableNativeGestures: true })
         
         setReadyCalled(true)
-        console.log('✅ sdk.actions.ready() called successfully - splash screen hidden', isBaseDev ? '(Base.dev)' : '')
+        console.log('✅ sdk.actions.ready() called successfully - splash screen hidden')
         
+        // Initialize Farcaster context after ready() completes
         try {
           const initialized = await initializeFarcaster()
           if (initialized) {
@@ -87,14 +79,12 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
                                errorMessage.includes('undefined')
         
         if (isContextError) {
-          if (isBaseDev || process.env.NODE_ENV === 'development') {
-            console.log('ℹ️ Not in Farcaster context (browser mode):', errorMessage)
-          }
+          // Not in Farcaster context - this is expected in browser mode
+          console.log('ℹ️ Not in Farcaster context (browser mode)')
         } else {
           console.error('❌ sdk.actions.ready() failed:', {
             message: errorMessage,
             error: readyError,
-            stack: readyError?.stack
           })
         }
       } finally {
@@ -102,30 +92,9 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const readyState = document.readyState as 'loading' | 'interactive' | 'complete'
-    
-    if (readyState === 'complete') {
-      setTimeout(() => {
-        callReadyOnce()
-      }, 100)
-    } else if (readyState === 'interactive') {
-      setTimeout(() => {
-        callReadyOnce()
-      }, 150)
-    } else {
-      const handleDOMReady = () => {
-        setTimeout(() => {
-          callReadyOnce()
-        }, 100)
-      }
-      window.addEventListener('DOMContentLoaded', handleDOMReady, { once: true })
-      window.addEventListener('load', handleDOMReady, { once: true })
-      
-      return () => {
-        window.removeEventListener('DOMContentLoaded', handleDOMReady)
-        window.removeEventListener('load', handleDOMReady)
-      }
-    }
+    // Call ready() after React mount - small delay to ensure UI is stable
+    // This matches the recommended pattern: call as soon as possible after UI loads
+    callReady()
   }, [readyCalled])
 
   return (

@@ -7,6 +7,7 @@ import {
   getChainId,
   switchChain,
   getAccount,
+  connect,
 } from 'wagmi/actions'
 import {
   config,
@@ -343,6 +344,33 @@ function getTxExplorerUrl(transactionHash: string) {
 
 // Safely get chain ID with fallback for connectors that don't support getChainId
 // Some connectors (like Farcaster) don't support getChainId, so we gracefully handle this
+// Helper to ensure wallet is connected before transactions
+// CRITICAL: Must check connection status before writeContract to avoid WalletConnect QR hang
+async function ensureWalletConnected(): Promise<void> {
+  const account = getAccount(config)
+  
+  // Check if wallet is actually connected
+  if (account.status !== 'connected' || !account.address) {
+    throw new Error(
+      'Wallet is not connected. Please connect your wallet before submitting a transaction.'
+    )
+  }
+  
+  // Ensure connector exists
+  if (!account.connector) {
+    throw new Error(
+      'Wallet connector not found. Please reconnect your wallet and try again.'
+    )
+  }
+  
+  console.log('[ensureWalletConnected] ✅ Wallet connected:', {
+    address: account.address,
+    connector: account.connector.name || account.connector.id,
+    status: account.status,
+    chainId: account.chainId,
+  })
+}
+
 async function getCurrentChainId(): Promise<number | null> {
   // Set up error handler to suppress the getChainId error
   let suppressedError: Error | null = null
@@ -730,6 +758,16 @@ export async function submitCleanup(
   value?: bigint, // Optional fee value
   providedChainId?: number | null // Optional chainId from useChainId hook to avoid detection issues
 ): Promise<bigint> {
+  // CRITICAL: Ensure wallet is connected FIRST - before ANY other logic
+  // This prevents WalletConnect QR hang bug by ensuring connector is bound before chain switching
+  await ensureWalletConnected()
+  
+  // Double-check account after connection guard
+  const account = getAccount(config)
+  if (account.status !== 'connected' || !account.address) {
+    throw new Error('Wallet connection lost. Please reconnect and try again.')
+  }
+  
   // Log referrer for debugging
   if (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') {
     console.log('[submitCleanup] Referrer address provided:', referrerAddress)
@@ -871,8 +909,8 @@ export async function submitCleanup(
   }
 
   // Safari/WalletConnect/Farcaster specific handling
+  // Note: account is already checked at the top of the function
   const isSafari = typeof window !== 'undefined' && /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
-  const account = await getAccount(config)
   const isWalletConnect = account.connector?.id?.includes('walletConnect') || 
                           account.connector?.name?.toLowerCase().includes('walletconnect')
   const isFarcaster = account.connector?.id?.includes('farcaster') || 
@@ -934,6 +972,7 @@ export async function submitCleanup(
     }
   }
 
+  // Account is already verified at the top of the function
   let hash: `0x${string}`
   try {
     console.log('[submitCleanup] Sending transaction...', {
@@ -944,7 +983,8 @@ export async function submitCleanup(
       isFarcasterWalletConnect,
       chainId: await getCurrentChainId(),
       address: CONTRACT_ADDRESSES.VERIFICATION,
-      connector: account.connector?.name || account.connector?.id
+      connector: account.connector?.name || account.connector?.id,
+      accountStatus: account.status,
     })
 
     hash = await writeContract(config as any, {
@@ -1080,6 +1120,16 @@ export async function claimImpactProductFromVerification(
   cleanupId: bigint,
   providedChainId?: number | null
 ): Promise<`0x${string}`> {
+  // CRITICAL: Ensure wallet is connected FIRST - before ANY other logic
+  // This prevents WalletConnect QR hang bug by ensuring connector is bound before chain switching
+  await ensureWalletConnected()
+  
+  // Double-check account after connection guard
+  const account = getAccount(config)
+  if (account.status !== 'connected' || !account.address) {
+    throw new Error('Wallet connection lost. Please reconnect and try again.')
+  }
+  
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
   }
@@ -1130,7 +1180,7 @@ export async function claimImpactProductFromVerification(
   }
 
   // Farcaster-specific handling for claim transactions
-  const account = await getAccount(config)
+  // Note: account is already checked at the top of the function
   const isFarcaster = account.connector?.id?.includes('farcaster') || 
                       account.connector?.name?.toLowerCase().includes('farcaster') ||
                       account.connector?.name?.toLowerCase().includes('miniapp') ||
@@ -1158,7 +1208,9 @@ export async function claimImpactProductFromVerification(
     }
   }
 
+  // Account is already verified at the top of the function
   try {
+    console.log('[claimImpactProduct] Account status:', account.status, 'Connector:', account.connector?.name || account.connector?.id)
     const hash = await writeContract(config as any, {
       address: CONTRACT_ADDRESSES.VERIFICATION,
       abi: VERIFICATION_ABI,
@@ -1514,6 +1566,16 @@ export async function verifyCleanup(
   level: number,
   providedChainId?: number | null
 ): Promise<`0x${string}`> {
+  // CRITICAL: Ensure wallet is connected FIRST - before ANY other logic
+  // This prevents WalletConnect QR hang bug by ensuring connector is bound before chain switching
+  await ensureWalletConnected()
+  
+  // Double-check account after connection guard
+  const account = getAccount(config)
+  if (account.status !== 'connected' || !account.address) {
+    throw new Error('Wallet connection lost. Please reconnect and try again.')
+  }
+  
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
   }
@@ -1551,6 +1613,7 @@ export async function verifyCleanup(
   
   console.log(`[verification] Chain check passed, proceeding with transaction`)
 
+  // Account is already verified at the top of the function
   // Validate cleanup exists before submitting
   try {
     const status = await getCleanupStatus(cleanupId)
@@ -1579,6 +1642,7 @@ export async function verifyCleanup(
     console.log(`[verification] Calling writeContract with chain:`, targetChain.id, targetChain.name)
     console.log(`[verification] Contract address:`, CONTRACT_ADDRESSES.VERIFICATION)
     console.log(`[verification] Function: verifyCleanup, args:`, [cleanupId.toString(), level])
+    console.log(`[verification] Account status:`, account.status, `Connector:`, account.connector?.name || account.connector?.id)
 
     const hash = await writeContract(config as any, {
       address: CONTRACT_ADDRESSES.VERIFICATION,

@@ -2,9 +2,9 @@ import type { Metadata } from 'next'
 import { ShareRedirect } from '@/components/share/ShareRedirect'
 
 // Preview image for sharing (used for both referral and claim)
-// This is the embed image (3:2 aspect ratio) used in fc:miniapp meta tags
+// Using OG image (1200x630) for better compatibility with Farcaster embeds and social previews
 const SHARE_IMAGE_URL =
-  'https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png'
+  'https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png'
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/njiQzfqas3yN/decleanup-rewards'
 
