@@ -582,12 +582,25 @@ export default function Home() {
           </section>
         )}
 
-        {/* Quick Actions */}
+        {/* Quick Links */}
         <section className="mb-8 rounded-lg border border-border bg-card p-4 sm:mb-12 sm:p-6">
           <h3 className="mb-4 text-lg font-bold uppercase tracking-wide text-foreground sm:text-xl">
-            Quick Actions
+            Quick Links
           </h3>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <a
+              href="https://decleanup.net"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2 border-2 border-border bg-background font-semibold uppercase text-foreground hover:bg-accent"
+              >
+                <Award className="h-4 w-4" />
+                Website
+              </Button>
+            </a>
             <a
               href="https://t.me/DecentralizedCleanup"
               target="_blank"
@@ -598,11 +611,11 @@ export default function Home() {
                 className="w-full justify-start gap-2 border-2 border-border bg-background font-semibold uppercase text-foreground hover:bg-accent"
               >
                 <Users className="h-4 w-4" />
-                Join the Community
+                Telegram
               </Button>
             </a>
             <a
-              href="https://paragraph.com/@decleanupnet"
+              href="https://x.com/decleanupnet"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -610,12 +623,14 @@ export default function Home() {
                 variant="outline"
                 className="w-full justify-start gap-2 border-2 border-border bg-background font-semibold uppercase text-foreground hover:bg-accent"
               >
-                <Award className="h-4 w-4" />
-                Read Publications
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+                X
               </Button>
             </a>
             <a
-              href="https://giveth.io/project/decentralized-cleanup-network"
+              href="https://farcaster.xyz/decleanupnet"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -623,8 +638,8 @@ export default function Home() {
                 variant="outline"
                 className="w-full justify-start gap-2 border-2 border-border bg-background font-semibold uppercase text-foreground hover:bg-accent"
               >
-                <Heart className="h-4 w-4" />
-                Donate on Giveth
+                <Users className="h-4 w-4" />
+                Farcaster
               </Button>
             </a>
           </div>
@@ -632,30 +647,36 @@ export default function Home() {
 
         {/* Footer Links */}
         <footer className="mt-8 border-t border-border pt-6 sm:mt-12">
-          <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground sm:gap-6 sm:text-sm">
-            <a href="https://decleanup.net" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
-              WEBSITE
+          <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground sm:grid-cols-4 sm:gap-6 sm:text-sm">
+            <a href="https://giveth.io/project/decentralized-cleanup-network" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green text-center">
+              DONATE ON GIVETH
             </a>
-            <a href="https://docs.google.com/forms/d/e/1FAIpQLSfWCK4WmO9T-WJOOZwuDiG3yEJVX23RX_AkIa6tZHZ0J9Tf3w/viewform?usp=header" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
-              BUG REPORT
+            <a href="https://paragraph.com/@decleanupnet" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green text-center">
+              READ PUBLICATIONS
             </a>
-            <a href="https://github.com/DeCleanup-Network" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
-              GITHUB
-            </a>
-            <a href="https://github.com/DeCleanup-Network" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
+            <a href="https://decleanup.net/litepaper" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green text-center">
               LITEPAPER
             </a>
-            <a href="https://x.com/decleanupnet" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
-              X
+            <a href="https://decleanup.net/tokenomics" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green text-center">
+              TOKENOMICS
             </a>
-            <a href="https://farcaster.xyz/decleanupnet" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green">
-              FARCASTER
+            <a href="https://decleanup.net/userguide" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green text-center">
+              USER GUIDE
             </a>
-            <div className="flex items-center gap-2">
-              <span>Powered by</span>
-              <div className="flex h-6 items-center justify-center rounded bg-muted px-2 font-bold text-foreground">
-                BASE
-              </div>
+            <a href="https://github.com/DeCleanup-Network" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green text-center">
+              GITHUB
+            </a>
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSfWCK4WmO9T-WJOOZwuDiG3yEJVX23RX_AkIa6tZHZ0J9Tf3w/viewform?usp=header" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green text-center">
+              BUG REPORT
+            </a>
+            <a href="https://decleanup.net/docs" target="_blank" rel="noopener noreferrer" className="hover:text-brand-green text-center">
+              DOCS
+            </a>
+          </div>
+          <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground sm:text-sm">
+            <span>Powered by</span>
+            <div className="flex h-6 items-center justify-center rounded bg-muted px-2 font-bold text-foreground">
+              BASE
             </div>
           </div>
         </footer>
