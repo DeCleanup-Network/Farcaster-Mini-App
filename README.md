@@ -2,7 +2,7 @@
 
 > **A mobile-first Farcaster Mini App that gamifies environmental cleanup through Impact Product NFTs, $bDCU token rewards, and on-chain engagement on Base.**
 
-**🌐 [Try the Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** | **🌍 [Web Version](https://farcaster-mini-app-umber.vercel.app)** | **📖 [System Architecture](docs/system-architecture.md)**
+**🌐 [Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** | **🌍 [Web App](https://decleanup.net)** | **🏠 [Landing Page](https://decleanup.net)** | **📖 [System Architecture](SYSTEM_ARCHITECTURE.md)** | **🧪 [Local Testing Guide](LOCAL_TESTING.md)**
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
@@ -86,7 +86,13 @@ npm install
 cp .env.example .env.local
 ```
 
-Edit `.env.local` with your configuration (contract addresses, API keys, etc.)
+Edit `.env.local` with your configuration:
+- Contract addresses (Impact Product NFT, Verification Contract, bDCURewardDistributor, $bDCU Token)
+- RPC URLs (Base Sepolia for testing, Base Mainnet for production)
+- **Pinata API keys** (server-side only: `PINATA_API_KEY` and `PINATA_SECRET_KEY` - NOT `NEXT_PUBLIC_*`)
+- WalletConnect Project ID
+- Farcaster Neynar API key
+- Base App ID
 
 3. **Configure Base Mini App + Farcaster manifest:**
    - Follow the [Base Mini App Setup Guide](docs/base-miniapp-setup.md)
@@ -112,6 +118,8 @@ Then open [http://localhost:3000](http://localhost:3000) and:
 - `npm run dev` – interactive testing of cleanup + verifier flows
 - Hardhat scripts in `contracts/` – deploy, add verifiers, and verify contract wiring
 
+For testing on mobile devices without deploying, see [LOCAL_TESTING.md](LOCAL_TESTING.md).
+
 ---
 
 ## Tech Stack
@@ -120,13 +128,13 @@ Then open [http://localhost:3000](http://localhost:3000) and:
 - **Blockchain**: Wagmi v2 + Viem on Base mainnet/Base Sepolia
 - **Farcaster**: `@farcaster/miniapp-sdk`
 - **Styling**: Tailwind CSS + shadcn/ui
-- **Storage**: IPFS for decentralized photo storage
+- **Storage**: IPFS for decentralized photo storage (via Pinata)
 
 ---
 
 ## Smart Contracts
 
-Latest Base Sepolia deployment (2025-11-18). These addresses are wired into `.env.local` and verified on Basescan:
+Latest Base Sepolia deployment. These addresses are wired into `.env.local` and verified on Basescan:
 
 | Contract | Address | Explorer |
 | --- | --- | --- |
@@ -155,30 +163,27 @@ All contracts are **upgradeable** using OpenZeppelin's UUPS pattern, allowing:
 
 ---
 
-## Contributing
-
-Contributions are welcome! Fork the repository, create a feature branch, and open a Pull Request.
-
----
-
-## 🌐 Live Applications
-
-- **Farcaster Mini App**: [Open in Warpcast](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards) – Native Farcaster experience
-- **Web Version**: [https://farcaster-mini-app-umber.vercel.app](https://farcaster-mini-app-umber.vercel.app) – Browser-accessible version
-
 ## 📚 Documentation
 
-- [System Architecture](docs/system-architecture.md) – Complete technical overview: contract/data flow, verifier roles, Farcaster integration, and architecture diagrams
-- [Base Mini App Setup](docs/base-miniapp-setup.md) – Configure manifests, Base Build `accountAssociation`, and Warpcast options
-- [Verifier Rewards Implementation](docs/verifier-rewards-implementation.md) – Verifier reward system and $bDCU token distribution
-- [Multisig Token Deposit Guide](docs/multisig-token-deposit-guide.md) – How to fund the bDCURewardDistributor contract
+- **[System Architecture](SYSTEM_ARCHITECTURE.md)** – Complete technical overview: contract/data flow, verifier roles, Farcaster integration, and architecture diagrams
+- **[Local Testing Guide](LOCAL_TESTING.md)** – Test on mobile devices without deploying using tunnels (ngrok, Cloudflare, localtunnel)
+- **[Base Mini App Setup](docs/base-miniapp-setup.md)** – Configure manifests, Base Build `accountAssociation`, and Warpcast options
+- **[User Guide](docs/user-guide.md)** – Complete user guide for cleanup submission, rewards, and leveling
 
 ## 🔗 Resources
 
-- [DeCleanup Rewards GitHub](https://github.com/DeCleanup-Network) – Source code and contributions
-- [Farcaster Mini Apps Docs](https://docs.farcaster.xyz/developers/mini-apps) – Official Farcaster documentation
-- [Base Documentation](https://docs.base.org) – Base network documentation
-- [Base Mini App Guide](https://docs.base.org/miniapp) – Base Mini App development guide
+- **🌐 [Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** – Native Farcaster experience in Warpcast
+- **🌍 [Web App](https://decleanup.net)** – Browser-accessible version
+- **🏠 [Landing Page](https://decleanup.net)** – Project homepage
+- **[Farcaster Mini Apps Docs](https://docs.farcaster.xyz/developers/mini-apps)** – Official Farcaster documentation
+- **[Base Documentation](https://docs.base.org)** – Base network documentation
+- **[Base Mini App Guide](https://docs.base.org/miniapp)** – Base Mini App development guide
+
+---
+
+## Contributing
+
+Contributions are welcome! Fork the repository, create a feature branch, and open a Pull Request.
 
 ---
 

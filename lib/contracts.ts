@@ -1995,10 +1995,11 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
   streakRewards: number
   referralRewards: number
   impactFormRewards: number
+  verifierRewards: number
   total: number
 }> {
   if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
-    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, total: 0 }
+    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, total: 0 }
   }
 
   try {
@@ -2045,10 +2046,11 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
     let streakLogs: any[] = []
     let referralLogs: any[] = []
     let impactFormLogs: any[] = []
+    let verifierLogs: any[] = []
     
     try {
       // Try with indexed args filter (more efficient)
-      const [levelLogsFiltered, streakLogsFiltered, referralLogsAll, impactFormLogsFiltered] = await Promise.all([
+      const [levelLogsFiltered, streakLogsFiltered, referralLogsAll, impactFormLogsFiltered, verifierLogsFiltered] = await Promise.all([
         publicClient.getLogs({
           address: distributorAddress,
           event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
@@ -2121,11 +2123,30 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
           }
           throw error
         }),
+        publicClient.getLogs({
+          address: distributorAddress,
+          event: parseAbiItem('event VerifierRewardDistributed(address indexed verifier, uint256 cleanupId, uint256 amount)'),
+          args: { verifier: userAddress },
+          fromBlock,
+        }).catch((error: any) => {
+          if (error?.message?.includes('max block range')) {
+            return publicClient.getBlockNumber().then(async (currentBlock) => {
+              return publicClient.getLogs({
+                address: distributorAddress,
+                event: parseAbiItem('event VerifierRewardDistributed(address indexed verifier, uint256 cleanupId, uint256 amount)'),
+                args: { verifier: userAddress },
+                fromBlock: currentBlock - BigInt(50000),
+              }).catch(() => [])
+            })
+          }
+          throw error
+        }),
       ])
       
       levelLogs = levelLogsFiltered
       streakLogs = streakLogsFiltered
       impactFormLogs = impactFormLogsFiltered
+      verifierLogs = verifierLogsFiltered
       
       // Filter referral logs client-side (user can be referrer or referee)
       const userLower = userAddress.toLowerCase()
@@ -2148,7 +2169,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
           console.log(`Retrying from recent block ${recentFromBlock} (last 50k blocks)`)
           
           // Try querying without user filter first (more likely to succeed, then filter client-side)
-          const [allLevelLogs, allStreakLogs, allReferralLogs, allImpactFormLogs] = await Promise.all([
+          const [allLevelLogs, allStreakLogs, allReferralLogs, allImpactFormLogs, allVerifierLogs] = await Promise.all([
             publicClient.getLogs({
               address: distributorAddress,
               event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
@@ -2180,6 +2201,11 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
               event: parseAbiItem('event ImpactFormRewardDistributed(address indexed user, uint256 cleanupId, uint256 amount)'),
               fromBlock: recentFromBlock,
             }),
+            publicClient.getLogs({
+              address: distributorAddress,
+              event: parseAbiItem('event VerifierRewardDistributed(address indexed verifier, uint256 cleanupId, uint256 amount)'),
+              fromBlock: recentFromBlock,
+            }),
           ])
           
           // Filter client-side
@@ -2204,6 +2230,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
             return referrer === userLower || referee === userLower
           })
           impactFormLogs = allImpactFormLogs.filter((log: any) => log.args?.user?.toLowerCase() === userLower)
+          verifierLogs = allVerifierLogs.filter((log: any) => log.args?.verifier?.toLowerCase() === userLower)
           
           console.log(`Query from recent block succeeded, found ${levelLogs.length} level reward events after filtering`)
         } catch (recentError: any) {
@@ -2213,6 +2240,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
           streakLogs = []
           referralLogs = []
           impactFormLogs = []
+          verifierLogs = []
         }
       } else {
         // Other error, throw it
@@ -2225,6 +2253,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       streakLogs: streakLogs.length,
       referralLogs: referralLogs.length,
       impactFormLogs: impactFormLogs.length,
+      verifierLogs: verifierLogs.length,
     })
     
     // Debug: Log actual event data to help diagnose missing level rewards
@@ -2269,6 +2298,11 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       return sum + parseFloat(formatUnits(amount, 18))
     }, 0)
 
+    const verifierRewards = verifierLogs.reduce((sum, log) => {
+      const amount = log.args.amount as bigint
+      return sum + parseFloat(formatUnits(amount, 18))
+    }, 0)
+
     // If level rewards are missing but we have other rewards, try to calculate from totalDistributed
     // This handles cases where level rewards were distributed from the old contract
     let calculatedLevelRewards = levelRewards
@@ -2286,7 +2320,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       }
     }
 
-    const total = calculatedLevelRewards + streakRewards + referralRewards + impactFormRewards
+    const total = calculatedLevelRewards + streakRewards + referralRewards + impactFormRewards + verifierRewards
 
     console.log(`Rewards breakdown for ${userAddress}:`, {
       cleanupCount,
@@ -2294,10 +2328,12 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       streakLogs: streakLogs.length,
       referralLogs: referralLogs.length,
       impactFormLogs: impactFormLogs.length,
+      verifierLogs: verifierLogs.length,
       levelRewards,
       streakRewards,
       referralRewards,
       impactFormRewards,
+      verifierRewards,
       total,
     })
 
@@ -2322,6 +2358,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       streakRewards,
       referralRewards,
       impactFormRewards,
+      verifierRewards,
       total,
     }
   } catch (error: any) {
@@ -2331,7 +2368,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       code: error?.code,
       name: error?.name,
     })
-    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, total: 0 }
+    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, total: 0 }
   }
 }
 

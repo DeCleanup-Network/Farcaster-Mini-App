@@ -301,9 +301,13 @@ export const generateReferralLink = (
   }
 
   if (type === 'farcaster') {
-    return buildUrl(FARCASTER_MINIAPP_URL, 'cleanup', { ref: sanitizedAddress })
+    // For Farcaster, use Farcaster miniapp URL with referral parameter
+    // Note: Farcaster miniapp URLs don't support query params directly, but we can append them
+    // The share page will handle redirecting properly
+    return `${FARCASTER_MINIAPP_URL}?ref=${sanitizedAddress}`
   }
 
+  // For web and copy, use web app URL
   if (useSharePage && type !== 'copy') {
     return buildUrl(WEB_APP_URL, 'share', { ref: sanitizedAddress, type: 'referral' })
   }
@@ -326,10 +330,14 @@ export const generateClaimShareLink = (
   const levelParam = typeof level === 'number' && !Number.isNaN(level) ? level : undefined
 
   if (type === 'farcaster') {
-    return buildUrl(FARCASTER_MINIAPP_URL, 'profile', {
-      ref: sanitizedAddress,
-      level: levelParam,
-    })
+    // For Farcaster, use Farcaster miniapp URL with referral parameter
+    // Note: Farcaster miniapp URLs don't support query params directly, but we can append them
+    const params = new URLSearchParams()
+    params.set('ref', sanitizedAddress)
+    if (levelParam) {
+      params.set('level', String(levelParam))
+    }
+    return `${FARCASTER_MINIAPP_URL}?${params.toString()}`
   }
 
   if (useSharePage && type !== 'copy') {

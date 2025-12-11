@@ -157,6 +157,7 @@ function ProfileContent() {
       streakRewards: 0,
       referralRewards: 0,
       impactFormRewards: 0,
+      verifierRewards: 0,
       total: 0,
     },
   })
@@ -297,6 +298,7 @@ function ProfileContent() {
             streakRewards: 0,
             referralRewards: 0,
             impactFormRewards: 0,
+            verifierRewards: 0,
             total: 0,
           }
         })
@@ -907,6 +909,19 @@ function ProfileContent() {
                   {profileData.rewardsBreakdown.impactFormRewards.toFixed(2)} $bDCU
                 </span>
               </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/30 p-3">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-5 w-5 text-brand-green" />
+                  <div>
+                    <span className="text-sm font-medium text-white">Verifier Rewards</span>
+                    <p className="text-xs text-gray-400">Rewards for verifying cleanups</p>
+                  </div>
+                </div>
+                <span className="text-lg font-mono font-bold text-white">
+                  {profileData.rewardsBreakdown.verifierRewards.toFixed(2)} $bDCU
+                </span>
+              </div>
             </div>
           )}
         </div>
@@ -1309,8 +1324,8 @@ function ProfileContent() {
                             if (sharing || !address) return
                             setSharing(true)
                             try {
-                              // Use web URL for both message and embed - Farcaster miniapp URLs don't support query params
-                              const claimLink = generateClaimShareLink(address, profileData.level, 'web', true)
+                              // Use Farcaster miniapp URL for Farcaster sharing (with referral)
+                              const claimLink = generateClaimShareLink(address, profileData.level, 'farcaster', false)
                               const text = formatImpactShareMessage(profileData.level, claimLink, 'farcaster')
                               await shareCast(text, claimLink)
                             } catch (error) {

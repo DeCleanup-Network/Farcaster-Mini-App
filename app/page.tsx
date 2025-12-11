@@ -518,8 +518,8 @@ export default function Home() {
                   onClick={async () => {
                     try {
                     const { generateReferralLink, shareCast, formatReferralMessage } = await import('@/lib/farcaster')
-                      // Use web URL for both message and embed - Farcaster miniapp URLs don't support query params
-                      const referralLink = generateReferralLink(address, 'web', true)
+                      // Use Farcaster miniapp URL for Farcaster sharing
+                      const referralLink = generateReferralLink(address, 'farcaster', false)
                       const message = formatReferralMessage(referralLink, 'farcaster')
                       console.log('Sharing to Farcaster:', { message, embedLink: referralLink })
                       await shareCast(message, referralLink)
