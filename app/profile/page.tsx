@@ -481,6 +481,7 @@ function ProfileContent() {
             streakRewards: 0,
             referralRewards: 0,
             impactFormRewards: 0,
+            verifierRewards: 0,
             total: 0,
           },
         })
