@@ -25,9 +25,13 @@ const bebasNeue = Bebas_Neue({
 });
 
 const FARCASTER_MINIAPP_URL = "https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards";
+const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://miniapp.decleanup.net"
+const OG_IMAGE_URL = `${SITE_URL}/og/default.png` // Local hosted image for OG/Twitter/Telegram previews
+const FARCASTER_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png" // IPFS for Farcaster embeds
+
 const EMBED_METADATA = {
   version: "1",
-  imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png",
+  imageUrl: FARCASTER_IMAGE_URL, // IPFS image for Farcaster embed
   button: {
     title: "Open DeCleanup Rewards",
     action: {
@@ -39,9 +43,6 @@ const EMBED_METADATA = {
     },
   },
 };
-
-const OG_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png"
-const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://miniapp.decleanup.net"
 
 export const metadata: Metadata = {
   title: "DeCleanup Rewards - Tokenize Your Environmental Impact",

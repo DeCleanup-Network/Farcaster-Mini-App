@@ -8,8 +8,8 @@ export const revalidate = 0
 // Preview image for sharing (used for both referral and claim)
 // Using local OG image (1200x630) for better compatibility with social previews
 // Farcaster embeds use IPFS images in EMBED_METADATA (preserved below)
-const SHARE_IMAGE_URL = '/og/default.png' // Local hosted image
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
+const SHARE_IMAGE_URL = `${SITE_URL}/og/default.png` // Absolute URL for OG image
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards'
 
 function buildQueryString(params: Record<string, string | undefined>) {
@@ -49,7 +49,7 @@ export async function generateMetadata({
   // This ensures OG tags are always present even without URL params
   const defaultTitle = 'DeCleanup Rewards'
   const defaultDescription = 'Earn tokens for cleanups'
-  const defaultImageUrl = '/og/default.png' // Local hosted image
+  const defaultImageUrl = `${SITE_URL}/og/default.png` // Absolute URL for OG image
 
   // If no params, return static metadata fallback
   if (!ref && !level) {

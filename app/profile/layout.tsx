@@ -1,9 +1,11 @@
 import type { Metadata } from 'next'
 
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards'
-// Embed image (3:2 aspect ratio) used in fc:miniapp meta tags for sharing
-const PROFILE_IMAGE_URL = 'https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png'
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
+// Use local hosted image for OG/Twitter/Telegram previews
+const PROFILE_IMAGE_URL = `${SITE_URL}/og/default.png`
+// IPFS image for Farcaster embeds
+const FARCASTER_IMAGE_URL = 'https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png'
 
 export const metadata: Metadata = {
   title: 'My Profile - DeCleanup Rewards',
@@ -33,7 +35,7 @@ export const metadata: Metadata = {
   other: {
     'fc:miniapp': JSON.stringify({
       version: '1',
-      imageUrl: PROFILE_IMAGE_URL,
+      imageUrl: FARCASTER_IMAGE_URL, // IPFS for Farcaster
       button: {
         title: 'Open DeCleanup Rewards',
         action: {
@@ -47,7 +49,7 @@ export const metadata: Metadata = {
     }),
     'fc:frame': JSON.stringify({
       version: '1',
-      imageUrl: PROFILE_IMAGE_URL,
+      imageUrl: FARCASTER_IMAGE_URL, // IPFS for Farcaster
       button: {
         title: 'Open DeCleanup Rewards',
         action: {
