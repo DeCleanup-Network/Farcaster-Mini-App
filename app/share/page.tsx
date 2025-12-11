@@ -1,10 +1,14 @@
 import type { Metadata } from 'next'
 import { ShareRedirect } from '@/components/share/ShareRedirect'
 
+// Force SSR to prevent metadata caching without params
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Preview image for sharing (used for both referral and claim)
-// Using OG image (1200x630) for better compatibility with Farcaster embeds and social previews
-const SHARE_IMAGE_URL =
-  'https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png'
+// Using local OG image (1200x630) for better compatibility with social previews
+// Farcaster embeds use IPFS images in EMBED_METADATA (preserved below)
+const SHARE_IMAGE_URL = '/og/default.png' // Local hosted image
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards'
 
@@ -30,6 +34,7 @@ function buildFarcasterActionUrl(type: string, ref?: string, level?: string) {
 
 // This page handles sharing with proper OG tags for social media previews
 // It renders HTML with meta tags so crawlers can read them, then redirects client-side
+// Override static metadata only if params exist
 export async function generateMetadata({
   searchParams,
 }: {
@@ -40,9 +45,69 @@ export async function generateMetadata({
   const type = params.type || 'referral' // 'referral' or 'claim'
   const level = params.level
 
+  // Static metadata fallback for Twitter, Telegram, Discord, etc.
+  // This ensures OG tags are always present even without URL params
+  const defaultTitle = 'DeCleanup Rewards'
+  const defaultDescription = 'Earn tokens for cleanups'
+  const defaultImageUrl = '/og/default.png' // Local hosted image
+
+  // If no params, return static metadata fallback
+  if (!ref && !level) {
+    const farcasterActionUrl = buildFarcasterActionUrl('referral')
+    const EMBED_METADATA = {
+      version: '1',
+      imageUrl: 'https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png', // IPFS for Farcaster
+      button: {
+        title: 'Open DeCleanup Rewards',
+        action: {
+          type: 'launch_frame',
+          url: farcasterActionUrl,
+          name: 'DeCleanup Rewards',
+          splashImageUrl: 'https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png',
+          splashBackgroundColor: '#000000',
+        },
+      },
+    }
+
+    return {
+      title: defaultTitle,
+      description: defaultDescription,
+      openGraph: {
+        title: defaultTitle,
+        description: defaultDescription,
+        images: [defaultImageUrl],
+        url: SITE_URL,
+        siteName: 'DeCleanup Rewards',
+        locale: 'en_US',
+        type: 'website',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: defaultTitle,
+        description: defaultDescription,
+        images: [defaultImageUrl],
+      },
+      other: {
+        'og:image': defaultImageUrl,
+        'og:image:width': '1200',
+        'og:image:height': '630',
+        'og:image:type': 'image/png',
+        'og:url': SITE_URL,
+        'twitter:image': defaultImageUrl,
+        'twitter:card': 'summary_large_image',
+        // Farcaster tags preserved exactly as-is
+        'fc:miniapp': JSON.stringify(EMBED_METADATA),
+        'fc:frame': JSON.stringify(EMBED_METADATA),
+      },
+    }
+  }
+
+  // Override metadata when params exist
   let title = 'DeCleanup Rewards - Earn Tokens for Cleanups'
   let description = 'Clean up, share proof, earn tokens, and trade on Base.'
-  const imageUrl = SHARE_IMAGE_URL // Same preview image for both referral and claim
+  // Use local image for OG/Twitter, but keep IPFS for Farcaster embed metadata
+  const imageUrl = SHARE_IMAGE_URL // Local hosted image for OG/Twitter
+  const farcasterImageUrl = 'https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png' // IPFS for Farcaster
 
   if (type === 'claim' && level) {
     title = `Just minted Level ${level} Impact Product! - DeCleanup Rewards`
@@ -57,9 +122,10 @@ export async function generateMetadata({
 
   const farcasterActionUrl = buildFarcasterActionUrl(type, ref, level)
   
+  // Farcaster embed metadata - uses IPFS image (preserved exactly as-is)
   const EMBED_METADATA = {
     version: '1',
-    imageUrl,
+    imageUrl: farcasterImageUrl, // IPFS image for Farcaster
     button: {
       title: 'Open DeCleanup Rewards',
       action: {
@@ -82,7 +148,7 @@ export async function generateMetadata({
       siteName: 'DeCleanup Rewards',
       images: [
         {
-          url: imageUrl,
+          url: imageUrl, // Local image for OG
           width: 1200,
           height: 630,
           alt: title,
@@ -95,19 +161,20 @@ export async function generateMetadata({
       card: 'summary_large_image',
       title,
       description,
-      images: [imageUrl],
+      images: [imageUrl], // Local image for Twitter
     },
     // Add explicit meta tags for better crawler support
     other: {
-      'og:image': imageUrl,
+      'og:image': imageUrl, // Local image for OG
       'og:image:width': '1200',
       'og:image:height': '630',
       'og:image:type': 'image/png',
       'og:image:secure_url': imageUrl,
       'og:url': shareUrl,
-      'twitter:image': imageUrl,
+      'twitter:image': imageUrl, // Local image for Twitter
       'twitter:image:alt': title,
       'twitter:card': 'summary_large_image',
+      // Farcaster tags preserved exactly as-is (unchanged)
       'fc:miniapp': JSON.stringify(EMBED_METADATA),
       'fc:frame': JSON.stringify(EMBED_METADATA),
     },

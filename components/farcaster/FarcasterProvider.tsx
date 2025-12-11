@@ -37,8 +37,8 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // Prevent duplicate calls
-    if (readyCalled) {
+    // Prevent duplicate calls - check both state and window flag
+    if (readyCalled || (window as any).__farcasterReadyCalled) {
       console.log('⚠️ SDK ready() already called, skipping duplicate call')
       return
     }
@@ -123,6 +123,8 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
         await readyFunction({ disableNativeGestures: true })
         
         setReadyCalled(true)
+        // Set window flag to prevent duplicate calls across re-renders
+        ;(window as any).__farcasterReadyCalled = true
         console.log('✅ sdk.actions.ready() called successfully - splash screen hidden', {
           timestamp: new Date().toISOString(),
         })
