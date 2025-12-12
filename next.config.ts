@@ -107,6 +107,24 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Ensure OG images are served with proper content-type for Telegram and other platforms
+      {
+        source: '/og/:path*',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'image/png',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+        ],
+      },
       // Allow Next.js dev tools to access stack frames
       {
         source: '/nextjs_original-stack-frames',

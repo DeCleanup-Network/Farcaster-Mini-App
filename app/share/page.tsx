@@ -96,9 +96,13 @@ export async function generateMetadata({
         'og:image:width': '1200',
         'og:image:height': '630',
         'og:image:type': 'image/png',
+        'og:image:secure_url': defaultImageUrl, // Required for Telegram
         'og:url': SITE_URL,
+        'og:site_name': 'DeCleanup Rewards',
         'twitter:image': defaultImageUrl,
         'twitter:card': 'summary_large_image',
+        // Telegram-specific meta tags
+        'telegram:image': defaultImageUrl,
         // Farcaster tags preserved exactly as-is
         'fc:miniapp': JSON.stringify(EMBED_METADATA),
         'fc:frame': JSON.stringify(EMBED_METADATA),
@@ -167,17 +171,20 @@ export async function generateMetadata({
       description,
       images: [imageUrl], // Local image for Twitter
     },
-    // Add explicit meta tags for better crawler support
+    // Add explicit meta tags for better crawler support (including Telegram)
     other: {
       'og:image': imageUrl, // Local image for OG
       'og:image:width': '1200',
       'og:image:height': '630',
       'og:image:type': 'image/png',
-      'og:image:secure_url': imageUrl,
+      'og:image:secure_url': imageUrl, // Required for Telegram
       'og:url': shareUrl,
+      'og:site_name': 'DeCleanup Rewards',
       'twitter:image': imageUrl, // Local image for Twitter
       'twitter:image:alt': title,
       'twitter:card': 'summary_large_image',
+      // Telegram-specific meta tags
+      'telegram:image': imageUrl,
       // Farcaster tags preserved exactly as-is (unchanged)
       'fc:miniapp': JSON.stringify(EMBED_METADATA),
       'fc:frame': JSON.stringify(EMBED_METADATA),

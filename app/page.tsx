@@ -7,7 +7,7 @@ import { SuccessModal } from '@/components/ui/success-modal'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
 import type { Connector } from 'wagmi'
-import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, X } from 'lucide-react'
+import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, X, Copy } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
 import { claimImpactProductFromVerification, getClaimFee, getUserLevel } from '@/lib/contracts'
 import { isFarcasterContext } from '@/lib/farcaster'
@@ -574,6 +574,30 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                   Copy Link
+                </Button>
+
+                <Button
+                  onClick={async () => {
+                    if (!address) return
+                    try {
+                      const { generateReferralCode } = await import('@/lib/farcaster')
+                      const code = generateReferralCode(address)
+                      if (code) {
+                        await navigator.clipboard.writeText(code)
+                        alert(`Referral code copied: ${code}\n\nShare this code with friends! They can enter it when they sign up.`)
+                      } else {
+                        alert('Failed to generate referral code. Please try again.')
+                      }
+                    } catch (error) {
+                      console.error('Failed to copy referral code:', error)
+                      alert('Failed to copy referral code. Please try again.')
+                    }
+                  }}
+                  variant="outline"
+                  className="flex-1 gap-2 border-border bg-card text-foreground hover:bg-accent"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy Referral Code
                 </Button>
               </div>
 

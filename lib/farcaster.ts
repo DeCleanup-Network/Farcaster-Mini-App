@@ -365,10 +365,13 @@ const WEB_APP_URL =
 
 // Referral code system - generate short codes from wallet addresses
 // This allows simple links like ?ref=ABC123 instead of ?ref=0x1234...
-function generateReferralCode(address: string): string {
+export function generateReferralCode(address: string): string {
+  if (!address || !address.trim()) {
+    return ''
+  }
   // Simple hash-based code generation (first 8 chars of address hash)
   // This ensures same address always generates same code
-  const hash = address.toLowerCase().split('').reduce((acc, char) => {
+  const hash = address.toLowerCase().trim().split('').reduce((acc, char) => {
     return ((acc << 5) - acc) + char.charCodeAt(0) | 0
   }, 0)
   // Convert to base36 and take first 8 chars, make uppercase
