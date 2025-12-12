@@ -36,3 +36,26 @@ Farcaster embeds continue to use IPFS images (preserved in `EMBED_METADATA`).
 - Farcaster does not use these images - it uses IPFS images in the embed metadata
 - Twitter, Telegram, Discord, and other platforms will use these local images
 
+## How to Add/Update Images
+
+If drag-and-drop doesn't work in Cursor:
+
+1. **Using Terminal:**
+   ```bash
+   # Copy your image file to the public/og directory
+   cp /path/to/your/image.png public/og/default.png
+   ```
+
+2. **Using File Explorer/Finder:**
+   - Navigate to `public/og/` folder in your project
+   - Copy your 1200x630px PNG image
+   - Rename it to `default.png` (replace the existing file)
+
+3. **Verify the file:**
+   ```bash
+   ls -lh public/og/default.png
+   # Should show file size > 0 bytes
+   ```
+
+**Important:** The image must be exactly 1200x630px for best results on all social platforms.
+

@@ -1351,12 +1351,17 @@ function ProfileContent() {
                           )}
                         </Button>
                         <Button
-                          onClick={() => {
+                          onClick={async () => {
                             if (!address) return
-                            const link = generateClaimShareLink(address, profileData.level, 'web', true)
-                            const text = formatImpactShareMessage(profileData.level, link, 'web')
-                            const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
-                            window.open(xUrl, '_blank')
+                            try {
+                              const { generateClaimShareLink, formatImpactShareMessage, shareToX } = await import('@/lib/farcaster')
+                              const link = generateClaimShareLink(address, profileData.level, 'web', true)
+                              const text = formatImpactShareMessage(profileData.level, link, 'web')
+                              await shareToX(text, link)
+                            } catch (error) {
+                              console.error('Failed to share to X:', error)
+                              alert('Failed to share. Please try again.')
+                            }
                           }}
                           variant="outline"
                           className="w-full gap-2 border-gray-700 bg-black text-white hover:bg-gray-800 sm:flex-1"

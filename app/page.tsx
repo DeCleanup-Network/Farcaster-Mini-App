@@ -536,11 +536,15 @@ export default function Home() {
 
                 <Button
                   onClick={async () => {
-                    const { generateReferralLink, formatReferralMessage } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address, 'web', true)
-                    const text = formatReferralMessage(referralLink, 'web')
-                    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`
-                    window.open(xUrl, '_blank')
+                    try {
+                      const { generateReferralLink, formatReferralMessage, shareToX } = await import('@/lib/farcaster')
+                      const referralLink = generateReferralLink(address, 'web', true)
+                      const text = formatReferralMessage(referralLink, 'web')
+                      await shareToX(text, referralLink)
+                    } catch (error) {
+                      console.error('Failed to share to X:', error)
+                      alert('Failed to share. Please try again.')
+                    }
                   }}
                   variant="outline"
                   className="flex-1 gap-2 border-border bg-card text-foreground hover:bg-accent"

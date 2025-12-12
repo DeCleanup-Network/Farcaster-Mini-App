@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 
 // New domain manifest (for miniapp.decleanup.net)
+const SITE_URL = "https://miniapp.decleanup.net"
 const newDomainManifest = {
   accountAssociation: {
     header: "eyJmaWQiOjM3OTUzMywidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweGM5NjBFNTEzMjFiNUU3YTk3MDM5Yjk3ZjU3MTdjM2RCZDJiODdmODAifQ",
@@ -15,9 +16,9 @@ const newDomainManifest = {
   miniapp: {
     version: "1",
     name: "DeCleanup Rewards",
-    homeUrl: "https://miniapp.decleanup.net",
+    homeUrl: SITE_URL,
     iconUrl: "https://gateway.pinata.cloud/ipfs/bafkreig6ctmk5it4ppu67ljtmxjcrv2zug7rvccj5i52ji5s2qli5nww7a?filename=DCUIconNEW.png",
-    castShareUrl: "https://miniapp.decleanup.net",
+    castShareUrl: SITE_URL,
     canonicalDomain: "miniapp.decleanup.net",
     imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png",
     buttonTitle: "Open DeCleanup Rewards",
@@ -42,12 +43,13 @@ const newDomainManifest = {
     tagline: "Clean Up, Snap, Earn",
     ogTitle: "DeCleanup Rewards",
     ogDescription: "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
-    ogImageUrl: "https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png",
+    ogImageUrl: `${SITE_URL}/og/default.png`, // Local image for OG previews
     noindex: false
   }
 }
 
 // Old domain manifest (for farcaster-mini-app-umber.vercel.app)
+const OLD_SITE_URL = "https://farcaster-mini-app-umber.vercel.app"
 const oldDomainManifest = {
   accountAssociation: {
     header: "eyJmaWQiOjM3OTUzMywidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweGM5NjBFNTEzMjFiNUU3YTk3MDM5Yjk3ZjU3MTdjM2RCZDJiODdmODAifQ",
@@ -60,9 +62,9 @@ const oldDomainManifest = {
   miniapp: {
     version: "1",
     name: "DeCleanup Rewards",
-    homeUrl: "https://farcaster-mini-app-umber.vercel.app",
+    homeUrl: OLD_SITE_URL,
     iconUrl: "https://gateway.pinata.cloud/ipfs/bafkreig6ctmk5it4ppu67ljtmxjcrv2zug7rvccj5i52ji5s2qli5nww7a?filename=DCUIconNEW.png",
-    castShareUrl: "https://farcaster-mini-app-umber.vercel.app",
+    castShareUrl: OLD_SITE_URL,
     canonicalDomain: "miniapp.decleanup.net",
     imageUrl: "https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png",
     buttonTitle: "Open DeCleanup Rewards",
@@ -87,7 +89,7 @@ const oldDomainManifest = {
     tagline: "Clean Up, Snap, Earn",
     ogTitle: "DeCleanup Rewards",
     ogDescription: "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
-    ogImageUrl: "https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png",
+    ogImageUrl: `${SITE_URL}/og/default.png`, // Use new domain for OG image
     noindex: false
   }
 }

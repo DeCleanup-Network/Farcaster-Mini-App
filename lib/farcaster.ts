@@ -155,6 +155,92 @@ export const closeMiniApp = async () => {
   }
 }
 
+// Share to X/Twitter (mobile-friendly with Web Share API)
+export const shareToX = async (text: string, url?: string): Promise<boolean> => {
+  try {
+    // Try Web Share API first if available (mobile native share sheet)
+    if (navigator.share && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      try {
+        await navigator.share({
+          title: APP_NAME,
+          text,
+          url: url || undefined,
+        })
+        return true
+      } catch (shareError: any) {
+        // User cancelled (code 0) is fine, but other errors should fall through
+        if (shareError?.code === 0 || shareError?.name === 'AbortError') {
+          return false // User cancelled
+        }
+        // Other errors, fall back to other methods
+        console.log('Web Share API failed, falling back:', shareError)
+      }
+    }
+
+    // Build X/Twitter intent URL
+    const fullText = url ? `${text} ${url}` : text
+    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(fullText)}`
+
+    // Check if we are in Farcaster context
+    let inFarcaster = false
+    try {
+      inFarcaster = isFarcasterContext()
+    } catch (error) {
+      console.log('Error checking Farcaster context, assuming browser:', error)
+      inFarcaster = false
+    }
+
+    if (inFarcaster) {
+      try {
+        // In Farcaster, use SDK's openUrl to open in external browser
+        await openUrl(xUrl)
+        return true
+      } catch (openUrlError) {
+        console.warn('openUrl failed in Farcaster context, trying window.open:', openUrlError)
+        // Fallback to window.open even in Farcaster context
+      }
+    }
+
+    // For browser (not in Farcaster), open X compose in new tab
+    if (typeof window !== 'undefined') {
+      try {
+        // Use window.open with noopener for security
+        const newWindow = window.open(xUrl, '_blank', 'noopener,noreferrer')
+        if (newWindow) {
+          return true
+        } else {
+          // Popup blocked - fall through to clipboard
+          throw new Error('Popup blocked')
+        }
+      } catch (openError) {
+        console.error('window.open failed:', openError)
+        throw new Error('Failed to open share window')
+      }
+    }
+
+    // Last resort: copy to clipboard
+    throw new Error('No sharing method available')
+  } catch (error) {
+    console.error('Failed to share to X:', error)
+    // Fallback: try to copy to clipboard
+    try {
+      const fullText = text + (url ? ` ${url}` : '')
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(fullText)
+        if (typeof window !== 'undefined') {
+          alert('Share popup was blocked. Message copied to clipboard! Paste it into X to share.')
+        }
+        return true
+      } else {
+        throw new Error('Clipboard API not available')
+      }
+    } catch (clipboardError) {
+      console.error('Failed to copy to clipboard:', clipboardError)
+      return false
+    }
+  }
+}
+
 // Share a cast (post) on Farcaster
 export const shareCast = async (text: string, url?: string): Promise<boolean> => {
   try {
@@ -277,6 +363,35 @@ const FARCASTER_MINIAPP_URL =
 const WEB_APP_URL =
   process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 
+// Referral code system - generate short codes from wallet addresses
+// This allows simple links like ?ref=ABC123 instead of ?ref=0x1234...
+function generateReferralCode(address: string): string {
+  // Simple hash-based code generation (first 8 chars of address hash)
+  // This ensures same address always generates same code
+  const hash = address.toLowerCase().split('').reduce((acc, char) => {
+    return ((acc << 5) - acc) + char.charCodeAt(0) | 0
+  }, 0)
+  // Convert to base36 and take first 8 chars, make uppercase
+  const code = Math.abs(hash).toString(36).toUpperCase().slice(0, 8)
+  return code.padStart(8, '0').slice(0, 8)
+}
+
+// Resolve referral code back to address (for backward compatibility, also accept full addresses)
+export function resolveReferralCode(codeOrAddress: string): string | null {
+  if (!codeOrAddress) return null
+  
+  // If it's already a full address (starts with 0x and 42 chars), return as-is
+  if (codeOrAddress.startsWith('0x') && codeOrAddress.length === 42) {
+    return codeOrAddress
+  }
+  
+  // For codes, we need to look up in localStorage or decode
+  // Since we can't decode the hash back, we'll store mappings
+  // For now, we'll still use addresses but generate codes for display
+  // The actual resolution happens on the server/share page
+  return codeOrAddress
+}
+
 function buildUrl(base: string, path: string, params?: Record<string, string | number | undefined>) {
   const normalizedBase = base.endsWith('/') ? base : `${base}/`
   const url = new URL(path, normalizedBase)
@@ -293,26 +408,39 @@ function buildUrl(base: string, path: string, params?: Record<string, string | n
 export const generateReferralLink = (
   walletAddress: string, 
   type: 'farcaster' | 'web' | 'copy' = 'web',
-  useSharePage: boolean = true
+  useSharePage: boolean = true,
+  useSimpleLinks: boolean = true // New parameter: use simple links without wallet addresses
 ): string => {
   const sanitizedAddress = walletAddress?.trim()
   if (!sanitizedAddress) {
+    // Return simple base URLs without any params
     return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
   }
 
+  // Generate referral code for cleaner links
+  const referralCode = generateReferralCode(sanitizedAddress)
+  
+  if (useSimpleLinks) {
+    // Use simple links: just base URL for Farcaster, base URL for web
+    // Referral tracking will be handled via other means (e.g., Farcaster/X post tracking)
+    if (type === 'farcaster') {
+      return FARCASTER_MINIAPP_URL
+    }
+    return WEB_APP_URL
+  }
+
+  // Legacy: use wallet addresses in URLs (for backward compatibility)
   if (type === 'farcaster') {
-    // For Farcaster, use Farcaster miniapp URL with referral parameter
-    // Note: Farcaster miniapp URLs don't support query params directly, but we can append them
-    // The share page will handle redirecting properly
-    return `${FARCASTER_MINIAPP_URL}?ref=${sanitizedAddress}`
+    // For Farcaster, use Farcaster miniapp URL with referral code
+    return `${FARCASTER_MINIAPP_URL}?ref=${referralCode}`
   }
 
-  // For web and copy, use web app URL
+  // For web and copy, use web app URL with referral code
   if (useSharePage && type !== 'copy') {
-    return buildUrl(WEB_APP_URL, 'share', { ref: sanitizedAddress, type: 'referral' })
+    return buildUrl(WEB_APP_URL, 'share', { ref: referralCode, type: 'referral' })
   }
 
-  return buildUrl(WEB_APP_URL, 'cleanup', { ref: sanitizedAddress })
+  return buildUrl(WEB_APP_URL, 'cleanup', { ref: referralCode })
 }
 
 // Generate claim share link with wallet address and level
@@ -320,7 +448,8 @@ export const generateClaimShareLink = (
   walletAddress: string,
   level: number,
   type: 'farcaster' | 'web' | 'copy' = 'web',
-  useSharePage: boolean = true
+  useSharePage: boolean = true,
+  useSimpleLinks: boolean = true // New parameter: use simple links without wallet addresses
 ): string => {
   const sanitizedAddress = walletAddress?.trim()
   if (!sanitizedAddress) {
@@ -329,11 +458,19 @@ export const generateClaimShareLink = (
 
   const levelParam = typeof level === 'number' && !Number.isNaN(level) ? level : undefined
 
+  if (useSimpleLinks) {
+    // Use simple links: just base URL
+    // Level and referral info can be tracked via post content or other means
+    return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
+  }
+
+  // Legacy: use wallet addresses in URLs
+  const referralCode = generateReferralCode(sanitizedAddress)
+
   if (type === 'farcaster') {
-    // For Farcaster, use Farcaster miniapp URL with referral parameter
-    // Note: Farcaster miniapp URLs don't support query params directly, but we can append them
+    // For Farcaster, use Farcaster miniapp URL with referral code
     const params = new URLSearchParams()
-    params.set('ref', sanitizedAddress)
+    params.set('ref', referralCode)
     if (levelParam) {
       params.set('level', String(levelParam))
     }
@@ -342,14 +479,14 @@ export const generateClaimShareLink = (
 
   if (useSharePage && type !== 'copy') {
     return buildUrl(WEB_APP_URL, 'share', {
-      ref: sanitizedAddress,
+      ref: referralCode,
       type: 'claim',
       level: levelParam,
     })
   }
 
   return buildUrl(WEB_APP_URL, 'profile', {
-    ref: sanitizedAddress,
+    ref: referralCode,
     level: levelParam,
   })
 }

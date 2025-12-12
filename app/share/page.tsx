@@ -24,12 +24,15 @@ function buildQueryString(params: Record<string, string | undefined>) {
 }
 
 function buildFarcasterActionUrl(type: string, ref?: string, level?: string) {
-  // For Farcaster embeds, the action URL should be the base miniapp URL
-  // The Farcaster SDK will launch the miniapp, and the share page redirect
-  // will handle routing to the correct page with ref parameter preserved
-  // Note: Farcaster miniapp URLs don't support query parameters directly,
-  // so we rely on the share page redirect to preserve the ref parameter
-  return FARCASTER_MINIAPP_URL
+  // For Farcaster embeds, the action URL should point to the share page
+  // which has proper metadata and will redirect to the miniapp with params
+  // This ensures the embed preview shows correctly and launches with the right params
+  // If no params, just use base miniapp URL (no share page needed)
+  if (!ref && !level) {
+    return FARCASTER_MINIAPP_URL
+  }
+  const shareQuery = buildQueryString({ ref, type, level })
+  return `${SITE_URL}/share${shareQuery}`
 }
 
 // This page handles sharing with proper OG tags for social media previews
@@ -53,7 +56,8 @@ export async function generateMetadata({
 
   // If no params, return static metadata fallback
   if (!ref && !level) {
-    const farcasterActionUrl = buildFarcasterActionUrl('referral')
+    // For base URLs without params, use direct miniapp URL
+    const farcasterActionUrl = FARCASTER_MINIAPP_URL
     const EMBED_METADATA = {
       version: '1',
       imageUrl: 'https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png', // IPFS for Farcaster
