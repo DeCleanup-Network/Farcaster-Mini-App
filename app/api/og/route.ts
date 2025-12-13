@@ -15,7 +15,6 @@ export async function GET(request: NextRequest) {
     const ref = searchParams.get('ref')
 
     // Default values
-    let title = 'DeCleanup Rewards'
     let subtitle = 'Earn tokens for cleanups'
     let referrerText = ''
 

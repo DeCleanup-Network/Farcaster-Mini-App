@@ -46,7 +46,7 @@ const manifest = {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   // Always serve the new domain manifest
   // Old domain traffic is redirected via middleware
   return NextResponse.json(manifest, {
