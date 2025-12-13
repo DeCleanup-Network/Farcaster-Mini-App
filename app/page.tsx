@@ -729,11 +729,7 @@ export default function Home() {
             explorerUrl={successModalData.transactionHash ? getExplorerTxUrl(successModalData.transactionHash as `0x${string}`) : undefined}
             explorerName={BLOCK_EXPLORER_NAME}
             showShare={successModalData.title.includes('Minted')}
-            userAddress={address || undefined}
             level={cleanupStatus?.level}
-            onShare={() => {
-              // Custom share handler is handled by SuccessModal now
-            }}
           />
         )}
 
