@@ -52,11 +52,11 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
     }
 
     // CRITICAL: Try immediate ready() call if SDK is already available
-    // This ensures ready() is called as early as possible per Farcaster docs
-    // Per Farcaster docs: "Call ready() as soon as possible to avoid jitter and content reflows"
+    // BUT: Wait for UI to be rendered first (per Farcaster docs requirement)
+    // Per Farcaster docs: "Call ready() only after your app's interface has fully rendered"
     const immediateSdk = sdk || (window as any).farcaster?.sdk || (window as any).farcaster
     if (immediateSdk?.actions?.ready && typeof immediateSdk.actions.ready === 'function') {
-      console.log('⚡ SDK available immediately, calling ready() right away...', {
+      console.log('⚡ SDK available immediately, will call ready() after UI renders...', {
         timestamp: new Date().toISOString(),
         readyState: document.readyState,
         url: window.location.href,
@@ -65,9 +65,29 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
       ;(window as any).__farcasterReadyCalled = true
       setReadyCalled(true)
       
-      // Call ready() immediately - don't await, let it run in background
-      // The main callReady() function below will handle context initialization
-      immediateSdk.actions.ready({ disableNativeGestures: true })
+      // Wait for UI to be ready before calling ready()
+      // Use requestAnimationFrame to ensure browser has painted the UI
+      const callReadyAfterUI = async () => {
+        // Wait for document to be ready
+        if (document.readyState === 'loading') {
+          await new Promise(resolve => {
+            document.addEventListener('DOMContentLoaded', resolve, { once: true })
+          })
+        }
+        
+        // Wait for browser to paint (requestAnimationFrame ensures paint is complete)
+        await new Promise(resolve => requestAnimationFrame(resolve))
+        
+        // Small delay to ensure React hydration is complete
+        await new Promise(resolve => setTimeout(resolve, 50))
+        
+        console.log('✅ UI ready, calling ready() now...', {
+          timestamp: new Date().toISOString(),
+          readyState: document.readyState,
+        })
+        
+        // Now call ready() after UI is rendered
+        return immediateSdk.actions.ready({ disableNativeGestures: true })
         .then(() => {
           console.log('✅ Immediate ready() call succeeded', {
             timestamp: new Date().toISOString(),
@@ -97,6 +117,9 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           setReadyCalled(false)
           console.warn('⚠️ Immediate ready() call failed, will retry with main logic:', err?.message)
         })
+      
+      // Execute the async function to wait for UI and call ready()
+      callReadyAfterUI()
     }
 
     // Log initialization start for debugging
@@ -219,6 +242,20 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           return
         }
 
+        // Ensure UI is rendered before calling ready()
+        // Wait for document to be ready
+        if (document.readyState === 'loading') {
+          await new Promise(resolve => {
+            document.addEventListener('DOMContentLoaded', resolve, { once: true })
+          })
+        }
+        
+        // Wait for browser to paint (requestAnimationFrame ensures paint is complete)
+        await new Promise(resolve => requestAnimationFrame(resolve))
+        
+        // Small delay to ensure React hydration is complete
+        await new Promise(resolve => setTimeout(resolve, 50))
+        
         // Log before calling ready() - critical for debugging
         console.log('📞 About to call sdk.actions.ready()...', {
           timestamp: new Date().toISOString(),
