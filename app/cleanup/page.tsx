@@ -114,95 +114,100 @@ function CleanupContent() {
   useEffect(() => {
     if (!mounted || typeof window === 'undefined') return
     
-    // Safari-compatible: Try multiple methods to get ref parameter
-    let ref: string | null = null
-    
-    // Method 1: Try useSearchParams (Next.js)
-    if (searchParams) {
-      ref = searchParams.get('ref')
-    }
-    
-    // Method 2: Fallback to window.location.search (Safari compatibility)
-    if (!ref) {
-      const urlParams = new URLSearchParams(window.location.search)
-      ref = urlParams.get('ref')
-    }
-    
-    // Method 3: Try window.location.hash (for some deep link scenarios)
-    if (!ref && window.location.hash) {
-      try {
-        const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '')
-        ref = hashParams.get('ref')
-      } catch (e) {
-        // Ignore hash parsing errors
-      }
-    }
-    
-    if (ref) {
-      let referrerAddr: Address | null = null
+    async function processReferrer() {
+      // Safari-compatible: Try multiple methods to get ref parameter
+      let ref: string | null = null
       
-      // Check if it's a full address
-      if (/^0x[a-fA-F0-9]{40}$/.test(ref)) {
-        referrerAddr = ref as Address
-      } else {
-        // Try to resolve as referral code
+      // Method 1: Try useSearchParams (Next.js)
+      if (searchParams) {
+        ref = searchParams.get('ref')
+      }
+      
+      // Method 2: Fallback to window.location.search (Safari compatibility)
+      if (!ref) {
+        const urlParams = new URLSearchParams(window.location.search)
+        ref = urlParams.get('ref')
+      }
+      
+      // Method 3: Try window.location.hash (for some deep link scenarios)
+      if (!ref && window.location.hash) {
         try {
-          const { resolveReferralCode } = require('@/lib/farcaster')
-          const resolved = resolveReferralCode(ref)
-          if (resolved && /^0x[a-fA-F0-9]{40}$/.test(resolved)) {
-            referrerAddr = resolved as Address
-            console.log(`✅ Resolved referral code ${ref} to address: ${referrerAddr}`)
-          }
+          const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '')
+          ref = hashParams.get('ref')
         } catch (e) {
-          console.warn('Failed to resolve referral code:', e)
+          // Ignore hash parsing errors
         }
       }
       
-      if (referrerAddr) {
-        // Only set if not already set (preserve during wallet connection)
-        if (!referrerAddress) {
-          setReferrerAddress(referrerAddr)
-        }
-        // Always persist to localStorage (even if already set)
-        try {
-          // Store referrer even before address is available
-          localStorage.setItem('referrer_pending', referrerAddr)
-          console.log('✅ Referrer address from URL saved:', referrerAddr)
-          
-          // If address is available, also store it scoped to address
-          if (address) {
-            const referrerKeyScoped = `referrer_${address.toLowerCase()}`
-            localStorage.setItem(referrerKeyScoped, referrerAddr)
-            console.log('✅ Referrer address saved for address:', address)
-          }
-        } catch (e) {
-          console.error('Failed to save referrer to localStorage:', e)
-        }
-      }
-    } else {
-      // If no ref in URL, check localStorage for saved referrer
-      // Only do this if we don't already have a referrer set
-      if (!referrerAddress) {
-        try {
-          const referrerKeyPending = localStorage.getItem('referrer_pending')
-          if (referrerKeyPending && /^0x[a-fA-F0-9]{40}$/.test(referrerKeyPending)) {
-            setReferrerAddress(referrerKeyPending as Address)
-            console.log('✅ Referrer address from localStorage (pending):', referrerKeyPending)
-          } else if (address) {
-            // Check for address-scoped referrer
-            const referrerKey = `referrer_${address.toLowerCase()}`
-            const savedReferrer = localStorage.getItem(referrerKey)
-            if (savedReferrer && /^0x[a-fA-F0-9]{40}$/.test(savedReferrer)) {
-              setReferrerAddress(savedReferrer as Address)
-              console.log('✅ Referrer address from localStorage:', savedReferrer)
+      if (ref) {
+        let referrerAddr: Address | null = null
+        
+        // Check if it's a full address
+        if (/^0x[a-fA-F0-9]{40}$/.test(ref)) {
+          referrerAddr = ref as Address
+        } else {
+          // Try to resolve as referral code
+          try {
+            const { resolveReferralCode } = await import('@/lib/farcaster')
+            const resolved = resolveReferralCode(ref)
+            if (resolved && /^0x[a-fA-F0-9]{40}$/.test(resolved)) {
+              referrerAddr = resolved as Address
+              console.log(`✅ Resolved referral code ${ref} to address: ${referrerAddr}`)
             }
+          } catch (e) {
+            console.warn('Failed to resolve referral code:', e)
           }
-        } catch (e) {
-          console.error('Failed to read referrer from localStorage:', e)
+        }
+        
+        if (referrerAddr) {
+          // Only set if not already set (preserve during wallet connection)
+          if (!referrerAddress) {
+            setReferrerAddress(referrerAddr)
+          }
+          // Always persist to localStorage (even if already set)
+          try {
+            // Store referrer even before address is available
+            localStorage.setItem('referrer_pending', referrerAddr)
+            console.log('✅ Referrer address from URL saved:', referrerAddr)
+            
+            // If address is available, also store it scoped to address
+            if (address) {
+              const referrerKeyScoped = `referrer_${address.toLowerCase()}`
+              localStorage.setItem(referrerKeyScoped, referrerAddr)
+              console.log('✅ Referrer address saved for address:', address)
+            }
+          } catch (e) {
+            console.error('Failed to save referrer to localStorage:', e)
+          }
+        }
+      } else {
+        // If no ref in URL, check localStorage for saved referrer
+        // Only do this if we don't already have a referrer set
+        if (!referrerAddress) {
+          try {
+            const referrerKeyPending = localStorage.getItem('referrer_pending')
+            if (referrerKeyPending && /^0x[a-fA-F0-9]{40}$/.test(referrerKeyPending)) {
+              setReferrerAddress(referrerKeyPending as Address)
+              console.log('✅ Referrer address from localStorage (pending):', referrerKeyPending)
+            } else if (address) {
+              // Check for address-scoped referrer
+              const referrerKey = `referrer_${address.toLowerCase()}`
+              const savedReferrer = localStorage.getItem(referrerKey)
+              if (savedReferrer && /^0x[a-fA-F0-9]{40}$/.test(savedReferrer)) {
+                setReferrerAddress(savedReferrer as Address)
+                console.log('✅ Referrer address from localStorage:', savedReferrer)
+              }
+            }
+          } catch (e) {
+            console.error('Failed to read referrer from localStorage:', e)
+          }
         }
       }
     }
-  }, [mounted, searchParams]) // Removed address dependency to prevent reset on wallet connect
+    
+    processReferrer()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, searchParams]) // Intentionally exclude address/referrerAddress to prevent reset on wallet connect
   
   // Sync referrer to address-scoped storage when address becomes available
   useEffect(() => {
