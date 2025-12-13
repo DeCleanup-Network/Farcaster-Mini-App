@@ -9,6 +9,7 @@ import {
   getAccount,
   connect,
 } from 'wagmi/actions'
+import { Attribution } from 'ox/erc8021'
 import {
   getWagmiConfig,
   REQUIRED_CHAIN_ID,
@@ -19,6 +20,19 @@ import {
 } from './wagmi'
 import { tryAddRequiredChain, switchToRequiredChainViaProvider } from './network'
 import * as pointsLib from './points'
+
+// Base Builder Code for attribution
+const BUILDER_CODE = 'bc_ktu8dqm4'
+
+// Helper to get Builder Code data suffix for attribution
+function getBuilderCodeDataSuffix(): `0x${string}` {
+  try {
+    return Attribution.toDataSuffix({ codes: [BUILDER_CODE] })
+  } catch (error) {
+    console.warn('Failed to generate Builder Code data suffix:', error)
+    return '0x' as `0x${string}`
+  }
+}
 
 // Helper to safely extract error messages
 function getErrorMessage(error: any): string {
@@ -748,7 +762,14 @@ export async function submitCleanup(
   hasImpactForm: boolean,
   impactReportHash: string,
   value?: bigint, // Optional fee value
-  providedChainId?: number | null // Optional chainId from useChainId hook to avoid detection issues
+  providedChainId?: number | null, // Optional chainId from useChainId hook to avoid detection issues
+  sendTransaction?: (params: {
+    address: Address
+    abi: typeof VERIFICATION_ABI
+    functionName: 'submitCleanup'
+    args: readonly unknown[]
+    value: bigint
+  }) => Promise<`0x${string}`> // Optional transaction sender (for Builder Code support)
 ): Promise<bigint> {
   // CRITICAL: Ensure wallet is connected FIRST - before ANY other logic
   // This prevents WalletConnect QR hang bug by ensuring connector is bound before chain switching
@@ -954,22 +975,43 @@ export async function submitCleanup(
       accountStatus: account.status,
     })
 
-    hash = await writeContract(getWagmiConfig() as any, {
-      address: CONTRACT_ADDRESSES.VERIFICATION,
-      abi: VERIFICATION_ABI,
-      functionName: 'submitCleanup',
-      args: [
-        beforePhotoHash,
-        afterPhotoHash,
-        latScaled,
-        lngScaled,
-        referrerAddress || '0x0000000000000000000000000000000000000000',
-        hasImpactForm,
-        impactReportHash,
-      ],
-      value: value || BigInt(0), // Include fee if provided
-      chain: targetChain,
-    })
+    // Use custom transaction sender if provided (for Builder Code attribution)
+    // Otherwise, use standard writeContract
+    if (sendTransaction) {
+      hash = await sendTransaction({
+        address: CONTRACT_ADDRESSES.VERIFICATION,
+        abi: VERIFICATION_ABI,
+        functionName: 'submitCleanup',
+        args: [
+          beforePhotoHash,
+          afterPhotoHash,
+          latScaled,
+          lngScaled,
+          referrerAddress || '0x0000000000000000000000000000000000000000',
+          hasImpactForm,
+          impactReportHash,
+        ],
+        value: value || BigInt(0),
+      })
+    } else {
+      // Standard transaction without Builder Code attribution
+      hash = await writeContract(getWagmiConfig() as any, {
+        address: CONTRACT_ADDRESSES.VERIFICATION,
+        abi: VERIFICATION_ABI,
+        functionName: 'submitCleanup',
+        args: [
+          beforePhotoHash,
+          afterPhotoHash,
+          latScaled,
+          lngScaled,
+          referrerAddress || '0x0000000000000000000000000000000000000000',
+          hasImpactForm,
+          impactReportHash,
+        ],
+        value: value || BigInt(0), // Include fee if provided
+        chain: targetChain,
+      })
+    }
 
     console.log('[submitCleanup] Transaction sent, hash:', hash)
   } catch (error: any) {
@@ -1085,7 +1127,14 @@ export async function submitCleanup(
  */
 export async function claimImpactProductFromVerification(
   cleanupId: bigint,
-  providedChainId?: number | null
+  providedChainId?: number | null,
+  sendTransaction?: (params: {
+    address: Address
+    abi: typeof VERIFICATION_ABI
+    functionName: 'claimImpactProduct'
+    args: readonly unknown[]
+    value: bigint
+  }) => Promise<`0x${string}`> // Optional transaction sender (for Builder Code support)
 ): Promise<`0x${string}`> {
   // CRITICAL: Ensure wallet is connected FIRST - before ANY other logic
   // This prevents WalletConnect QR hang bug by ensuring connector is bound before chain switching
@@ -1178,14 +1227,28 @@ export async function claimImpactProductFromVerification(
   // Account is already verified at the top of the function
   try {
     console.log('[claimImpactProduct] Account status:', account.status, 'Connector:', account.connector?.name || account.connector?.id)
-    const hash = await writeContract(getWagmiConfig() as any, {
-      address: CONTRACT_ADDRESSES.VERIFICATION,
-      abi: VERIFICATION_ABI,
-      functionName: 'claimImpactProduct',
-      args: [cleanupId],
-      value: claimFeeValue,
-      chain: targetChain,
-    })
+    
+    // Use custom transaction sender if provided (for Builder Code attribution)
+    // Otherwise, use standard writeContract
+    let hash: `0x${string}`
+    if (sendTransaction) {
+      hash = await sendTransaction({
+        address: CONTRACT_ADDRESSES.VERIFICATION,
+        abi: VERIFICATION_ABI,
+        functionName: 'claimImpactProduct',
+        args: [cleanupId],
+        value: claimFeeValue,
+      })
+    } else {
+      hash = await writeContract(getWagmiConfig() as any, {
+        address: CONTRACT_ADDRESSES.VERIFICATION,
+        abi: VERIFICATION_ABI,
+        functionName: 'claimImpactProduct',
+        args: [cleanupId],
+        value: claimFeeValue,
+        chain: targetChain,
+      })
+    }
 
     return hash
   } catch (error: any) {
@@ -1531,7 +1594,14 @@ export async function getVerifierAddress(): Promise<Address> {
 export async function verifyCleanup(
   cleanupId: bigint,
   level: number,
-  providedChainId?: number | null
+  providedChainId?: number | null,
+  sendTransaction?: (params: {
+    address: Address
+    abi: typeof VERIFICATION_ABI
+    functionName: 'verifyCleanup'
+    args: readonly unknown[]
+    value?: bigint
+  }) => Promise<`0x${string}`> // Optional transaction sender (for Builder Code support)
 ): Promise<`0x${string}`> {
   // CRITICAL: Ensure wallet is connected FIRST - before ANY other logic
   // This prevents WalletConnect QR hang bug by ensuring connector is bound before chain switching
@@ -1611,14 +1681,27 @@ export async function verifyCleanup(
     console.log(`[verification] Function: verifyCleanup, args:`, [cleanupId.toString(), level])
     console.log(`[verification] Account status:`, account.status, `Connector:`, account.connector?.name || account.connector?.id)
 
-    const hash = await writeContract(getWagmiConfig() as any, {
-      address: CONTRACT_ADDRESSES.VERIFICATION,
-      abi: VERIFICATION_ABI,
-      functionName: 'verifyCleanup',
-      args: [cleanupId, level],
-      chain: targetChain, // Pass chain object explicitly instead of just chainId
-      // Don't specify blockNumber to avoid "block is out of range" errors
-    })
+    // Use custom transaction sender if provided (for Builder Code attribution)
+    // Otherwise, use standard writeContract
+    let hash: `0x${string}`
+    if (sendTransaction) {
+      hash = await sendTransaction({
+        address: CONTRACT_ADDRESSES.VERIFICATION,
+        abi: VERIFICATION_ABI,
+        functionName: 'verifyCleanup',
+        args: [cleanupId, level],
+        value: undefined,
+      })
+    } else {
+      hash = await writeContract(getWagmiConfig() as any, {
+        address: CONTRACT_ADDRESSES.VERIFICATION,
+        abi: VERIFICATION_ABI,
+        functionName: 'verifyCleanup',
+        args: [cleanupId, level],
+        chain: targetChain, // Pass chain object explicitly instead of just chainId
+        // Don't specify blockNumber to avoid "block is out of range" errors
+      })
+    }
 
     console.log(`[verification] ✅ Transaction hash received:`, hash)
     return hash
@@ -1691,7 +1774,14 @@ export async function verifyCleanup(
  */
 export async function rejectCleanup(
   cleanupId: bigint,
-  providedChainId?: number | null
+  providedChainId?: number | null,
+  sendTransaction?: (params: {
+    address: Address
+    abi: typeof VERIFICATION_ABI
+    functionName: 'rejectCleanup'
+    args: readonly unknown[]
+    value?: bigint
+  }) => Promise<`0x${string}`> // Optional transaction sender (for Builder Code support)
 ): Promise<`0x${string}`> {
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
@@ -1727,13 +1817,26 @@ export async function rejectCleanup(
       )
     }
 
-    const hash = await writeContract(getWagmiConfig() as any, {
-      address: CONTRACT_ADDRESSES.VERIFICATION,
-      abi: VERIFICATION_ABI,
-      functionName: 'rejectCleanup',
-      args: [cleanupId],
-      chain: targetChain, // Pass chain object explicitly instead of just chainId
-    })
+    // Use custom transaction sender if provided (for Builder Code attribution)
+    // Otherwise, use standard writeContract
+    let hash: `0x${string}`
+    if (sendTransaction) {
+      hash = await sendTransaction({
+        address: CONTRACT_ADDRESSES.VERIFICATION,
+        abi: VERIFICATION_ABI,
+        functionName: 'rejectCleanup',
+        args: [cleanupId],
+        value: undefined,
+      })
+    } else {
+      hash = await writeContract(getWagmiConfig() as any, {
+        address: CONTRACT_ADDRESSES.VERIFICATION,
+        abi: VERIFICATION_ABI,
+        functionName: 'rejectCleanup',
+        args: [cleanupId],
+        chain: targetChain, // Pass chain object explicitly instead of just chainId
+      })
+    }
 
     return hash
   } catch (error: any) {

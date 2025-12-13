@@ -8,9 +8,11 @@ import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
 import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle, Users } from 'lucide-react'
 import { uploadToIPFS, uploadJSONToIPFS, getIPFSUrl } from '@/lib/ipfs'
-import { submitCleanup, getSubmissionFee, getCleanupStatus, getUserLevel, CONTRACT_ADDRESSES, checkReferralEligibility } from '@/lib/contracts'
+import { submitCleanup, getSubmissionFee, getCleanupStatus, getUserLevel, CONTRACT_ADDRESSES, checkReferralEligibility, VERIFICATION_ABI } from '@/lib/contracts'
 import { clearPendingCleanupData, resetSubmissionCounting } from '@/lib/clear-cleanup-data'
 import type { Address } from 'viem'
+import { useBuilderCodeAttribution } from '@/lib/hooks/useBuilderCode'
+import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import { tryAddRequiredChain } from '@/lib/network'
 import {
   REQUIRED_CHAIN_ID,
@@ -44,12 +46,16 @@ const describeChain = (id?: number) => {
 }
 
 function CleanupContent() {
+  // Ensure ready() is called early on this landing page
+  useFarcasterReady()
+  
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
   const { connect, connectors, isPending: isConnecting } = useConnect()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { sendWithBuilderCode } = useBuilderCodeAttribution()
   const [mounted, setMounted] = useState(false)
   const [referrerAddress, setReferrerAddress] = useState<Address | null>(null)
   const [step, setStep] = useState<Step>('before')
@@ -796,6 +802,23 @@ function CleanupContent() {
         const actualHasForm: boolean = hasValidFormData
         const finalImpactReportHash: string = hasValidFormData && impactFormDataHash ? impactFormDataHash : ''
         
+        // Create transaction sender with Builder Code attribution
+        const sendTransaction = async (params: {
+          address: Address
+          abi: typeof VERIFICATION_ABI
+          functionName: 'submitCleanup'
+          args: readonly unknown[]
+          value: bigint
+        }) => {
+          return await sendWithBuilderCode({
+            to: params.address,
+            abi: params.abi,
+            functionName: params.functionName,
+            args: params.args,
+            value: params.value,
+          })
+        }
+
         const cleanupId = await submitCleanup(
           beforeHash.hash,
           afterHash.hash,
@@ -805,7 +828,8 @@ function CleanupContent() {
           actualHasForm,
           finalImpactReportHash,
           feeValue, // Include fee if required
-          chainId // Pass chainId from useChainId hook to avoid detection bugs
+          chainId, // Pass chainId from useChainId hook to avoid detection bugs
+          sendTransaction // Pass Builder Code transaction sender
         )
 
         console.log('✅ Cleanup submitted with ID:', cleanupId.toString())

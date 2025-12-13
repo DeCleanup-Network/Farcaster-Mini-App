@@ -15,8 +15,10 @@ const {
   getCleanupStatus,
   getUserLevel,
   CONTRACT_ADDRESSES,
+  VERIFICATION_ABI,
 } = contractsLib
 import { Address } from 'viem'
+import { useBuilderCodeAttribution } from '@/lib/hooks/useBuilderCode'
 import { waitForTransactionReceipt, getEnsName } from 'wagmi/actions'
 import { getWagmiConfig, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUIRED_CHAIN_ID, REQUIRED_RPC_URL } from '@/lib/wagmi'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
@@ -66,6 +68,7 @@ export default function VerifierPage() {
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingNetwork } = useSwitchChain()
   const router = useRouter()
+  const { sendWithBuilderCode } = useBuilderCodeAttribution()
   const [mounted, setMounted] = useState(false)
   const [isVerifier, setIsVerifier] = useState(false)
   const [needsSignature, setNeedsSignature] = useState(false)
@@ -768,8 +771,25 @@ export default function VerifierPage() {
         nextLevel = 1
       }
 
+      // Create transaction sender with Builder Code attribution
+      const sendTransaction = async (params: {
+        address: Address
+        abi: typeof VERIFICATION_ABI
+        functionName: 'verifyCleanup'
+        args: readonly unknown[]
+        value?: bigint
+      }) => {
+        return await sendWithBuilderCode({
+          to: params.address,
+          abi: params.abi,
+          functionName: params.functionName,
+          args: params.args,
+          value: params.value,
+        })
+      }
+
       // Verify with automatically calculated level - pass chainId to avoid false detection
-      const hash = await verifyCleanup(cleanupId, nextLevel, chainId)
+      const hash = await verifyCleanup(cleanupId, nextLevel, chainId, sendTransaction)
       setActiveTx({ cleanupId, hash })
       console.log(`Verifying cleanup ${cleanupId.toString()} with level ${nextLevel}`)
       console.log(`Transaction hash: ${hash}`)
@@ -888,8 +908,26 @@ export default function VerifierPage() {
 
     try {
       await ensureCorrectNetwork('reject cleanup')
+      
+      // Create transaction sender with Builder Code attribution
+      const sendTransaction = async (params: {
+        address: Address
+        abi: typeof VERIFICATION_ABI
+        functionName: 'rejectCleanup'
+        args: readonly unknown[]
+        value?: bigint
+      }) => {
+        return await sendWithBuilderCode({
+          to: params.address,
+          abi: params.abi,
+          functionName: params.functionName,
+          args: params.args,
+          value: params.value,
+        })
+      }
+
       // Pass chainId to avoid false chain detection
-      const hash = await rejectCleanup(cleanupId, chainId)
+      const hash = await rejectCleanup(cleanupId, chainId, sendTransaction)
       console.log(`Rejecting cleanup ${cleanupId.toString()}`)
       console.log(`Transaction hash: ${hash}`)
       

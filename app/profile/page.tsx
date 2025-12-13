@@ -45,7 +45,10 @@ import {
   getRewardsBreakdown,
   CONTRACT_ADDRESSES,
   checkReferralEligibility,
+  VERIFICATION_ABI,
 } from '@/lib/contracts'
+import { useBuilderCodeAttribution } from '@/lib/hooks/useBuilderCode'
+import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { useChainId } from 'wagmi'
 import { shareCast, generateReferralLink, generateClaimShareLink, formatReferralMessage, formatImpactShareMessage } from '@/lib/farcaster'
@@ -131,12 +134,16 @@ function ClaimFeeDisplay() {
 }
 
 function ProfileContent() {
+  // Ensure ready() is called early on this landing page
+  useFarcasterReady()
+  
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const searchParams = useSearchParams()
   const [hasMounted, setHasMounted] = useState(false)
   const [loading, setLoading] = useState(true)
   const featureLock = useFeatureLock()
+  const { sendWithBuilderCode } = useBuilderCodeAttribution()
   const [profileData, setProfileData] = useState({
     dcuBalance: 0,
     stakedDCU: 0,
@@ -1015,8 +1022,29 @@ function ProfileContent() {
                           // Continue anyway - the claim function will check
                         }
                         
+                        // Create transaction sender with Builder Code attribution
+                        const sendTransaction = async (params: {
+                          address: Address
+                          abi: typeof VERIFICATION_ABI
+                          functionName: 'claimImpactProduct'
+                          args: readonly unknown[]
+                          value: bigint
+                        }) => {
+                          return await sendWithBuilderCode({
+                            to: params.address,
+                            abi: params.abi,
+                            functionName: params.functionName,
+                            args: params.args,
+                            value: params.value,
+                          })
+                        }
+
                         // Pass chainId to avoid false chain detection
-                        const hash = await claimImpactProductFromVerification(cleanupStatus.cleanupId, chainId)
+                        const hash = await claimImpactProductFromVerification(
+                          cleanupStatus.cleanupId,
+                          chainId,
+                          sendTransaction // Pass Builder Code transaction sender
+                        )
                         
                         // Show styled success modal instead of alert
                         setSuccessModalData({

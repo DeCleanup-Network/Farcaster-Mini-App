@@ -26,6 +26,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.553.0",
     "next": "^16.0.7",
+    "ox": "^0.10.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "tailwind-merge": "^3.3.1",

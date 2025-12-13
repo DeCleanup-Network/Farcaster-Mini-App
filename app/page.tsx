@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { SuccessModal } from '@/components/ui/success-modal'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
+import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import type { Connector } from 'wagmi'
 import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, X } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
@@ -19,6 +20,9 @@ const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
 const getExplorerTxUrl = (hash: `0x${string}`) => `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${hash}`
 
 export default function Home() {
+  // Ensure ready() is called early on this landing page
+  useFarcasterReady()
+  
   const [mounted, setMounted] = useState(false)
   const { context, isLoading } = useFarcaster()
   const { address, isConnected } = useAccount()
