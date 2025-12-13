@@ -117,7 +117,6 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           setReadyCalled(false)
           console.warn('⚠️ Immediate ready() call failed, will retry with main logic:', err?.message)
         })
-      }
       
       // Execute the async function to wait for UI and call ready()
       callReadyAfterUI()
