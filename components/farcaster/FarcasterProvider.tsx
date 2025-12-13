@@ -37,9 +37,17 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // Prevent duplicate calls - check both state and window flag
-    if (readyCalled || (window as any).__farcasterReadyCalled) {
-      console.log('⚠️ SDK ready() already called, skipping duplicate call')
+    // Prevent duplicate calls - check window flag first (persists across re-renders)
+    if ((window as any).__farcasterReadyCalled) {
+      console.log('⚠️ SDK ready() already called (window flag), skipping duplicate call')
+      setIsLoading(false)
+      return
+    }
+
+    // If state says ready was called but window flag doesn't, sync them
+    if (readyCalled && !(window as any).__farcasterReadyCalled) {
+      ;(window as any).__farcasterReadyCalled = true
+      setIsLoading(false)
       return
     }
 
@@ -61,22 +69,33 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
 
     async function callReady() {
       // Wait for SDK to be available (with retry for preview environments)
-      let sdkInstance = sdk || (window as any).farcaster?.sdk
+      // Check multiple sources: imported SDK, window.farcaster.sdk, window.farcaster
+      let sdkInstance = sdk || (window as any).farcaster?.sdk || (window as any).farcaster
       let attempts = 0
-      const maxAttempts = 10 // Try for up to 2 seconds (10 * 200ms)
+      const maxAttempts = 15 // Try for up to 3 seconds (15 * 200ms) - increased for slower environments
       
       console.log('🔍 Checking for SDK availability...', {
         sdkFromImport: !!sdk,
-        sdkFromWindow: !!(window as any).farcaster?.sdk,
+        sdkFromWindowFarcaster: !!(window as any).farcaster?.sdk,
+        windowFarcaster: !!(window as any).farcaster,
         attempt: attempts,
+        readyState: document.readyState,
       })
       
+      // Wait for SDK to be injected (Farcaster client injects it asynchronously)
       while (!sdkInstance && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 200))
-        sdkInstance = sdk || (window as any).farcaster?.sdk
+        // Check all possible SDK locations
+        sdkInstance = sdk || 
+                     (window as any).farcaster?.sdk || 
+                     (window as any).farcaster ||
+                     (window as any).__farcasterSDK
         attempts++
         if (!sdkInstance && attempts < maxAttempts) {
-          console.log(`⏳ Waiting for SDK... (attempt ${attempts}/${maxAttempts})`)
+          console.log(`⏳ Waiting for SDK... (attempt ${attempts}/${maxAttempts})`, {
+            hasWindowFarcaster: !!(window as any).farcaster,
+            readyState: document.readyState,
+          })
         }
       }
 
@@ -85,19 +104,38 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           attempts,
           maxAttempts,
           windowFarcaster: !!(window as any).farcaster,
+          readyState: document.readyState,
+          userAgent: navigator.userAgent,
         })
+        setIsLoading(false)
+        return
       } else {
         console.log('✅ SDK instance found', {
           attempts,
           hasActions: !!sdkInstance.actions,
           hasReady: !!(sdkInstance.actions?.ready),
+          sdkSource: sdkInstance === sdk ? 'imported' : 
+                    (window as any).farcaster?.sdk ? 'window.farcaster.sdk' :
+                    (window as any).farcaster ? 'window.farcaster' : 'unknown',
         })
       }
 
       try {
-        // Check if SDK is available - check multiple ways
-        const readyFunction = sdkInstance?.actions?.ready || 
-                             (sdkInstance && typeof (sdkInstance as any).ready === 'function' ? (sdkInstance as any).ready : null)
+        // Check if SDK is available - check multiple ways and locations
+        let readyFunction = null
+        
+        // Try standard location: sdkInstance.actions.ready
+        if (sdkInstance?.actions?.ready && typeof sdkInstance.actions.ready === 'function') {
+          readyFunction = sdkInstance.actions.ready
+        }
+        // Try alternative: sdkInstance.ready (some SDK versions)
+        else if (sdkInstance && typeof (sdkInstance as any).ready === 'function') {
+          readyFunction = (sdkInstance as any).ready
+        }
+        // Try window.farcaster.ready (fallback)
+        else if ((window as any).farcaster?.ready && typeof (window as any).farcaster.ready === 'function') {
+          readyFunction = (window as any).farcaster.ready
+        }
         
         // Check if SDK is available
         if (!readyFunction || typeof readyFunction !== 'function') {
@@ -106,6 +144,9 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             hasSdkInstance: !!sdkInstance,
             hasActions: !!sdkInstance?.actions,
             hasReady: !!(sdkInstance?.actions?.ready),
+            hasDirectReady: !!(sdkInstance && typeof (sdkInstance as any).ready === 'function'),
+            hasWindowReady: !!((window as any).farcaster?.ready),
+            sdkKeys: sdkInstance ? Object.keys(sdkInstance) : [],
           })
           setIsLoading(false)
           return
@@ -191,7 +232,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener('error', errorHandler)
     }
-  }, []) // Empty dependency array - run only once on mount (per Farcaster SDK docs)
+  }, [readyCalled]) // Include readyCalled to sync state, but effect only runs once due to window flag check
 
   return (
     <FarcasterContext.Provider value={{ context, isInitialized, isLoading }}>

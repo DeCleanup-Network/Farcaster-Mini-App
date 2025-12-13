@@ -9,9 +9,8 @@ export function middleware(request: NextRequest) {
     hostname.includes('farcaster-mini-app-umber') ||
     (hostname.includes('vercel.app') && !hostname.includes('miniapp.decleanup.net'))
   
-  // Don't redirect the manifest - it's handled by the API route
-  if (isOldDomain && pathname !== '/.well-known/farcaster.json') {
-    // Redirect all other paths to new domain
+  // Redirect all old domain traffic (including manifest) to new domain
+  if (isOldDomain) {
     const newUrl = new URL(pathname, 'https://miniapp.decleanup.net')
     newUrl.search = request.nextUrl.search
     
