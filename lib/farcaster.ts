@@ -386,16 +386,25 @@ export const generateReferralLink = (
     return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
   }
 
+  // Validate address format
+  if (!/^0x[a-fA-F0-9]{40}$/.test(sanitizedAddress)) {
+    // Invalid address format - return base URL
+    return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
+  }
+
   if (type === 'farcaster') {
-    // For Farcaster, use Farcaster miniapp URL with wallet address
+    // For Farcaster, use Farcaster miniapp URL with wallet address in query param
     return `${FARCASTER_MINIAPP_URL}?ref=${sanitizedAddress}`
   }
 
-  // For web and copy, use web app URL with wallet address
-  if (useSharePage && type !== 'copy') {
+  // For web and copy, always use /share route for previews
+  // /share is server-rendered, provides OG metadata for crawlers, then redirects to /cleanup?ref=...
+  // This separates preview logic (metadata) from referral logic (runtime)
+  if (useSharePage) {
     return buildUrl(WEB_APP_URL, 'share', { ref: sanitizedAddress, type: 'referral' })
   }
 
+  // Fallback: direct link to cleanup page (no preview, just app logic)
   return buildUrl(WEB_APP_URL, 'cleanup', { ref: sanitizedAddress })
 }
 
@@ -411,10 +420,16 @@ export const generateClaimShareLink = (
     return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
   }
 
+  // Validate address format
+  if (!/^0x[a-fA-F0-9]{40}$/.test(sanitizedAddress)) {
+    // Invalid address format - return base URL
+    return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
+  }
+
   const levelParam = typeof level === 'number' && !Number.isNaN(level) ? level : undefined
 
   if (type === 'farcaster') {
-    // For Farcaster, use Farcaster miniapp URL with wallet address
+    // For Farcaster, use Farcaster miniapp URL with wallet address and level
     const params = new URLSearchParams()
     params.set('ref', sanitizedAddress)
     if (levelParam) {
@@ -423,7 +438,10 @@ export const generateClaimShareLink = (
     return `${FARCASTER_MINIAPP_URL}?${params.toString()}`
   }
 
-  if (useSharePage && type !== 'copy') {
+  // For web and copy, always use /share route for previews
+  // /share is server-rendered, provides OG metadata for crawlers, then redirects to /profile?ref=...&level=...
+  // This separates preview logic (metadata) from referral logic (runtime)
+  if (useSharePage) {
     return buildUrl(WEB_APP_URL, 'share', {
       ref: sanitizedAddress,
       type: 'claim',
@@ -431,9 +449,12 @@ export const generateClaimShareLink = (
     })
   }
 
+  // Fallback: direct link to profile page (no preview, just app logic)
   return buildUrl(WEB_APP_URL, 'profile', {
     ref: sanitizedAddress,
     level: levelParam,
   })
 }
+
+
 
