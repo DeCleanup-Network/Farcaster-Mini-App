@@ -69,14 +69,38 @@ export default function Home() {
       console.warn('No connector provided to handleConnect')
       return
     }
+    
+    // On desktop Safari, ensure connector is ready before connecting
+    if (!connector.ready) {
+      console.log('Connector not ready, waiting...', connector.name)
+      // Wait up to 2 seconds for connector to become ready
+      for (let attempt = 0; attempt < 4; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        if (connector.ready) {
+          console.log('Connector ready after waiting')
+          break
+        }
+      }
+      
+      if (!connector.ready) {
+        console.warn('Connector still not ready after waiting:', connector.name)
+        alert('Wallet is not ready. Please ensure your wallet extension is unlocked and try again.')
+        return
+      }
+    }
+    
     try {
-      console.log('Connecting with connector:', connector.name, connector.id)
+      console.log('Connecting with connector:', connector.name, connector.id, 'ready:', connector.ready)
       await connectAsync({ connector })
     } catch (error: any) {
       console.error('Wallet connect failed:', error)
       // Don't show alert for user rejections
       if (error?.code !== 4001 && !error?.message?.includes('rejected')) {
-        // Only log, don't alert - user can retry
+        // Show alert for other errors on desktop Safari
+        const errorMsg = error?.message || String(error || 'Unknown error')
+        if (!errorMsg.toLowerCase().includes('user') && !errorMsg.toLowerCase().includes('reject')) {
+          alert(`Connection failed: ${errorMsg}. Please ensure your wallet is unlocked and try again.`)
+        }
       }
     }
   }
@@ -542,9 +566,11 @@ export default function Home() {
                   onClick={async () => {
                     try {
                       const { generateReferralLink, formatReferralMessage, shareToX } = await import('@/lib/farcaster')
-                      const referralLink = generateReferralLink(address, 'web', true)
+                      // For X sharing, use direct cleanup link (not share page) for cleaner URL
+                      const referralLink = generateReferralLink(address, 'web', false)
                       const text = formatReferralMessage(referralLink, 'web')
-                      await shareToX(text, referralLink)
+                      // text already includes the link, don't pass referralLink again
+                      await shareToX(text)
                     } catch (error) {
                       console.error('Failed to share to X:', error)
                       alert('Failed to share. Please try again.')

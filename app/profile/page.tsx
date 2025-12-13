@@ -16,9 +16,6 @@ import {
   CheckCircle,
   RefreshCw,
   ExternalLink,
-  Share2,
-  Copy,
-  Gift,
   Users,
   FileText,
   ChevronDown,
@@ -51,7 +48,7 @@ import { useBuilderCodeAttribution } from '@/lib/hooks/useBuilderCode'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { useChainId } from 'wagmi'
-import { shareCast, generateReferralLink, generateClaimShareLink, formatReferralMessage, formatImpactShareMessage } from '@/lib/farcaster'
+import { generateReferralLink, formatReferralMessage } from '@/lib/farcaster'
 import { SuccessModal } from '@/components/ui/success-modal'
 import { useFeatureLock } from '@/lib/hooks/useFeatureLock'
 import { FeatureLockedNotice } from '@/components/ui/FeatureLockedNotice'
@@ -177,13 +174,13 @@ function ProfileContent() {
   } | null>(null)
   const [isClaiming, setIsClaiming] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [sharing, setSharing] = useState(false)
   const [copyingField, setCopyingField] = useState<string | null>(null)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [successModalData, setSuccessModalData] = useState<{
     title: string
     message: string
     transactionHash?: string
+    level?: number
   } | null>(null)
   const [breakdownExpanded, setBreakdownExpanded] = useState(false)
   const [referrerAddress, setReferrerAddress] = useState<Address | null>(null)
@@ -1048,8 +1045,8 @@ function ProfileContent() {
                         
                         // Show styled success modal instead of alert
                         setSuccessModalData({
-                          title: 'Claim transaction submitted!',
-                          message: 'Your Impact Product NFT will be minted once the transaction confirms.',
+                          title: 'Impact Product Minted!',
+                          message: 'Your Impact Product has been successfully minted!',
                           transactionHash: hash,
                         })
                         setShowSuccessModal(true)
@@ -1099,8 +1096,23 @@ function ProfileContent() {
 
                             if (status.claimed || pollCount >= maxPolls) {
                               clearInterval(pollInterval)
-                              // Refresh profile data to show new level
-                              window.location.reload()
+                              // Update success modal with level for sharing
+                              if (status.claimed && status.level) {
+                                setSuccessModalData({
+                                  title: 'Impact Product Minted!',
+                                  message: 'Your Impact Product has been successfully minted!',
+                                  transactionHash: hash,
+                                  level: status.level,
+                                })
+                                setShowSuccessModal(true)
+                                // Don't reload immediately - let user share first
+                                setTimeout(() => {
+                                  window.location.reload()
+                                }, 5000) // Reload after 5 seconds
+                              } else {
+                                // Refresh profile data to show new level
+                                window.location.reload()
+                              }
                             }
                           } catch (error) {
                             console.error('Error polling status:', error)
@@ -1341,87 +1353,7 @@ function ProfileContent() {
                   )}
                 </div>
                 <div className="mt-4 space-y-3">
-                  {/* Share buttons */}
-                  {address && profileData.level > 0 && (
-                    <div className="mt-3 space-y-2">
-                      <p className="text-xs font-medium text-gray-400">
-                        Share your Impact Product and invite friends and earn 3 $bDCU each:
-                      </p>
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button
-                          onClick={async () => {
-                            if (sharing || !address) return
-                            setSharing(true)
-                            try {
-                              // Use Farcaster miniapp URL for Farcaster sharing (with referral)
-                              const claimLink = generateClaimShareLink(address, profileData.level, 'farcaster', false)
-                              const text = formatImpactShareMessage(profileData.level, claimLink, 'farcaster')
-                              await shareCast(text, claimLink)
-                            } catch (error) {
-                              console.error('Failed to share:', error)
-                            } finally {
-                              setSharing(false)
-                            }
-                          }}
-                          disabled={sharing}
-                          className="w-full gap-2 bg-purple-600 text-white hover:bg-purple-700 sm:flex-1"
-                        >
-                          {sharing ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span>Sharing...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Share2 className="h-4 w-4" />
-                              Share on Farcaster
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            if (!address) return
-                            try {
-                              const { generateClaimShareLink, formatImpactShareMessage, shareToX } = await import('@/lib/farcaster')
-                              const link = generateClaimShareLink(address, profileData.level, 'web', true)
-                              const text = formatImpactShareMessage(profileData.level, link, 'web')
-                              await shareToX(text, link)
-                            } catch (error) {
-                              console.error('Failed to share to X:', error)
-                              alert('Failed to share. Please try again.')
-                            }
-                          }}
-                          variant="outline"
-                          className="w-full gap-2 border-gray-700 bg-black text-white hover:bg-gray-800 sm:flex-1"
-                        >
-                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                          </svg>
-                          Share on X
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            if (!address) return
-                            const link = generateClaimShareLink(address, profileData.level, 'copy', true)
-                            const message = formatImpactShareMessage(profileData.level, link, 'copy')
-                            try {
-                              await navigator.clipboard.writeText(message)
-                              alert('Share link copied to clipboard!')
-                            } catch (error) {
-                              alert(message)
-                            }
-                          }}
-                          variant="outline"
-                          className="w-full gap-2 border-gray-700 bg-black text-white hover:bg-gray-800 sm:flex-1"
-                        >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          Copy Link
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                  {/* Share buttons removed - now shown in success modal after minting */}
                 </div>
               </div>
             </div>
@@ -1460,6 +1392,8 @@ function ProfileContent() {
             transactionHash={successModalData.transactionHash}
             explorerUrl={successModalData.transactionHash ? getExplorerTxUrl(successModalData.transactionHash as `0x${string}`) : undefined}
             explorerName={BLOCK_EXPLORER_NAME}
+            showShare={!!successModalData.level && successModalData.level > 0}
+            level={successModalData.level}
           />
         )}
 

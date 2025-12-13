@@ -49,8 +49,23 @@ export function useFarcasterReady() {
           // Mark as called before actually calling to prevent duplicates
           ;(window as any).__farcasterReadyCalled = true
           
+          console.log('📞 Page-level: About to call sdk.actions.ready()...', {
+            timestamp: new Date().toISOString(),
+            readyState: document.readyState,
+            url: window.location.href,
+          })
+          
           await readyFunction({ disableNativeGestures: true })
-          console.log('✅ Page-level sdk.actions.ready() called successfully')
+          console.log('✅ Page-level sdk.actions.ready() called successfully', {
+            timestamp: new Date().toISOString(),
+          })
+        } else {
+          console.warn('⚠️ ready() function not found in SDK instance', {
+            hasSdkInstance: !!sdkInstance,
+            hasActions: !!sdkInstance?.actions,
+            hasReady: !!(sdkInstance?.actions?.ready),
+            sdkKeys: sdkInstance ? Object.keys(sdkInstance) : [],
+          })
         }
       } catch (error: any) {
         const errorMessage = error?.message || String(error || '')

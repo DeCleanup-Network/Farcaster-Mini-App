@@ -104,8 +104,8 @@ export async function generateMetadata({
         // Telegram-specific meta tags
         'telegram:image': OG_IMAGE_URL,
         // Farcaster uses IPFS (reads fc:miniapp metadata separately)
+        // Use fc:miniapp for new Mini Apps (not fc:frame per docs)
         'fc:miniapp': JSON.stringify(EMBED_METADATA),
-        'fc:frame': JSON.stringify(EMBED_METADATA),
       },
     }
   }
@@ -183,8 +183,8 @@ export async function generateMetadata({
       // Telegram-specific meta tags
       'telegram:image': OG_IMAGE_URL,
       // Farcaster uses IPFS (reads fc:miniapp metadata separately)
+      // Use fc:miniapp for new Mini Apps (not fc:frame per docs)
       'fc:miniapp': JSON.stringify(EMBED_METADATA),
-      'fc:frame': JSON.stringify(EMBED_METADATA),
     },
   }
 }

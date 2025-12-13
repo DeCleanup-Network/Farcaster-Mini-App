@@ -51,6 +51,54 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    // CRITICAL: Try immediate ready() call if SDK is already available
+    // This ensures ready() is called as early as possible per Farcaster docs
+    // Per Farcaster docs: "Call ready() as soon as possible to avoid jitter and content reflows"
+    const immediateSdk = sdk || (window as any).farcaster?.sdk || (window as any).farcaster
+    if (immediateSdk?.actions?.ready && typeof immediateSdk.actions.ready === 'function') {
+      console.log('⚡ SDK available immediately, calling ready() right away...', {
+        timestamp: new Date().toISOString(),
+        readyState: document.readyState,
+        url: window.location.href,
+      })
+      // Mark as called before actually calling to prevent duplicates
+      ;(window as any).__farcasterReadyCalled = true
+      setReadyCalled(true)
+      
+      // Call ready() immediately - don't await, let it run in background
+      // The main callReady() function below will handle context initialization
+      immediateSdk.actions.ready({ disableNativeGestures: true })
+        .then(() => {
+          console.log('✅ Immediate ready() call succeeded', {
+            timestamp: new Date().toISOString(),
+          })
+          // Initialize context after ready() succeeds
+          initializeFarcaster()
+            .then((initialized) => {
+              if (initialized) {
+                return getFarcasterContext()
+              }
+              return null
+            })
+            .then((context) => {
+              if (context) {
+                setContext(context as FarcasterContextData | null)
+                setIsInitialized(true)
+                console.log('✅ Farcaster context initialized after immediate ready()')
+              }
+            })
+            .catch((err) => {
+              console.error('❌ Failed to initialize context after immediate ready():', err)
+            })
+        })
+        .catch((err: any) => {
+          // Reset flags on error so retry logic can run
+          ;(window as any).__farcasterReadyCalled = false
+          setReadyCalled(false)
+          console.warn('⚠️ Immediate ready() call failed, will retry with main logic:', err?.message)
+        })
+    }
+
     // Log initialization start for debugging
     console.log('🚀 FarcasterProvider: Starting SDK initialization', {
       url: window.location.href,
@@ -68,6 +116,25 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
     }
 
     async function callReady() {
+      // Check if ready() was already called by immediate call above
+      if ((window as any).__farcasterReadyCalled) {
+        console.log('✅ ready() already called immediately, skipping main callReady()')
+        // Still initialize context if not already done
+        try {
+          const initialized = await initializeFarcaster()
+          if (initialized) {
+            const farcasterContext = await getFarcasterContext()
+            setContext(farcasterContext as FarcasterContextData | null)
+            setIsInitialized(true)
+            console.log('✅ Farcaster context initialized')
+          }
+        } catch (contextError) {
+          console.error('❌ Failed to initialize Farcaster context:', contextError)
+        }
+        setIsLoading(false)
+        return
+      }
+
       // Wait for SDK to be available (with retry for preview environments)
       // Check multiple sources: imported SDK, window.farcaster.sdk, window.farcaster
       let sdkInstance = sdk || (window as any).farcaster?.sdk || (window as any).farcaster
@@ -232,7 +299,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener('error', errorHandler)
     }
-  }, [readyCalled]) // Include readyCalled to sync state, but effect only runs once due to window flag check
+  }, []) // Empty deps - effect should only run once on mount, window flag prevents duplicates
 
   return (
     <FarcasterContext.Provider value={{ context, isInitialized, isLoading }}>

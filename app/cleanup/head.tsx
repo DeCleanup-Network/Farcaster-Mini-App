@@ -35,8 +35,8 @@ export default function Head() {
       <meta property="twitter:title" content={TITLE} />
       <meta property="twitter:description" content={DESCRIPTION} />
       <meta property="twitter:image" content={SHARE_IMAGE_URL} />
+      {/* Use fc:miniapp for new Mini Apps (not fc:frame per Farcaster docs) */}
       <meta name="fc:miniapp" content={JSON.stringify(EMBED_METADATA)} />
-      <meta name="fc:frame" content={JSON.stringify(EMBED_METADATA)} />
     </>
   )
 }

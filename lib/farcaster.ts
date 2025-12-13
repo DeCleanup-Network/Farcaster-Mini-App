@@ -12,7 +12,7 @@ const REFERRAL_COPY_COPY =
   'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on Base.\n\n'
 
 // Tip message for Farcaster app referrals
-const FARCASTER_WALLET_TIP = '\n\nTIP: For best experience use Farcaster wallet when connecting.'
+const FARCASTER_WALLET_TIP = '\n\nTip: Use Farcaster wallet for smooth experience'
 
 // Profile share messages
 export const formatReferralMessage = (
@@ -55,14 +55,14 @@ export const formatImpactShareMessage = (
   
   let message: string
   if (type === 'farcaster') {
-    message = `Just minted ${levelLabel} by @decleanupnet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
+    message = `I've just minted ${levelLabel}! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
   } else if (type === 'web') {
-    message = `Just minted ${levelLabel} by @DeCleanupNet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
+    message = `I've just minted ${levelLabel}! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
   } else {
-    message = `Just minted ${levelLabel} by @DeCleanupNet! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
+    message = `I've just minted ${levelLabel}! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
   }
   
-  // Add tip message only for Farcaster app sharing
+  // Add tip message only for Farcaster app sharing (after the link)
   const tip = type === 'farcaster' ? FARCASTER_WALLET_TIP : ''
   
   return `${message}${tip}`
@@ -159,12 +159,13 @@ export const closeMiniApp = async () => {
 export const shareToX = async (text: string, url?: string): Promise<boolean> => {
   try {
     // Try Web Share API first if available (mobile native share sheet)
+    // Note: text already contains the link from formatReferralMessage/formatImpactShareMessage
+    // So we should NOT add url again to avoid duplication
     if (navigator.share && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
       try {
         await navigator.share({
           title: APP_NAME,
-          text,
-          url: url || undefined,
+          text, // text already includes the link, don't add url again
         })
         return true
       } catch (shareError: any) {
@@ -178,7 +179,9 @@ export const shareToX = async (text: string, url?: string): Promise<boolean> => 
     }
 
     // Build X/Twitter intent URL
-    const fullText = url ? `${text} ${url}` : text
+    // Note: text already contains the link, so don't add url again
+    // Only use text, not text + url to avoid duplication
+    const fullText = text // text already includes the link from formatReferralMessage
     const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(fullText)}`
 
     // Check if we are in Farcaster context
@@ -201,19 +204,29 @@ export const shareToX = async (text: string, url?: string): Promise<boolean> => 
       }
     }
 
-    // For browser (not in Farcaster), open X compose in new tab
+    // For browser (not in Farcaster or if openUrl failed), open X compose in new tab
+    // This works on desktop browsers including Safari
     if (typeof window !== 'undefined') {
       try {
         // Use window.open with noopener for security
+        // On desktop, this should work even if popup blockers are enabled for Twitter intent URLs
         const newWindow = window.open(xUrl, '_blank', 'noopener,noreferrer')
         if (newWindow) {
+          // Give it a moment to check if window was actually opened
+          setTimeout(() => {
+            if (newWindow.closed === false) {
+              console.log('Share window opened successfully')
+            }
+          }, 100)
           return true
         } else {
           // Popup blocked - fall through to clipboard
+          console.warn('Popup blocked, will try clipboard fallback')
           throw new Error('Popup blocked')
         }
       } catch (openError) {
         console.error('window.open failed:', openError)
+        // Don't throw immediately - try clipboard fallback first
         throw new Error('Failed to open share window')
       }
     }
@@ -223,10 +236,10 @@ export const shareToX = async (text: string, url?: string): Promise<boolean> => 
   } catch (error) {
     console.error('Failed to share to X:', error)
     // Fallback: try to copy to clipboard
+    // Note: text already contains the link, don't add url again
     try {
-      const fullText = text + (url ? ` ${url}` : '')
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(fullText)
+        await navigator.clipboard.writeText(text) // text already includes the link
         if (typeof window !== 'undefined') {
           alert('Share popup was blocked. Message copied to clipboard! Paste it into X to share.')
         }
@@ -408,52 +421,20 @@ export const generateReferralLink = (
   return buildUrl(WEB_APP_URL, 'cleanup', { ref: sanitizedAddress })
 }
 
-// Generate claim share link with wallet address and level
+// Generate claim share link for impact product sharing (no referral tracking)
 export const generateClaimShareLink = (
-  walletAddress: string,
   level: number,
-  type: 'farcaster' | 'web' | 'copy' = 'web',
-  useSharePage: boolean = true
+  type: 'farcaster' | 'web' | 'copy' = 'web'
 ): string => {
-  const sanitizedAddress = walletAddress?.trim()
-  if (!sanitizedAddress) {
-    return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
-  }
-
-  // Validate address format
-  if (!/^0x[a-fA-F0-9]{40}$/.test(sanitizedAddress)) {
-    // Invalid address format - return base URL
-    return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
-  }
-
   const levelParam = typeof level === 'number' && !Number.isNaN(level) ? level : undefined
 
   if (type === 'farcaster') {
-    // For Farcaster, use Farcaster miniapp URL with wallet address and level
-    const params = new URLSearchParams()
-    params.set('ref', sanitizedAddress)
-    if (levelParam) {
-      params.set('level', String(levelParam))
-    }
-    return `${FARCASTER_MINIAPP_URL}?${params.toString()}`
+    // For Farcaster, use Farcaster miniapp URL (base URL, no referral)
+    return FARCASTER_MINIAPP_URL
   }
 
-  // For web and copy, always use /share route for previews
-  // /share is server-rendered, provides OG metadata for crawlers, then redirects to /profile?ref=...&level=...
-  // This separates preview logic (metadata) from referral logic (runtime)
-  if (useSharePage) {
-    return buildUrl(WEB_APP_URL, 'share', {
-      ref: sanitizedAddress,
-      type: 'claim',
-      level: levelParam,
-    })
-  }
-
-  // Fallback: direct link to profile page (no preview, just app logic)
-  return buildUrl(WEB_APP_URL, 'profile', {
-    ref: sanitizedAddress,
-    level: levelParam,
-  })
+  // For web and copy, use base app URL (no referral, just sharing the achievement)
+  return WEB_APP_URL
 }
 
 

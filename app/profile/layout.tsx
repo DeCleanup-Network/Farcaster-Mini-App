@@ -33,21 +33,8 @@ export const metadata: Metadata = {
     images: [PROFILE_IMAGE_URL],
   },
   other: {
+    // Use fc:miniapp for new Mini Apps (not fc:frame per Farcaster docs)
     'fc:miniapp': JSON.stringify({
-      version: '1',
-      imageUrl: FARCASTER_IMAGE_URL, // IPFS for Farcaster
-      button: {
-        title: 'Open DeCleanup Rewards',
-        action: {
-          type: 'launch_frame',
-          url: FARCASTER_MINIAPP_URL,
-          name: 'DeCleanup Rewards',
-          splashImageUrl: 'https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png',
-          splashBackgroundColor: '#000000',
-        },
-      },
-    }),
-    'fc:frame': JSON.stringify({
       version: '1',
       imageUrl: FARCASTER_IMAGE_URL, // IPFS for Farcaster
       button: {

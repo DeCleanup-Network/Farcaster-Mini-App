@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { X, CheckCircle, ExternalLink } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { X, CheckCircle, ExternalLink, Share2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface SuccessModalProps {
@@ -14,7 +14,6 @@ interface SuccessModalProps {
   explorerName?: string
   onShare?: () => void
   showShare?: boolean
-  userAddress?: string
   level?: number
 }
 
@@ -28,9 +27,10 @@ export function SuccessModal({
   explorerName = 'Explorer',
   onShare,
   showShare = false,
-  userAddress,
   level,
 }: SuccessModalProps) {
+  const [sharing, setSharing] = useState(false)
+
   // Close on Escape key
   useEffect(() => {
     if (!isOpen) return
@@ -44,6 +44,42 @@ export function SuccessModal({
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [isOpen, onClose])
+
+  // Handle Farcaster share
+  const handleShareFarcaster = async () => {
+    if (!level || sharing) return
+    setSharing(true)
+    try {
+      const { generateClaimShareLink, formatImpactShareMessage, shareCast } = await import('@/lib/farcaster')
+      // Use Farcaster miniapp URL for Farcaster sharing (no referral, just achievement sharing)
+      const claimLink = generateClaimShareLink(level, 'farcaster')
+      const text = formatImpactShareMessage(level, claimLink, 'farcaster')
+      await shareCast(text, claimLink)
+    } catch (error) {
+      console.error('Failed to share on Farcaster:', error)
+      alert('Failed to share. Please try again.')
+    } finally {
+      setSharing(false)
+    }
+  }
+
+  // Handle X share
+  const handleShareX = async () => {
+    if (!level || sharing) return
+    setSharing(true)
+    try {
+      const { generateClaimShareLink, formatImpactShareMessage, shareToX } = await import('@/lib/farcaster')
+      // Use base app URL for X (no referral, just achievement sharing)
+      const link = generateClaimShareLink(level, 'web')
+      const text = formatImpactShareMessage(level, link, 'web')
+      await shareToX(text)
+    } catch (error) {
+      console.error('Failed to share on X:', error)
+      alert('Failed to share. Please try again.')
+    } finally {
+      setSharing(false)
+    }
+  }
 
   if (!isOpen) return null
 
@@ -98,6 +134,54 @@ export function SuccessModal({
               <ExternalLink className="h-4 w-4" />
               View on {explorerName}
             </a>
+          )}
+
+          {/* Share buttons - only show after minting impact product */}
+          {showShare && level && level > 0 && (
+            <div className="space-y-2">
+              <p className="text-center text-xs text-gray-400">
+                Share your achievement!
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleShareFarcaster}
+                  disabled={sharing}
+                  className="flex-1 gap-2 bg-purple-600 text-white hover:bg-purple-700"
+                >
+                  {sharing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Sharing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="h-4 w-4" />
+                      Share on Farcaster
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={handleShareX}
+                  disabled={sharing}
+                  variant="outline"
+                  className="flex-1 gap-2 border-gray-700 bg-black text-white hover:bg-gray-800"
+                >
+                  {sharing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Sharing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                      </svg>
+                      Share on X
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           )}
           
           <Button

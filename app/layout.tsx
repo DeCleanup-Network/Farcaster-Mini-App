@@ -82,8 +82,7 @@ export const metadata: Metadata = {
     images: [OG_IMAGE_URL],
   },
   other: {
-    "fc:miniapp": JSON.stringify(EMBED_METADATA),
-    "fc:frame": JSON.stringify(EMBED_METADATA),
+    "fc:miniapp": JSON.stringify(EMBED_METADATA), // Use fc:miniapp for new Mini Apps (not fc:frame)
     "base:app_id": process.env.NEXT_PUBLIC_BASE_APP_ID || "691efb9475e001821817dc8b",
   },
 };
