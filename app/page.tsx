@@ -558,11 +558,12 @@ export default function Home() {
                 <Button
                   onClick={async () => {
                     const { generateReferralLink, formatReferralMessage } = await import('@/lib/farcaster')
-                    const referralLink = generateReferralLink(address, 'copy', true)
+                    // Use useSimpleLinks: false to include referral code in URL
+                    const referralLink = generateReferralLink(address, 'copy', true, false)
                     try {
                       const copyText = formatReferralMessage(referralLink, 'copy')
                       await navigator.clipboard.writeText(copyText)
-                      alert('Referral message copied to clipboard!')
+                      alert('Referral link copied to clipboard!')
                     } catch (error) {
                       alert(formatReferralMessage(referralLink, 'copy'))
                     }

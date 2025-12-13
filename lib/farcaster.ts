@@ -376,7 +376,20 @@ export function generateReferralCode(address: string): string {
   }, 0)
   // Convert to base36 and take first 8 chars, make uppercase
   const code = Math.abs(hash).toString(36).toUpperCase().slice(0, 8)
-  return code.padStart(8, '0').slice(0, 8)
+  const finalCode = code.padStart(8, '0').slice(0, 8)
+  
+  // Store code-to-address mapping in localStorage for resolution
+  if (typeof window !== 'undefined') {
+    try {
+      const normalizedAddress = address.toLowerCase().trim()
+      localStorage.setItem(`refcode_${finalCode}`, normalizedAddress)
+      console.log(`✅ Stored referral code mapping: ${finalCode} -> ${normalizedAddress}`)
+    } catch (e) {
+      console.warn('Failed to store referral code mapping:', e)
+    }
+  }
+  
+  return finalCode
 }
 
 // Resolve referral code back to address (for backward compatibility, also accept full addresses)
@@ -385,14 +398,26 @@ export function resolveReferralCode(codeOrAddress: string): string | null {
   
   // If it's already a full address (starts with 0x and 42 chars), return as-is
   if (codeOrAddress.startsWith('0x') && codeOrAddress.length === 42) {
-    return codeOrAddress
+    return codeOrAddress.toLowerCase()
   }
   
-  // For codes, we need to look up in localStorage or decode
-  // Since we can't decode the hash back, we'll store mappings
-  // For now, we'll still use addresses but generate codes for display
-  // The actual resolution happens on the server/share page
-  return codeOrAddress
+  // For codes, look up in localStorage
+  if (typeof window !== 'undefined') {
+    try {
+      const normalizedCode = codeOrAddress.toUpperCase().trim()
+      const address = localStorage.getItem(`refcode_${normalizedCode}`)
+      if (address && /^0x[a-fA-F0-9]{40}$/.test(address)) {
+        console.log(`✅ Resolved referral code: ${normalizedCode} -> ${address}`)
+        return address.toLowerCase()
+      }
+    } catch (e) {
+      console.warn('Failed to resolve referral code from localStorage:', e)
+    }
+  }
+  
+  // If code not found, return null (invalid code)
+  console.warn(`⚠️ Could not resolve referral code: ${codeOrAddress}`)
+  return null
 }
 
 function buildUrl(base: string, path: string, params?: Record<string, string | number | undefined>) {

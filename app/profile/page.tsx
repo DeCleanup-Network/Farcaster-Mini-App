@@ -1374,11 +1374,12 @@ function ProfileContent() {
                         <Button
                           onClick={async () => {
                             if (!address) return
-                            const link = generateClaimShareLink(address, profileData.level, 'copy', true)
+                            // Use useSimpleLinks: false to include referral code in URL
+                            const link = generateClaimShareLink(address, profileData.level, 'copy', true, false)
                             const message = formatImpactShareMessage(profileData.level, link, 'copy')
                             try {
                               await navigator.clipboard.writeText(message)
-                              alert('Share message copied to clipboard!')
+                              alert('Share link copied to clipboard!')
                             } catch (error) {
                               alert(message)
                             }
