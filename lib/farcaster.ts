@@ -363,63 +363,6 @@ const FARCASTER_MINIAPP_URL =
 const WEB_APP_URL =
   process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
 
-// Referral code system - generate short codes from wallet addresses
-// This allows simple links like ?ref=ABC123 instead of ?ref=0x1234...
-export function generateReferralCode(address: string): string {
-  if (!address || !address.trim()) {
-    return ''
-  }
-  // Simple hash-based code generation (first 8 chars of address hash)
-  // This ensures same address always generates same code
-  const hash = address.toLowerCase().trim().split('').reduce((acc, char) => {
-    return ((acc << 5) - acc) + char.charCodeAt(0) | 0
-  }, 0)
-  // Convert to base36 and take first 8 chars, make uppercase
-  const code = Math.abs(hash).toString(36).toUpperCase().slice(0, 8)
-  const finalCode = code.padStart(8, '0').slice(0, 8)
-  
-  // Store code-to-address mapping in localStorage for resolution
-  if (typeof window !== 'undefined') {
-    try {
-      const normalizedAddress = address.toLowerCase().trim()
-      localStorage.setItem(`refcode_${finalCode}`, normalizedAddress)
-      console.log(`✅ Stored referral code mapping: ${finalCode} -> ${normalizedAddress}`)
-    } catch (e) {
-      console.warn('Failed to store referral code mapping:', e)
-    }
-  }
-  
-  return finalCode
-}
-
-// Resolve referral code back to address (for backward compatibility, also accept full addresses)
-export function resolveReferralCode(codeOrAddress: string): string | null {
-  if (!codeOrAddress) return null
-  
-  // If it's already a full address (starts with 0x and 42 chars), return as-is
-  if (codeOrAddress.startsWith('0x') && codeOrAddress.length === 42) {
-    return codeOrAddress.toLowerCase()
-  }
-  
-  // For codes, look up in localStorage
-  if (typeof window !== 'undefined') {
-    try {
-      const normalizedCode = codeOrAddress.toUpperCase().trim()
-      const address = localStorage.getItem(`refcode_${normalizedCode}`)
-      if (address && /^0x[a-fA-F0-9]{40}$/.test(address)) {
-        console.log(`✅ Resolved referral code: ${normalizedCode} -> ${address}`)
-        return address.toLowerCase()
-      }
-    } catch (e) {
-      console.warn('Failed to resolve referral code from localStorage:', e)
-    }
-  }
-  
-  // If code not found, return null (invalid code)
-  console.warn(`⚠️ Could not resolve referral code: ${codeOrAddress}`)
-  return null
-}
-
 function buildUrl(base: string, path: string, params?: Record<string, string | number | undefined>) {
   const normalizedBase = base.endsWith('/') ? base : `${base}/`
   const url = new URL(path, normalizedBase)
@@ -436,39 +379,24 @@ function buildUrl(base: string, path: string, params?: Record<string, string | n
 export const generateReferralLink = (
   walletAddress: string, 
   type: 'farcaster' | 'web' | 'copy' = 'web',
-  useSharePage: boolean = true,
-  useSimpleLinks: boolean = true // New parameter: use simple links without wallet addresses
+  useSharePage: boolean = true
 ): string => {
   const sanitizedAddress = walletAddress?.trim()
   if (!sanitizedAddress) {
-    // Return simple base URLs without any params
     return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
   }
 
-  // Generate referral code for cleaner links
-  const referralCode = generateReferralCode(sanitizedAddress)
-  
-  if (useSimpleLinks) {
-    // Use simple links: just base URL for Farcaster, base URL for web
-    // Referral tracking will be handled via other means (e.g., Farcaster/X post tracking)
-    if (type === 'farcaster') {
-      return FARCASTER_MINIAPP_URL
-    }
-    return WEB_APP_URL
-  }
-
-  // Legacy: use wallet addresses in URLs (for backward compatibility)
   if (type === 'farcaster') {
-    // For Farcaster, use Farcaster miniapp URL with referral code
-    return `${FARCASTER_MINIAPP_URL}?ref=${referralCode}`
+    // For Farcaster, use Farcaster miniapp URL with wallet address
+    return `${FARCASTER_MINIAPP_URL}?ref=${sanitizedAddress}`
   }
 
-  // For web and copy, use web app URL with referral code
+  // For web and copy, use web app URL with wallet address
   if (useSharePage && type !== 'copy') {
-    return buildUrl(WEB_APP_URL, 'share', { ref: referralCode, type: 'referral' })
+    return buildUrl(WEB_APP_URL, 'share', { ref: sanitizedAddress, type: 'referral' })
   }
 
-  return buildUrl(WEB_APP_URL, 'cleanup', { ref: referralCode })
+  return buildUrl(WEB_APP_URL, 'cleanup', { ref: sanitizedAddress })
 }
 
 // Generate claim share link with wallet address and level
@@ -476,8 +404,7 @@ export const generateClaimShareLink = (
   walletAddress: string,
   level: number,
   type: 'farcaster' | 'web' | 'copy' = 'web',
-  useSharePage: boolean = true,
-  useSimpleLinks: boolean = true // New parameter: use simple links without wallet addresses
+  useSharePage: boolean = true
 ): string => {
   const sanitizedAddress = walletAddress?.trim()
   if (!sanitizedAddress) {
@@ -486,19 +413,10 @@ export const generateClaimShareLink = (
 
   const levelParam = typeof level === 'number' && !Number.isNaN(level) ? level : undefined
 
-  if (useSimpleLinks) {
-    // Use simple links: just base URL
-    // Level and referral info can be tracked via post content or other means
-    return type === 'farcaster' ? FARCASTER_MINIAPP_URL : WEB_APP_URL
-  }
-
-  // Legacy: use wallet addresses in URLs
-  const referralCode = generateReferralCode(sanitizedAddress)
-
   if (type === 'farcaster') {
-    // For Farcaster, use Farcaster miniapp URL with referral code
+    // For Farcaster, use Farcaster miniapp URL with wallet address
     const params = new URLSearchParams()
-    params.set('ref', referralCode)
+    params.set('ref', sanitizedAddress)
     if (levelParam) {
       params.set('level', String(levelParam))
     }
@@ -507,14 +425,14 @@ export const generateClaimShareLink = (
 
   if (useSharePage && type !== 'copy') {
     return buildUrl(WEB_APP_URL, 'share', {
-      ref: referralCode,
+      ref: sanitizedAddress,
       type: 'claim',
       level: levelParam,
     })
   }
 
   return buildUrl(WEB_APP_URL, 'profile', {
-    ref: referralCode,
+    ref: sanitizedAddress,
     level: levelParam,
   })
 }

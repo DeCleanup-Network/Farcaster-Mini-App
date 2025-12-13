@@ -1374,8 +1374,7 @@ function ProfileContent() {
                         <Button
                           onClick={async () => {
                             if (!address) return
-                            // Use useSimpleLinks: false to include referral code in URL
-                            const link = generateClaimShareLink(address, profileData.level, 'copy', true, false)
+                            const link = generateClaimShareLink(address, profileData.level, 'copy', true)
                             const message = formatImpactShareMessage(profileData.level, link, 'copy')
                             try {
                               await navigator.clipboard.writeText(message)
@@ -1391,29 +1390,6 @@ function ProfileContent() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                           </svg>
                           Copy Link
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            if (!address) return
-                            try {
-                              const { generateReferralCode } = await import('@/lib/farcaster')
-                              const code = generateReferralCode(address)
-                              if (code) {
-                                await navigator.clipboard.writeText(code)
-                                alert(`Referral code copied: ${code}\n\nShare this code with friends! They can enter it when they sign up.`)
-                              } else {
-                                alert('Failed to generate referral code. Please try again.')
-                              }
-                            } catch (error) {
-                              console.error('Failed to copy referral code:', error)
-                              alert('Failed to copy referral code. Please try again.')
-                            }
-                          }}
-                          variant="outline"
-                          className="w-full gap-2 border-gray-700 bg-black text-white hover:bg-gray-800 sm:flex-1"
-                        >
-                          <Copy className="h-4 w-4" />
-                          Copy Referral Code
                         </Button>
                       </div>
                     </div>

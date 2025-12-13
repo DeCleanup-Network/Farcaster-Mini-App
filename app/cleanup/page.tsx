@@ -106,106 +106,82 @@ function CleanupContent() {
   const [referralEligible, setReferralEligible] = useState<boolean | null>(null)
   const [referralIneligibleReason, setReferralIneligibleReason] = useState<string | null>(null)
   
-  // Manual referral code input state
-  const [manualReferralCode, setManualReferralCode] = useState('')
-  const [referralCodeError, setReferralCodeError] = useState<string | null>(null)
-
   // Read referrer from URL - run once on mount, preserve across wallet connections
   useEffect(() => {
     if (!mounted || typeof window === 'undefined') return
     
-    async function processReferrer() {
-      // Safari-compatible: Try multiple methods to get ref parameter
-      let ref: string | null = null
-      
-      // Method 1: Try useSearchParams (Next.js)
-      if (searchParams) {
-        ref = searchParams.get('ref')
-      }
-      
-      // Method 2: Fallback to window.location.search (Safari compatibility)
-      if (!ref) {
-        const urlParams = new URLSearchParams(window.location.search)
-        ref = urlParams.get('ref')
-      }
-      
-      // Method 3: Try window.location.hash (for some deep link scenarios)
-      if (!ref && window.location.hash) {
-        try {
-          const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '')
-          ref = hashParams.get('ref')
-        } catch (e) {
-          // Ignore hash parsing errors
-        }
-      }
-      
-      if (ref) {
-        let referrerAddr: Address | null = null
-        
-        // Check if it's a full address
-        if (/^0x[a-fA-F0-9]{40}$/.test(ref)) {
-          referrerAddr = ref as Address
-        } else {
-          // Try to resolve as referral code
-          try {
-            const { resolveReferralCode } = await import('@/lib/farcaster')
-            const resolved = resolveReferralCode(ref)
-            if (resolved && /^0x[a-fA-F0-9]{40}$/.test(resolved)) {
-              referrerAddr = resolved as Address
-              console.log(`✅ Resolved referral code ${ref} to address: ${referrerAddr}`)
-            }
-          } catch (e) {
-            console.warn('Failed to resolve referral code:', e)
-          }
-        }
-        
-        if (referrerAddr) {
-          // Only set if not already set (preserve during wallet connection)
-          if (!referrerAddress) {
-            setReferrerAddress(referrerAddr)
-          }
-          // Always persist to localStorage (even if already set)
-          try {
-            // Store referrer even before address is available
-            localStorage.setItem('referrer_pending', referrerAddr)
-            console.log('✅ Referrer address from URL saved:', referrerAddr)
-            
-            // If address is available, also store it scoped to address
-            if (address) {
-              const referrerKeyScoped = `referrer_${address.toLowerCase()}`
-              localStorage.setItem(referrerKeyScoped, referrerAddr)
-              console.log('✅ Referrer address saved for address:', address)
-            }
-          } catch (e) {
-            console.error('Failed to save referrer to localStorage:', e)
-          }
-        }
-      } else {
-        // If no ref in URL, check localStorage for saved referrer
-        // Only do this if we don't already have a referrer set
-        if (!referrerAddress) {
-          try {
-            const referrerKeyPending = localStorage.getItem('referrer_pending')
-            if (referrerKeyPending && /^0x[a-fA-F0-9]{40}$/.test(referrerKeyPending)) {
-              setReferrerAddress(referrerKeyPending as Address)
-              console.log('✅ Referrer address from localStorage (pending):', referrerKeyPending)
-            } else if (address) {
-              // Check for address-scoped referrer
-              const referrerKey = `referrer_${address.toLowerCase()}`
-              const savedReferrer = localStorage.getItem(referrerKey)
-              if (savedReferrer && /^0x[a-fA-F0-9]{40}$/.test(savedReferrer)) {
-                setReferrerAddress(savedReferrer as Address)
-                console.log('✅ Referrer address from localStorage:', savedReferrer)
-              }
-            }
-          } catch (e) {
-            console.error('Failed to read referrer from localStorage:', e)
-          }
-        }
+    // Safari-compatible: Try multiple methods to get ref parameter
+    let ref: string | null = null
+    
+    // Method 1: Try useSearchParams (Next.js)
+    if (searchParams) {
+      ref = searchParams.get('ref')
+    }
+    
+    // Method 2: Fallback to window.location.search (Safari compatibility)
+    if (!ref) {
+      const urlParams = new URLSearchParams(window.location.search)
+      ref = urlParams.get('ref')
+    }
+    
+    // Method 3: Try window.location.hash (for some deep link scenarios)
+    if (!ref && window.location.hash) {
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '')
+        ref = hashParams.get('ref')
+      } catch (e) {
+        // Ignore hash parsing errors
       }
     }
     
-    processReferrer()
+    if (ref) {
+      // Only accept full wallet addresses (0x followed by 40 hex characters)
+      if (/^0x[a-fA-F0-9]{40}$/.test(ref)) {
+        const referrerAddr = ref as Address
+        
+        // Only set if not already set (preserve during wallet connection)
+        if (!referrerAddress) {
+          setReferrerAddress(referrerAddr)
+        }
+        // Always persist to localStorage (even if already set)
+        try {
+          // Store referrer even before address is available
+          localStorage.setItem('referrer_pending', referrerAddr)
+          console.log('✅ Referrer address from URL saved:', referrerAddr)
+          
+          // If address is available, also store it scoped to address
+          if (address) {
+            const referrerKeyScoped = `referrer_${address.toLowerCase()}`
+            localStorage.setItem(referrerKeyScoped, referrerAddr)
+            console.log('✅ Referrer address saved for address:', address)
+          }
+        } catch (e) {
+          console.error('Failed to save referrer to localStorage:', e)
+        }
+      }
+    } else {
+      // If no ref in URL, check localStorage for saved referrer
+      // Only do this if we don't already have a referrer set
+      if (!referrerAddress) {
+        try {
+          const referrerKeyPending = localStorage.getItem('referrer_pending')
+          if (referrerKeyPending && /^0x[a-fA-F0-9]{40}$/.test(referrerKeyPending)) {
+            setReferrerAddress(referrerKeyPending as Address)
+            console.log('✅ Referrer address from localStorage (pending):', referrerKeyPending)
+          } else if (address) {
+            // Check for address-scoped referrer
+            const referrerKey = `referrer_${address.toLowerCase()}`
+            const savedReferrer = localStorage.getItem(referrerKey)
+            if (savedReferrer && /^0x[a-fA-F0-9]{40}$/.test(savedReferrer)) {
+              setReferrerAddress(savedReferrer as Address)
+              console.log('✅ Referrer address from localStorage:', savedReferrer)
+            }
+          }
+        } catch (e) {
+          console.error('Failed to read referrer from localStorage:', e)
+        }
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, searchParams]) // Intentionally exclude address/referrerAddress to prevent reset on wallet connect
   
@@ -1315,75 +1291,6 @@ function CleanupContent() {
           
           <ReferralNotification />
           
-          {/* Manual Referral Code Input */}
-          {!referrerAddress && (
-            <div className="mb-6 rounded-lg border border-gray-700 bg-gray-900/50 p-4">
-              <label htmlFor="referral-code" className="mb-2 block text-sm font-medium text-gray-300">
-                Have a referral code? Enter it here:
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="referral-code"
-                  type="text"
-                  value={manualReferralCode}
-                  onChange={(e) => {
-                    setManualReferralCode(e.target.value.toUpperCase().trim())
-                    setReferralCodeError(null)
-                  }}
-                  placeholder="Enter referral code (e.g., ABC12345)"
-                  className="flex-1 rounded border border-gray-600 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
-                  maxLength={8}
-                />
-                <Button
-                  onClick={async () => {
-                    if (!manualReferralCode.trim()) {
-                      setReferralCodeError('Please enter a referral code')
-                      return
-                    }
-                    
-                    try {
-                      const { resolveReferralCode } = await import('@/lib/farcaster')
-                      const resolved = resolveReferralCode(manualReferralCode.trim())
-                      
-                      if (resolved && /^0x[a-fA-F0-9]{40}$/.test(resolved)) {
-                        setReferrerAddress(resolved as Address)
-                        setManualReferralCode('')
-                        setReferralCodeError(null)
-                        
-                        // Store in localStorage
-                        try {
-                          localStorage.setItem('referrer_pending', resolved)
-                          if (address) {
-                            localStorage.setItem(`referrer_${address.toLowerCase()}`, resolved)
-                          }
-                        } catch (e) {
-                          console.error('Failed to save referrer to localStorage:', e)
-                        }
-                        
-                        alert(`✅ Referral code accepted! You'll earn 3 $bDCU when you submit your first cleanup.`)
-                      } else {
-                        setReferralCodeError('Invalid referral code. Please check and try again.')
-                      }
-                    } catch (error) {
-                      console.error('Failed to resolve referral code:', error)
-                      setReferralCodeError('Failed to process referral code. Please try again.')
-                    }
-                  }}
-                  disabled={!manualReferralCode.trim()}
-                  className="bg-brand-green text-black hover:bg-[#4a9a26] disabled:opacity-50"
-                >
-                  Apply
-                </Button>
-              </div>
-              {referralCodeError && (
-                <p className="mt-2 text-xs text-red-400">{referralCodeError}</p>
-              )}
-              <p className="mt-2 text-xs text-gray-400">
-                If someone shared a referral code with you, enter it here to earn bonus rewards!
-              </p>
-            </div>
-          )}
-          
           <CooldownBanner />
           
           {userLevel === 10 && (
@@ -1603,72 +1510,6 @@ function CleanupContent() {
           
           <ReferralNotification />
           
-          {/* Manual Referral Code Input */}
-          {!referrerAddress && (
-            <div className="mb-6 rounded-lg border border-gray-700 bg-gray-900/50 p-4">
-              <label htmlFor="referral-code-after" className="mb-2 block text-sm font-medium text-gray-300">
-                Have a referral code? Enter it here:
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="referral-code-after"
-                  type="text"
-                  value={manualReferralCode}
-                  onChange={(e) => {
-                    setManualReferralCode(e.target.value.toUpperCase().trim())
-                    setReferralCodeError(null)
-                  }}
-                  placeholder="Enter referral code (e.g., ABC12345)"
-                  className="flex-1 rounded border border-gray-600 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
-                  maxLength={8}
-                />
-                <Button
-                  onClick={async () => {
-                    if (!manualReferralCode.trim()) {
-                      setReferralCodeError('Please enter a referral code')
-                      return
-                    }
-                    
-                    try {
-                      const { resolveReferralCode } = await import('@/lib/farcaster')
-                      const resolved = resolveReferralCode(manualReferralCode.trim())
-                      
-                      if (resolved && /^0x[a-fA-F0-9]{40}$/.test(resolved)) {
-                        setReferrerAddress(resolved as Address)
-                        setManualReferralCode('')
-                        setReferralCodeError(null)
-                        
-                        // Store in localStorage
-                        try {
-                          localStorage.setItem('referrer_pending', resolved)
-                          if (address) {
-                            localStorage.setItem(`referrer_${address.toLowerCase()}`, resolved)
-                          }
-                        } catch (e) {
-                          console.error('Failed to save referrer to localStorage:', e)
-                        }
-                        
-                        alert(`✅ Referral code accepted! You'll earn 3 $bDCU when you submit your first cleanup.`)
-                      } else {
-                        setReferralCodeError('Invalid referral code. Please check and try again.')
-                      }
-                    } catch (error) {
-                      console.error('Failed to resolve referral code:', error)
-                      setReferralCodeError('Failed to process referral code. Please try again.')
-                    }
-                  }}
-                  disabled={!manualReferralCode.trim()}
-                  className="bg-brand-green text-black hover:bg-[#4a9a26] disabled:opacity-50"
-                >
-                  Apply
-                </Button>
-              </div>
-              {referralCodeError && (
-                <p className="mt-2 text-xs text-red-400">{referralCodeError}</p>
-              )}
-            </div>
-          )}
-          
           <div className="mb-6 text-center">
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               Upload After Photo
@@ -1790,72 +1631,6 @@ function CleanupContent() {
           </div>
           
           <ReferralNotification />
-          
-          {/* Manual Referral Code Input */}
-          {!referrerAddress && (
-            <div className="mb-6 rounded-lg border border-gray-700 bg-gray-900/50 p-4">
-              <label htmlFor="referral-code-enhanced" className="mb-2 block text-sm font-medium text-gray-300">
-                Have a referral code? Enter it here:
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="referral-code-enhanced"
-                  type="text"
-                  value={manualReferralCode}
-                  onChange={(e) => {
-                    setManualReferralCode(e.target.value.toUpperCase().trim())
-                    setReferralCodeError(null)
-                  }}
-                  placeholder="Enter referral code (e.g., ABC12345)"
-                  className="flex-1 rounded border border-gray-600 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
-                  maxLength={8}
-                />
-                <Button
-                  onClick={async () => {
-                    if (!manualReferralCode.trim()) {
-                      setReferralCodeError('Please enter a referral code')
-                      return
-                    }
-                    
-                    try {
-                      const { resolveReferralCode } = await import('@/lib/farcaster')
-                      const resolved = resolveReferralCode(manualReferralCode.trim())
-                      
-                      if (resolved && /^0x[a-fA-F0-9]{40}$/.test(resolved)) {
-                        setReferrerAddress(resolved as Address)
-                        setManualReferralCode('')
-                        setReferralCodeError(null)
-                        
-                        // Store in localStorage
-                        try {
-                          localStorage.setItem('referrer_pending', resolved)
-                          if (address) {
-                            localStorage.setItem(`referrer_${address.toLowerCase()}`, resolved)
-                          }
-                        } catch (e) {
-                          console.error('Failed to save referrer to localStorage:', e)
-                        }
-                        
-                        alert(`✅ Referral code accepted! You'll earn 3 $bDCU when you submit your first cleanup.`)
-                      } else {
-                        setReferralCodeError('Invalid referral code. Please check and try again.')
-                      }
-                    } catch (error) {
-                      console.error('Failed to resolve referral code:', error)
-                      setReferralCodeError('Failed to process referral code. Please try again.')
-                    }
-                  }}
-                  disabled={!manualReferralCode.trim()}
-                  className="bg-brand-green text-black hover:bg-[#4a9a26] disabled:opacity-50"
-                >
-                  Apply
-                </Button>
-              </div>
-              {referralCodeError && (
-                <p className="mt-2 text-xs text-red-400">{referralCodeError}</p>
-              )}
-            </div>
-          )}
           
           <div className="mb-6 text-center">
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
