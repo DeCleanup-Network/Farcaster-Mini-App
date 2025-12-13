@@ -82,7 +82,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             })
             .then((context) => {
               if (context) {
-                setContext(context as FarcasterContextData | null)
+                setContext(context as unknown as FarcasterContextData | null)
                 setIsInitialized(true)
                 console.log('✅ Farcaster context initialized after immediate ready()')
               }
@@ -124,7 +124,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           const initialized = await initializeFarcaster()
           if (initialized) {
             const farcasterContext = await getFarcasterContext()
-            setContext(farcasterContext as FarcasterContextData | null)
+            setContext(farcasterContext as unknown as FarcasterContextData | null)
             setIsInitialized(true)
             console.log('✅ Farcaster context initialized')
           }
@@ -242,7 +242,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           const initialized = await initializeFarcaster()
           if (initialized) {
             const farcasterContext = await getFarcasterContext()
-            setContext(farcasterContext as FarcasterContextData | null)
+            setContext(farcasterContext as unknown as FarcasterContextData | null)
             setIsInitialized(true)
             console.log('✅ Farcaster context initialized successfully')
           }
