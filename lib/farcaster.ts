@@ -279,10 +279,26 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
 
     // Build Warpcast compose URL with pre-filled text and embed
     // Warpcast compose URL format: https://warpcast.com/~/compose?text=...&embeds[]=...
+    // CRITICAL: For embeds[], use your app's /share URL (not Farcaster miniapp URL)
+    // This allows Farcaster to crawl your app and read fc:miniapp metadata with ref parameter
+    // The /share page has dynamic metadata that includes the ref in the frame action URL
     let farcasterUrl: string
     if (url) {
+      // If url is a Farcaster miniapp URL with ref param, convert it to /share URL for embed
+      // This ensures Farcaster crawls your app and gets correct metadata
+      let embedUrl = url
+      if (url.includes('farcaster.xyz/miniapps/') && url.includes('?ref=')) {
+        // Extract ref parameter from Farcaster miniapp URL
+        const urlObj = new URL(url)
+        const refParam = urlObj.searchParams.get('ref')
+        if (refParam) {
+          // Convert to /share URL so Farcaster can crawl it and get metadata with ref
+          // The /share page will have fc:miniapp metadata with the ref in the action URL
+          embedUrl = buildUrl(WEB_APP_URL, 'share', { ref: refParam, type: 'referral' })
+        }
+      }
       // Include both text and embed URL
-      farcasterUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(url)}`
+      farcasterUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(embedUrl)}`
     } else {
       // Just text, no embed
       farcasterUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
