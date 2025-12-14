@@ -2,12 +2,16 @@
 
 import { useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 
 interface ShareRedirectProps {
   redirectUrl: string
 }
 
 export function ShareRedirect({ redirectUrl }: ShareRedirectProps) {
+  // Ensure ready() is called even on redirect pages
+  useFarcasterReady()
+  
   useEffect(() => {
     // Longer delay to ensure crawlers can read meta tags and embed data
     // Farcaster crawlers need time to fetch the page and parse fc:miniapp embed

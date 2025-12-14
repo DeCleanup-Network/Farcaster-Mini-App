@@ -61,9 +61,6 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
         readyState: document.readyState,
         url: window.location.href,
       })
-      // Mark as called before actually calling to prevent duplicates
-      ;(window as any).__farcasterReadyCalled = true
-      setReadyCalled(true)
       
       // Wait for UI to be ready before calling ready()
       // Use requestAnimationFrame to ensure browser has painted the UI
@@ -87,36 +84,37 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
         })
         
         // Now call ready() after UI is rendered
-        return immediateSdk.actions.ready({ disableNativeGestures: true })
-        .then(() => {
+        // Only mark as called AFTER successful call
+        try {
+          await immediateSdk.actions.ready({ disableNativeGestures: true })
+          
+          // Mark as called only after successful call
+          ;(window as any).__farcasterReadyCalled = true
+          setReadyCalled(true)
+          
           console.log('✅ Immediate ready() call succeeded', {
             timestamp: new Date().toISOString(),
           })
+          
           // Initialize context after ready() succeeds
-          initializeFarcaster()
-            .then((initialized) => {
-              if (initialized) {
-                return getFarcasterContext()
-              }
-              return null
-            })
-            .then((context) => {
+          try {
+            const initialized = await initializeFarcaster()
+            if (initialized) {
+              const context = await getFarcasterContext()
               if (context) {
                 setContext(context as unknown as FarcasterContextData | null)
                 setIsInitialized(true)
                 console.log('✅ Farcaster context initialized after immediate ready()')
               }
-            })
-            .catch((err) => {
-              console.error('❌ Failed to initialize context after immediate ready():', err)
-            })
-        })
-        .catch((err: any) => {
-          // Reset flags on error so retry logic can run
-          ;(window as any).__farcasterReadyCalled = false
-          setReadyCalled(false)
+            }
+          } catch (contextErr) {
+            console.error('❌ Failed to initialize context after immediate ready():', contextErr)
+          }
+        } catch (err: any) {
+          // Don't mark as called on error - let main logic retry
           console.warn('⚠️ Immediate ready() call failed, will retry with main logic:', err?.message)
-        })
+          // Don't reset flags here - they were never set, so main logic can run
+        }
       }
       
       // Execute the async function to wait for UI and call ready()

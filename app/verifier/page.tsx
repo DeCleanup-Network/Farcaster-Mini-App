@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
 import { CheckCircle, XCircle, Clock, MapPin, User, Calendar, ExternalLink, Loader2, Shield, RefreshCw } from 'lucide-react'
+import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import * as contractsLib from '@/lib/contracts'
 const {
   getCleanupCounter,
@@ -64,6 +65,9 @@ const VERIFIER_AUTH_MESSAGE = 'I am requesting access to the DeCleanup Verifier 
 const VERIFIED_VERIFIER_KEY = 'decleanup_verified_verifier'
 
 export default function VerifierPage() {
+  // Ensure ready() is called on verifier page
+  useFarcasterReady()
+  
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingNetwork } = useSwitchChain()
