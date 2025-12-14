@@ -48,9 +48,15 @@ export function useBuilderCodeAttribution() {
 
         // Get Builder Code data suffix for attribution
         const dataSuffix = Attribution.toDataSuffix({ codes: [BUILDER_CODE] })
+        
+        // Ensure dataSuffix is a hex string (ox/erc8021 should return this, but verify)
+        const dataSuffixHex = typeof dataSuffix === 'string' 
+          ? (dataSuffix as `0x${string}`)
+          : String(dataSuffix)
 
         // Send transaction with Builder Code attribution via capabilities
         // useSendCalls uses mutation pattern with callbacks
+        // Note: Some wallets may expect capabilities at call level, but EIP-5792 specifies top-level
         sendCalls(
           {
             calls: [
@@ -61,7 +67,7 @@ export function useBuilderCodeAttribution() {
               },
             ],
             capabilities: {
-              dataSuffix: dataSuffix,
+              dataSuffix: dataSuffixHex,
             },
           },
           {
@@ -74,13 +80,25 @@ export function useBuilderCodeAttribution() {
             onError: async (err: Error) => {
               // Check if error is due to unsupported wallet_sendCalls method
               const errorMessage = err?.message || String(err || '')
+              const errorString = JSON.stringify(err)
+              
               const isUnsupportedMethod = errorMessage.includes('wallet_sendCalls') || 
                                         errorMessage.includes('does not exist') ||
                                         errorMessage.includes('is not available') ||
                                         errorMessage.includes('unsupported')
               
-              if (isUnsupportedMethod) {
-                console.warn('⚠️ Wallet does not support wallet_sendCalls, falling back to standard transaction (no Builder Code attribution)')
+              // Check for capabilities/dataSuffix validation errors
+              const isCapabilitiesError = errorMessage.includes('capabilities') ||
+                                         errorMessage.includes('dataSuffix') ||
+                                         errorMessage.includes('invalid_type') ||
+                                         errorMessage.includes('Expected object') ||
+                                         errorString.includes('dataSuffix')
+              
+              if (isUnsupportedMethod || isCapabilitiesError) {
+                const reason = isCapabilitiesError 
+                  ? 'Wallet does not support Builder Code capabilities format'
+                  : 'Wallet does not support wallet_sendCalls'
+                console.warn(`⚠️ ${reason}, falling back to standard transaction (no Builder Code attribution)`)
                 
                 try {
                   // Fallback to standard writeContract without Builder Code
