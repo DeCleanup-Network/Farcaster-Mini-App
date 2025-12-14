@@ -1,8 +1,11 @@
 'use client'
 
 import { useSendCalls } from 'wagmi'
+import { writeContract } from 'wagmi/actions'
 import { Attribution } from 'ox/erc8021'
 import { encodeFunctionData, type Address, type Abi } from 'viem'
+import { getWagmiConfig } from '@/lib/wagmi'
+import { getAccount } from 'wagmi/actions'
 
 // Base Builder Code for attribution
 const BUILDER_CODE = 'bc_ktu8dqm4'
@@ -68,9 +71,44 @@ export function useBuilderCodeAttribution() {
               console.log('✅ Transaction with Builder Code sent:', hash)
               resolve(hash)
             },
-            onError: (err: Error) => {
-              console.error('❌ Failed to send transaction with Builder Code:', err)
-              reject(err)
+            onError: async (err: Error) => {
+              // Check if error is due to unsupported wallet_sendCalls method
+              const errorMessage = err?.message || String(err || '')
+              const isUnsupportedMethod = errorMessage.includes('wallet_sendCalls') || 
+                                        errorMessage.includes('does not exist') ||
+                                        errorMessage.includes('is not available') ||
+                                        errorMessage.includes('unsupported')
+              
+              if (isUnsupportedMethod) {
+                console.warn('⚠️ Wallet does not support wallet_sendCalls, falling back to standard transaction (no Builder Code attribution)')
+                
+                try {
+                  // Fallback to standard writeContract without Builder Code
+                  const account = getAccount(getWagmiConfig())
+                  if (account.status !== 'connected' || !account.chain) {
+                    throw new Error('Wallet not connected or chain not available')
+                  }
+                  
+                  const hash = await writeContract(getWagmiConfig() as any, {
+                    address: params.to,
+                    abi: params.abi,
+                    functionName: params.functionName,
+                    args: params.args,
+                    value: params.value || BigInt(0),
+                    chain: account.chain,
+                  })
+                  
+                  console.log('✅ Transaction sent via fallback (standard method):', hash)
+                  resolve(hash as `0x${string}`)
+                } catch (fallbackError: any) {
+                  console.error('❌ Fallback transaction also failed:', fallbackError)
+                  reject(fallbackError)
+                }
+              } else {
+                // Other errors - reject normally
+                console.error('❌ Failed to send transaction with Builder Code:', err)
+                reject(err)
+              }
             },
           }
         )

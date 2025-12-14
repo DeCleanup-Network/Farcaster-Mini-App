@@ -25,15 +25,20 @@ function buildQueryString(params: Record<string, string | undefined>) {
 }
 
 function buildFarcasterActionUrl(type: string, ref?: string, level?: string) {
-  // For Farcaster embeds, the action URL should point to the share page
-  // which has proper metadata and will redirect to the miniapp with params
-  // This ensures the embed preview shows correctly and launches with the right params
-  // If no params, just use base miniapp URL (no share page needed)
+  // For Farcaster embeds, the action URL should point directly to the miniapp URL
+  // with query parameters so clicking the preview launches the app with the right params
+  // The share page is only for web previews (X, Telegram, etc.), not for Farcaster previews
   if (!ref && !level) {
     return FARCASTER_MINIAPP_URL
   }
-  const shareQuery = buildQueryString({ ref, type, level })
-  return `${SITE_URL}/share${shareQuery}`
+  
+  // For referral links, use direct miniapp URL with ref parameter
+  if (type === 'referral' && ref) {
+    return `${FARCASTER_MINIAPP_URL}?ref=${encodeURIComponent(ref)}`
+  }
+  
+  // For claim links, use base miniapp URL (no params needed for claim shares)
+  return FARCASTER_MINIAPP_URL
 }
 
 // This page handles sharing with proper OG tags for social media previews

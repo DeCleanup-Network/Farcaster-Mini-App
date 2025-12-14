@@ -166,26 +166,12 @@ function CleanupContent() {
         }
       }
     } else {
-      // If no ref in URL, check localStorage for saved referrer
-      // Only do this if we don't already have a referrer set
-      if (!referrerAddress) {
-        try {
-          const referrerKeyPending = localStorage.getItem('referrer_pending')
-          if (referrerKeyPending && /^0x[a-fA-F0-9]{40}$/.test(referrerKeyPending)) {
-            setReferrerAddress(referrerKeyPending as Address)
-            console.log('✅ Referrer address from localStorage (pending):', referrerKeyPending)
-          } else if (address) {
-            // Check for address-scoped referrer
-            const referrerKey = `referrer_${address.toLowerCase()}`
-            const savedReferrer = localStorage.getItem(referrerKey)
-            if (savedReferrer && /^0x[a-fA-F0-9]{40}$/.test(savedReferrer)) {
-              setReferrerAddress(savedReferrer as Address)
-              console.log('✅ Referrer address from localStorage:', savedReferrer)
-            }
-          }
-        } catch (e) {
-          console.error('Failed to read referrer from localStorage:', e)
-        }
+      // If no ref in URL, clear the referrer state
+      // Don't load from localStorage - only show notification if ref is in current URL
+      if (referrerAddress) {
+        setReferrerAddress(null)
+        setShowReferralNotification(false)
+        console.log('✅ No ref in URL - cleared referrer state')
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,12 +190,57 @@ function CleanupContent() {
     }
   }, [address, referrerAddress])
 
+  // Show referral notification only when referrer is detected from CURRENT URL
+  // Check if ref is actually in the URL to avoid showing stale notifications
+  useEffect(() => {
+    if (!mounted || typeof window === 'undefined') return
+    
+    // Check if ref is in current URL
+    let refInUrl: string | null = null
+    if (searchParams) {
+      refInUrl = searchParams.get('ref')
+    }
+    if (!refInUrl) {
+      const urlParams = new URLSearchParams(window.location.search)
+      refInUrl = urlParams.get('ref')
+    }
+    
+    // Only show notification if ref is in URL AND referrerAddress is set
+    if (refInUrl && referrerAddress && /^0x[a-fA-F0-9]{40}$/.test(refInUrl)) {
+      // Verify the referrerAddress matches the ref in URL
+      if (referrerAddress.toLowerCase() === refInUrl.toLowerCase()) {
+        setShowReferralNotification(true)
+        // Set eligible to null initially (will be checked when wallet connects)
+        if (!address || !isConnected) {
+          setReferralEligible(null)
+          setReferralIneligibleReason(null)
+          return
+        }
+      } else {
+        // Mismatch - clear state
+        setShowReferralNotification(false)
+        setReferralEligible(null)
+        setReferralIneligibleReason(null)
+      }
+    } else {
+      // No ref in URL - don't show notification
+      setShowReferralNotification(false)
+      if (!refInUrl) {
+        setReferralEligible(null)
+        setReferralIneligibleReason(null)
+      }
+    }
+  }, [referrerAddress, mounted, searchParams, address, isConnected])
+
   // Check referral eligibility when address and referrer are available
   useEffect(() => {
     if (!address || !referrerAddress || !isConnected) {
-      setReferralEligible(null)
-      setReferralIneligibleReason(null)
-      setShowReferralNotification(false)
+      // Don't reset notification here - keep it shown if referrer is detected
+      // Only reset eligibility check state
+      if (!referrerAddress) {
+        setReferralEligible(null)
+        setReferralIneligibleReason(null)
+      }
       return
     }
 
@@ -221,7 +252,7 @@ function CleanupContent() {
         const eligibility = await checkReferralEligibility(address)
         setReferralEligible(eligibility.eligible)
         setReferralIneligibleReason(eligibility.reason || null)
-        // Show notification regardless - if not eligible, we'll show a different message
+        // Keep notification shown - eligibility check just updates the message
         setShowReferralNotification(true)
       } catch (error) {
         console.error('Error checking referral eligibility:', error)
@@ -760,9 +791,22 @@ function CleanupContent() {
       // Chain switching is handled by ensureWalletOnRequiredChain() in submitCleanup()
       // No need to duplicate the logic here - it will handle switching and show errors if needed
       
-      // Check referral eligibility if referrer is provided
-      // Prevent submission with referral link if user is not eligible
-      if (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') {
+      // Check referral eligibility ONLY if ref is in current URL
+      // Don't check eligibility if referrerAddress is from localStorage but no ref in URL
+      let refInUrl: string | null = null
+      if (searchParams) {
+        refInUrl = searchParams.get('ref')
+      }
+      if (!refInUrl) {
+        const urlParams = new URLSearchParams(window.location.search)
+        refInUrl = urlParams.get('ref')
+      }
+      
+      // Only check eligibility if ref is in current URL and matches referrerAddress
+      if (refInUrl && /^0x[a-fA-F0-9]{40}$/.test(refInUrl) && 
+          referrerAddress && 
+          referrerAddress.toLowerCase() === refInUrl.toLowerCase() &&
+          referrerAddress !== '0x0000000000000000000000000000000000000000') {
         try {
           const eligibility = await checkReferralEligibility(address!)
           if (!eligibility.eligible) {
@@ -790,9 +834,22 @@ function CleanupContent() {
       })
       
       try {
-        // Pass chainId from hook to avoid false chain detection issues
-        // If user is not eligible for referral, pass null as referrerAddress (contract will ignore it anyway)
-        const finalReferrerAddress = (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') 
+        // Check if ref is actually in current URL before using referrerAddress
+        // Only pass referrer if it's in the current URL, not from localStorage
+        let refInUrl: string | null = null
+        if (searchParams) {
+          refInUrl = searchParams.get('ref')
+        }
+        if (!refInUrl) {
+          const urlParams = new URLSearchParams(window.location.search)
+          refInUrl = urlParams.get('ref')
+        }
+        
+        // Only use referrerAddress if ref is in current URL and matches
+        const finalReferrerAddress = (refInUrl && /^0x[a-fA-F0-9]{40}$/.test(refInUrl) && 
+                                      referrerAddress && 
+                                      referrerAddress.toLowerCase() === refInUrl.toLowerCase() &&
+                                      referrerAddress !== '0x0000000000000000000000000000000000000000') 
           ? referrerAddress 
           : null
         
@@ -1008,6 +1065,34 @@ function CleanupContent() {
   // Referral Notification Component (defined early so it's always in scope)
   const ReferralNotification = () => {
     if (!showReferralNotification || !referrerAddress) return null
+    
+    // Show message before wallet connection
+    if (!address || !isConnected) {
+      return (
+        <div className="mb-6 rounded-lg border-2 border-brand-green bg-brand-green/10 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <Users className="h-5 w-5 text-brand-green" />
+            </div>
+            <div className="flex-1">
+              <h3 className="mb-1 text-sm font-bold uppercase text-brand-green">
+                🎉 You Were Invited!
+              </h3>
+              <p className="text-sm text-gray-300">
+                You've been referred to DeCleanup Rewards! Connect your wallet and submit your first cleanup to earn <strong className="text-white">3 $bDCU</strong> for both you and your referrer.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowReferralNotification(false)}
+              className="flex-shrink-0 text-gray-400 hover:text-white"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )
+    }
     
     // Show loading state while checking eligibility
     if (referralEligible === null) {
