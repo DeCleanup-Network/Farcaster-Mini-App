@@ -9,12 +9,27 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
-  // Allow images from Pinata IPFS gateway
+  // Allow images from IPFS gateways (with fallbacks)
   images: {
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'gateway.pinata.cloud',
+        pathname: '/ipfs/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'ipfs.io',
+        pathname: '/ipfs/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cloudflare-ipfs.com',
+        pathname: '/ipfs/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'dweb.link',
         pathname: '/ipfs/**',
       },
     ],

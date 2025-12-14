@@ -29,9 +29,10 @@ export const formatReferralMessage = (
   // Add tip message only for Farcaster app referrals
   const tip = type === 'farcaster' ? FARCASTER_WALLET_TIP : ''
   
-  // For Farcaster, add "Referral link for Farcaster mini app" before the link
+  // For Farcaster, put link inline in the message so it's clickable
+  // Links need to be inline in Farcaster/Warpcast to be pressable
   if (type === 'farcaster') {
-    return `${copy}Referral link for Farcaster mini app\n\n${referralLink}${tip}`
+    return `${copy}${referralLink}${tip}`
   }
   
   return `${copy}${referralLink}${tip}`

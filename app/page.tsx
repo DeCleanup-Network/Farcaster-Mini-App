@@ -566,8 +566,8 @@ export default function Home() {
                   onClick={async () => {
                     try {
                       const { generateReferralLink, formatReferralMessage, shareToX } = await import('@/lib/farcaster')
-                      // For X sharing, use direct cleanup link (not share page) for cleaner URL
-                      const referralLink = generateReferralLink(address, 'web', false)
+                      // Use share page for consistency with Copy Link
+                      const referralLink = generateReferralLink(address, 'web', true)
                       const text = formatReferralMessage(referralLink, 'web')
                       // text already includes the link, don't pass referralLink again
                       await shareToX(text)
