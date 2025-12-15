@@ -87,9 +87,12 @@ const nextConfig: NextConfig = {
       {
         source: '/:path*',
         headers: [
+          // Note: X-Frame-Options is NOT set here because this is a Farcaster Mini App
+          // that MUST be embedded in an iframe. Instead, we use Content-Security-Policy
+          // frame-ancestors to allow only specific Farcaster domains.
           {
-            key: 'X-Frame-Options',
-            value: 'DENY',
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors https://warpcast.com https://client.warpcast.com https://farcaster.xyz https://client.farcaster.xyz https://app.farcaster.xyz https://www.farcaster.xyz https://www.warpcast.com https://app.warpcast.com;",
           },
           {
             key: 'X-Content-Type-Options',
