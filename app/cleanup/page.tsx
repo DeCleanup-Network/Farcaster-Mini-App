@@ -859,35 +859,67 @@ function CleanupContent() {
         const actualHasForm: boolean = hasValidFormData
         const finalImpactReportHash: string = hasValidFormData && impactFormDataHash ? impactFormDataHash : ''
         
-        // Create transaction sender with Builder Code attribution
-        const sendTransaction = async (params: {
-          address: Address
-          abi: typeof VERIFICATION_ABI
-          functionName: 'submitCleanup'
-          args: readonly unknown[]
-          value: bigint
-        }) => {
-          return await sendWithBuilderCode({
-            to: params.address,
-            abi: params.abi,
-            functionName: params.functionName,
-            args: params.args,
-            value: params.value,
-          })
-        }
+        // Try with Builder Code first, fallback to standard submission if it fails
+        let cleanupId: bigint
+        try {
+          // Create transaction sender with Builder Code attribution
+          const sendTransaction = async (params: {
+            address: Address
+            abi: typeof VERIFICATION_ABI
+            functionName: 'submitCleanup'
+            args: readonly unknown[]
+            value: bigint
+          }) => {
+            return await sendWithBuilderCode({
+              to: params.address,
+              abi: params.abi,
+              functionName: params.functionName,
+              args: params.args,
+              value: params.value,
+            })
+          }
 
-        const cleanupId = await submitCleanup(
-          beforeHash.hash,
-          afterHash.hash,
-          location.lat,
-          location.lng,
-          finalReferrerAddress, // Use referrer from URL if available and eligible
-          actualHasForm,
-          finalImpactReportHash,
-          feeValue, // Include fee if required
-          chainId, // Pass chainId from useChainId hook to avoid detection bugs
-          sendTransaction // Pass Builder Code transaction sender
-        )
+          cleanupId = await submitCleanup(
+            beforeHash.hash,
+            afterHash.hash,
+            location.lat,
+            location.lng,
+            finalReferrerAddress, // Use referrer from URL if available and eligible
+            actualHasForm,
+            finalImpactReportHash,
+            feeValue, // Include fee if required
+            chainId, // Pass chainId from useChainId hook to avoid detection bugs
+            sendTransaction // Pass Builder Code transaction sender
+          )
+        } catch (builderCodeError: any) {
+          // If Builder Code fails (capabilities error, etc.), retry without it
+          const errorMessage = builderCodeError?.message || String(builderCodeError || '')
+          const isBuilderCodeError = errorMessage.includes('capabilities') ||
+                                    errorMessage.includes('dataSuffix') ||
+                                    errorMessage.includes('invalid_type') ||
+                                    errorMessage.includes('Expected object') ||
+                                    errorMessage.includes('wallet_sendCalls')
+          
+          if (isBuilderCodeError) {
+            console.warn('⚠️ Builder Code submission failed, retrying with standard transaction:', errorMessage)
+            // Retry without Builder Code (standard submission)
+            cleanupId = await submitCleanup(
+              beforeHash.hash,
+              afterHash.hash,
+              location.lat,
+              location.lng,
+              finalReferrerAddress,
+              actualHasForm,
+              finalImpactReportHash,
+              feeValue,
+              chainId,
+              undefined // No Builder Code - use standard writeContract
+            )
+          } else {
+            // Re-throw if it's not a Builder Code error
+            throw builderCodeError
+          }
+        }
 
         console.log('✅ Cleanup submitted with ID:', cleanupId.toString())
         console.log('✅ Referrer address used in submission:', referrerAddress || 'none (no referrer)')

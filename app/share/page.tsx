@@ -5,12 +5,9 @@ import { ShareRedirect } from '@/components/share/ShareRedirect'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// Preview image URLs
-// Use local image for OG/Twitter/Telegram/WhatsApp (faster, more reliable)
-// Keep IPFS for Farcaster only (Farcaster reads fc:miniapp metadata separately)
+// Preview image for sharing (used for both referral and claim)
+const SHARE_IMAGE_URL = 'https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png'
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
-const OG_IMAGE_URL = `${SITE_URL}/og/default.png` // Local image for X, Telegram, WhatsApp
-const FARCASTER_IMAGE_URL = 'https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png' // IPFS for Farcaster
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards'
 
 function buildQueryString(params: Record<string, string | undefined>) {
@@ -24,22 +21,6 @@ function buildQueryString(params: Record<string, string | undefined>) {
   return queryString ? `?${queryString}` : ''
 }
 
-function buildFarcasterActionUrl(type: string, ref?: string, level?: string) {
-  // For Farcaster embeds, the action URL should point directly to the miniapp URL
-  // with query parameters so clicking the preview launches the app with the right params
-  // The share page is only for web previews (X, Telegram, etc.), not for Farcaster previews
-  if (!ref && !level) {
-    return FARCASTER_MINIAPP_URL
-  }
-  
-  // For referral links, use direct miniapp URL with ref parameter
-  if (type === 'referral' && ref) {
-    return `${FARCASTER_MINIAPP_URL}?ref=${encodeURIComponent(ref)}`
-  }
-  
-  // For claim links, use base miniapp URL (no params needed for claim shares)
-  return FARCASTER_MINIAPP_URL
-}
 
 // This page handles sharing with proper OG tags for social media previews
 // It renders HTML with meta tags so crawlers can read them, then redirects client-side
@@ -54,70 +35,9 @@ export async function generateMetadata({
   const type = params.type || 'referral' // 'referral' or 'claim'
   const level = params.level
 
-  // Static metadata fallback for Twitter, Telegram, Discord, etc.
-  // This ensures OG tags are always present even without URL params
-  const defaultTitle = 'DeCleanup Rewards'
-  const defaultDescription = 'Earn tokens for cleanups'
-
-  // If no params, return static metadata fallback
-  if (!ref && !level) {
-    // For base URLs without params, use direct miniapp URL
-    const farcasterActionUrl = FARCASTER_MINIAPP_URL
-    const EMBED_METADATA = {
-      version: '1',
-      imageUrl: FARCASTER_IMAGE_URL, // IPFS for Farcaster
-      button: {
-        title: 'Open DeCleanup Rewards',
-        action: {
-          type: 'launch_frame',
-          url: farcasterActionUrl,
-          name: 'DeCleanup Rewards',
-          splashImageUrl: 'https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png',
-          splashBackgroundColor: '#000000',
-        },
-      },
-    }
-
-    return {
-      title: defaultTitle,
-      description: defaultDescription,
-      openGraph: {
-        title: defaultTitle,
-        description: defaultDescription,
-        images: [OG_IMAGE_URL], // Local for X, Telegram, WhatsApp
-        url: SITE_URL,
-        siteName: 'DeCleanup Rewards',
-        locale: 'en_US',
-        type: 'website',
-      },
-      twitter: {
-        card: 'summary_large_image',
-        title: defaultTitle,
-        description: defaultDescription,
-        images: [OG_IMAGE_URL], // Local for X
-      },
-      other: {
-        'og:image': OG_IMAGE_URL, // Local for OG
-        'og:image:width': '1200',
-        'og:image:height': '630',
-        'og:image:type': 'image/png',
-        'og:image:secure_url': OG_IMAGE_URL, // Required for Telegram
-        'og:url': SITE_URL,
-        'og:site_name': 'DeCleanup Rewards',
-        'twitter:image': OG_IMAGE_URL, // Local for Twitter
-        'twitter:card': 'summary_large_image',
-        // Telegram-specific meta tags
-        'telegram:image': OG_IMAGE_URL,
-        // Farcaster uses IPFS (reads fc:miniapp metadata separately)
-        // Use fc:miniapp for new Mini Apps (not fc:frame per docs)
-        'fc:miniapp': JSON.stringify(EMBED_METADATA),
-      },
-    }
-  }
-
-  // Override metadata when params exist
-  let title = 'DeCleanup Rewards - Earn Tokens for Cleanups'
+  let title = 'DeCleanup Rewards - Earn Tokens for Cleanups on Base'
   let description = 'Clean up, share proof, earn tokens, and trade on Base.'
+  const imageUrl = SHARE_IMAGE_URL // Same preview image for both referral and claim
 
   if (type === 'claim' && level) {
     title = `Just minted Level ${level} Impact Product! - DeCleanup Rewards`
@@ -130,12 +50,16 @@ export async function generateMetadata({
   const shareQuery = buildQueryString({ ref, type, level })
   const shareUrl = `${SITE_URL}/share${shareQuery}`
 
-  const farcasterActionUrl = buildFarcasterActionUrl(type, ref, level)
-  
-  // Farcaster embed metadata - uses IPFS image
+  // Build Farcaster action URL with proper params
+  let farcasterActionUrl = FARCASTER_MINIAPP_URL
+  if (type === 'referral' && ref) {
+    farcasterActionUrl = `${FARCASTER_MINIAPP_URL}?ref=${encodeURIComponent(ref)}`
+  }
+
+  // Farcaster embed metadata
   const EMBED_METADATA = {
     version: '1',
-    imageUrl: FARCASTER_IMAGE_URL, // IPFS for Farcaster
+    imageUrl: SHARE_IMAGE_URL,
     button: {
       title: 'Open DeCleanup Rewards',
       action: {
@@ -158,7 +82,7 @@ export async function generateMetadata({
       siteName: 'DeCleanup Rewards',
       images: [
         {
-          url: OG_IMAGE_URL, // Local for X, Telegram, WhatsApp
+          url: imageUrl,
           width: 1200,
           height: 630,
           alt: title,
@@ -171,24 +95,17 @@ export async function generateMetadata({
       card: 'summary_large_image',
       title,
       description,
-      images: [OG_IMAGE_URL], // Local for X
+      images: [imageUrl],
     },
-    // Add explicit meta tags for better crawler support (including Telegram)
+    // Add explicit meta tags for better crawler support
     other: {
-      'og:image': OG_IMAGE_URL, // Local for OG
+      'og:image': imageUrl,
       'og:image:width': '1200',
       'og:image:height': '630',
       'og:image:type': 'image/png',
-      'og:image:secure_url': OG_IMAGE_URL, // Required for Telegram
-      'og:url': shareUrl,
-      'og:site_name': 'DeCleanup Rewards',
-      'twitter:image': OG_IMAGE_URL, // Local for Twitter
+      'twitter:image': imageUrl,
       'twitter:image:alt': title,
-      'twitter:card': 'summary_large_image',
-      // Telegram-specific meta tags
-      'telegram:image': OG_IMAGE_URL,
       // Farcaster uses IPFS (reads fc:miniapp metadata separately)
-      // Use fc:miniapp for new Mini Apps (not fc:frame per docs)
       'fc:miniapp': JSON.stringify(EMBED_METADATA),
     },
   }
