@@ -7,6 +7,9 @@ import { useAccount } from 'wagmi'
 import { isVerifier } from '@/lib/contracts'
 import { useState, useEffect } from 'react'
 
+// Keep this key in sync with verifier page
+const VERIFIED_VERIFIER_KEY = 'decleanup_verified_verifier'
+
 export function BottomNav() {
   const pathname = usePathname()
   const { address, isConnected } = useAccount()
@@ -14,14 +17,59 @@ export function BottomNav() {
 
   // Check if wallet is verifier
   useEffect(() => {
-    if (isConnected && address) {
-      isVerifier(address as `0x${string}`)
-        .then((result) => setIsVerifierWallet(result))
-        .catch(() => setIsVerifierWallet(false))
-    } else {
+    if (!(isConnected && address)) {
       setIsVerifierWallet(false)
+      return
+    }
+
+    let cancelled = false
+
+    async function checkVerifier() {
+      try {
+        // 1) Fast path: reuse localStorage flag set by verifier dashboard
+        if (typeof window !== 'undefined') {
+          try {
+            const stored = window.localStorage.getItem(VERIFIED_VERIFIER_KEY)
+            if (stored) {
+              const parsed = JSON.parse(stored) as {
+                verifiedAddress?: string
+                timestamp?: number
+              }
+              const isExpired =
+                typeof parsed.timestamp === 'number' &&
+                Date.now() - parsed.timestamp > 24 * 60 * 60 * 1000
+              if (
+                !isExpired &&
+                parsed.verifiedAddress &&
+                address &&
+                parsed.verifiedAddress.toLowerCase() === address.toLowerCase()
+              ) {
+                if (!cancelled) setIsVerifierWallet(true)
+                return
+              }
+            }
+          } catch {
+            // Ignore localStorage errors and fall back to on-chain check
+          }
+        }
+
+        // 2) Fallback: on-chain check
+        const result = await isVerifier(address as `0x${string}`)
+        if (!cancelled) setIsVerifierWallet(result)
+      } catch (error) {
+        console.warn('Failed to check verifier status for bottom nav:', error)
+        if (!cancelled) setIsVerifierWallet(false)
+      }
+    }
+
+    checkVerifier()
+
+    return () => {
+      cancelled = true
     }
   }, [isConnected, address])
+
+  const showVerifierTab = isVerifierWallet || pathname === '/verifier'
 
   const navItems = [
     {
@@ -36,7 +84,7 @@ export function BottomNav() {
       label: 'My Profile',
       active: pathname === '/profile',
     },
-    ...(isVerifierWallet
+    ...(showVerifierTab
       ? [
           {
             href: '/verifier',
@@ -48,11 +96,6 @@ export function BottomNav() {
       : []),
   ]
   
-  // Don't show on verifier page if not a verifier
-  if (pathname === '/verifier' && !isVerifierWallet) {
-    return null
-  }
-
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm safe-area-inset-bottom">
       <div className="container mx-auto">

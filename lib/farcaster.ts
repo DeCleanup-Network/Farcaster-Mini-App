@@ -258,47 +258,29 @@ export const shareToX = async (text: string, url?: string): Promise<boolean> => 
 // Share a cast (post) on Farcaster
 export const shareCast = async (text: string, url?: string): Promise<boolean> => {
   try {
-    // Try Web Share API first if available (mobile native share sheet)
-    if (navigator.share && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-      try {
-        await navigator.share({
-          title: APP_NAME,
-          text,
-          url,
-        })
-        return true
-      } catch (shareError: any) {
-        // User cancelled (code 0) is fine, but other errors should fall through
-        if (shareError?.code === 0 || shareError?.name === 'AbortError') {
-          return false // User cancelled
-        }
-        // Other errors, fall back to other methods
-        console.log('Web Share API failed, falling back:', shareError)
-      }
-    }
+    // IMPORTANT: Do NOT use the Web Share API here.
+    // On mobile (including inside Warpcast), navigator.share will only share a plain
+    // link + text and will NOT create an embed with a pressable miniapp frame.
+    // To get a preview + frame, we must always use the Warpcast compose URL with
+    // ?text=...&embeds[]=...
 
     // Build Warpcast compose URL with pre-filled text and embed
     // Warpcast compose URL format: https://warpcast.com/~/compose?text=...&embeds[]=...
-    // CRITICAL: For embeds[], use your app's /share URL (not Farcaster miniapp URL)
-    // This allows Farcaster to crawl your app and read fc:miniapp metadata with ref parameter
-    // The /share page has dynamic metadata that includes the ref in the frame action URL
+    //
+    // IMPORTANT:
+    // - For referral links that already use the Farcaster miniapp URL
+    //   (https://farcaster.xyz/miniapps/.../decleanup-rewards?ref=0x...),
+    //   we should pass that exact URL as the embed so Warpcast shows the
+    //   mini app preview + pressable frame.
+    // - Using an intermediate /share page can result in a plain link with
+    //   no miniapp frame, especially on mobile.
     let farcasterUrl: string
     if (url) {
-      // If url is a Farcaster miniapp URL with ref param, convert it to /share URL for embed
-      // This ensures Farcaster crawls your app and gets correct metadata
-      let embedUrl = url
-      if (url.includes('farcaster.xyz/miniapps/') && url.includes('?ref=')) {
-        // Extract ref parameter from Farcaster miniapp URL
-        const urlObj = new URL(url)
-        const refParam = urlObj.searchParams.get('ref')
-        if (refParam) {
-          // Convert to /share URL so Farcaster can crawl it and get metadata with ref
-          // The /share page will have fc:miniapp metadata with the ref in the action URL
-          embedUrl = buildUrl(WEB_APP_URL, 'share', { ref: refParam, type: 'referral' })
-        }
-      }
+      const embedUrl = url
       // Include both text and embed URL
-      farcasterUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(embedUrl)}`
+      farcasterUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(
+        text
+      )}&embeds[]=${encodeURIComponent(embedUrl)}`
     } else {
       // Just text, no embed
       farcasterUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
@@ -312,12 +294,12 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
       console.log('Error checking Farcaster context, assuming browser:', error)
       inFarcaster = false
     }
-    
+
     if (inFarcaster) {
       try {
         // In Farcaster, use SDK's openUrl
-      await openUrl(farcasterUrl)
-      return true
+        await openUrl(farcasterUrl)
+        return true
       } catch (openUrlError) {
         console.warn('openUrl failed in Farcaster context, trying window.open:', openUrlError)
         // Fallback to window.open even in Farcaster context
@@ -333,7 +315,7 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
         if (newWindow) {
           // Successfully opened
           console.log('Successfully opened Warpcast compose window')
-    return true
+          return true
         } else {
           // Popup blocked - fall through to clipboard
           console.warn('Popup blocked by browser, falling back to clipboard')
@@ -357,7 +339,7 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
         if (typeof window !== 'undefined') {
           alert('Share popup was blocked. Message copied to clipboard! Paste it into Warpcast to share.')
         }
-      return true
+        return true
       } else {
         throw new Error('Clipboard API not available')
       }
@@ -365,7 +347,9 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
       console.error('Failed to copy to clipboard:', clipboardError)
       if (typeof window !== 'undefined') {
         // Show the text in an alert so user can copy manually
-        const shareText = `Failed to open share dialog. Please copy this manually:\n\n${text}${url ? ` ${url}` : ''}`
+        const shareText = `Failed to open share dialog. Please copy this manually:\n\n${text}${
+          url ? ` ${url}` : ''
+        }`
         alert(shareText)
         // Also try to select the text if possible
         const textarea = document.createElement('textarea')

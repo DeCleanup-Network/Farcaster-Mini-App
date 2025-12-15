@@ -564,56 +564,57 @@ export default function VerifierPage() {
       setError('Please connect your wallet first')
       return
     }
+  
+  // Check if signMessageAsync is available
+  if (!signMessageAsync || typeof signMessageAsync !== 'function') {
+    setError('Signature functionality not available. Please ensure your wallet supports message signing.')
+    console.error('signMessageAsync is not a function:', signMessageAsync)
+    return
+  }
 
-    // Check if signMessageAsync is available
-    if (!signMessageAsync || typeof signMessageAsync !== 'function') {
-      setError('Signature functionality not available. Please ensure your wallet supports message signing.')
-      console.error('signMessageAsync is not a function:', signMessageAsync)
+  setError(null)
+  setSigningAddress(address)
+
+  try {
+    // IMPORTANT: Do NOT force a network switch before signing.
+    // Mobile wallets (especially in Farcaster / WalletConnect flows) often block
+    // network-switch prompts from background calls, which can prevent the
+    // actual signature sheet from ever showing. The verifier auth signature
+    // is chain-agnostic, so we can safely sign on any network.
+    console.log('Requesting verifier authentication signature...')
+    console.log('signMessageAsync function:', typeof signMessageAsync)
+    console.log('Message to sign:', VERIFIER_AUTH_MESSAGE)
+
+    // Call signMessageAsync - this should trigger the wallet prompt
+    // signMessageAsync returns a promise that resolves with the signature
+    const signature = await signMessageAsync({ message: VERIFIER_AUTH_MESSAGE })
+
+    console.log('Signature received:', signature)
+    console.log('Signature type:', typeof signature)
+    console.log('Signature value:', signature)
+
+    // Only validate after we've actually received something
+    // If signature is undefined, it means the user rejected or there was an error
+    if (signature === undefined || signature === null) {
+      setError('Signature request was cancelled or rejected. Please try again.')
+      setSigningAddress(null)
       return
     }
 
-    setError(null)
-    setSigningAddress(address)
+    // Check if it's a valid string signature
+    if (typeof signature !== 'string' || signature.length === 0) {
+      console.error('Unexpected signature format:', typeof signature, signature)
+      setError('Invalid signature format received. Please try again.')
+      setSigningAddress(null)
+      return
+    }
 
-    try {
-      await ensureCorrectNetwork('verifier sign-in')
-
-      // Request signature - if user can sign, they control the wallet
-      // This is proof enough, no need to verify the signature
-      console.log('Requesting signature...')
-      console.log('signMessageAsync function:', typeof signMessageAsync)
-      console.log('Message to sign:', VERIFIER_AUTH_MESSAGE)
-      
-      // Call signMessageAsync - this should trigger the wallet prompt
-      // signMessageAsync returns a promise that resolves with the signature
-      const signature = await signMessageAsync({ message: VERIFIER_AUTH_MESSAGE })
-      
-      console.log('Signature received:', signature)
-      console.log('Signature type:', typeof signature)
-      console.log('Signature value:', signature)
-
-      // Only validate after we've actually received something
-      // If signature is undefined, it means the user rejected or there was an error
-      if (signature === undefined || signature === null) {
-        setError('Signature request was cancelled or rejected. Please try again.')
-        setSigningAddress(null)
-        return
-      }
-
-      // Check if it's a valid string signature
-      if (typeof signature !== 'string' || signature.length === 0) {
-        console.error('Unexpected signature format:', typeof signature, signature)
-        setError('Invalid signature format received. Please try again.')
-        setSigningAddress(null)
-        return
-      }
-
-      // If we got a valid signature string, the user controls the wallet
-      // Now verify the address is in the allowlist
-      console.log('Signature is valid, checking allowlist...')
-      setLoading(true)
-      await verifyAgainstContract(address)
-    } catch (error: any) {
+    // If we got a valid signature string, the user controls the wallet
+    // Now verify the address is in the allowlist on the correct network
+    console.log('Signature is valid, checking allowlist on verification contract...')
+    setLoading(true)
+    await verifyAgainstContract(address)
+  } catch (error: any) {
       console.error('Error during signature:', error)
       console.error('Error details:', {
         message: error?.message,
