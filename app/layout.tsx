@@ -83,7 +83,7 @@ export const metadata: Metadata = {
   },
   other: {
     "fc:miniapp": JSON.stringify(EMBED_METADATA), // Use fc:miniapp for new Mini Apps (not fc:frame)
-    "base:app_id": process.env.NEXT_PUBLIC_BASE_APP_ID || "691efb9475e001821817dc8b",
+    "base:app_id": "69450375d77c069a945be104",
   },
 };
 
@@ -104,6 +104,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
+        <meta name="base:app_id" content="69450375d77c069a945be104" />
         <meta property="og:image" content={OG_IMAGE_URL} />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
