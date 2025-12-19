@@ -22,7 +22,7 @@ import { tryAddRequiredChain, switchToRequiredChainViaProvider } from './network
 import * as pointsLib from './points'
 
 // Base Builder Code for attribution
-const BUILDER_CODE = 'bc_ktu8dqm4'
+const BUILDER_CODE = 'bc_e7e2idp7'
 
 // Helper to get Builder Code data suffix for attribution
 function getBuilderCodeDataSuffix(): `0x${string}` {

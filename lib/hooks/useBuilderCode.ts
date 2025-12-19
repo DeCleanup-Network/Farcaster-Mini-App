@@ -8,7 +8,7 @@ import { getWagmiConfig } from '@/lib/wagmi'
 import { getAccount } from 'wagmi/actions'
 
 // Base Builder Code for attribution
-const BUILDER_CODE = 'bc_ktu8dqm4'
+const BUILDER_CODE = 'bc_e7e2idp7'
 
 /**
  * Hook to get Builder Code attribution capabilities
