@@ -149,12 +149,10 @@ export function getWagmiConfig() {
 
   // Add Farcaster Mini App connector ONLY when in Farcaster environment
   // MUST be last in array to prevent auto-selection outside Farcaster
-  // Pass RPC URL explicitly to prevent "No rpcUrl provided" warning
-  const farcasterConnector = isFarcasterEnv 
-    ? farcasterMiniApp({
-        rpcUrl: requiredRpcUrl, // Explicitly provide RPC URL to prevent warnings
-      })
-    : null
+  // Note: RPC URL is configured via transports in createConfig below
+  // The Farcaster connector will use the transport configuration automatically
+  // The "No rpcUrl provided" warning is harmless - the connector uses transports
+  const farcasterConnector = isFarcasterEnv ? farcasterMiniApp() : null
 
   // Include all connectors - Farcaster LAST (never first) to prevent auto-selection
   // Default connectors first, Farcaster only when in FC environment
