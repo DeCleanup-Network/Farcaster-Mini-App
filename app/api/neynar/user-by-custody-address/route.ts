@@ -22,11 +22,12 @@ export async function GET(request: NextRequest) {
     const neynarApiKey = process.env.NEXT_PUBLIC_FARCASTER_NEYNAR_KEY
 
     if (!neynarApiKey) {
-      // Return 404 if Neynar key is not configured (silent failure for optional feature)
-      console.log('Neynar API key not configured, skipping user lookup')
+      // Return 200 with empty response if Neynar key is not configured
+      // This prevents 404 errors in console for optional feature
+      // The Farcaster/Base SDK will handle the empty response gracefully
       return NextResponse.json(
-        { error: 'Neynar API not configured' },
-        { status: 404 }
+        { message: 'Neynar API not configured - feature disabled' },
+        { status: 200 }
       )
     }
 
