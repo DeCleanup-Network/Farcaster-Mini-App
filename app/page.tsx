@@ -710,7 +710,7 @@ export default function Home() {
           <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground sm:text-sm">
             <span>Powered by</span>
             <div className="flex h-6 items-center justify-center rounded bg-muted px-2 font-bold text-foreground">
-              BASE
+              Base
             </div>
           </div>
         </footer>
