@@ -15,6 +15,7 @@
     "generate:metadata": "node scripts/generateImpactMetadata.js"
   },
   "dependencies": {
+    "@farcaster/auth-kit": "^0.8.1",
     "@farcaster/miniapp-sdk": "^0.2.1",
     "@farcaster/miniapp-wagmi-connector": "^1.1.0",
     "@radix-ui/react-dialog": "^1.1.15",

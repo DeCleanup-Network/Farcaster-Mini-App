@@ -7,6 +7,8 @@ import { NetworkChecker } from "@/components/network/NetworkChecker";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { ErrorHandler, ErrorBoundary } from "@/components/ErrorHandler";
+import { WebRedirectPrompt } from "@/components/auth/WebRedirectPrompt";
+import { NotificationPrompt } from "@/components/farcaster/NotificationPrompt";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -124,6 +126,8 @@ export default function RootLayout({
             <FarcasterProvider>
               <AppHeader />
               <NetworkChecker />
+              <WebRedirectPrompt />
+              <NotificationPrompt />
               <main className="min-h-screen pt-20 pb-20 safe-area-inset-bottom">
                 {children}
               </main>

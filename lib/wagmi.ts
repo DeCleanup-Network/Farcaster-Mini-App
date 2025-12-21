@@ -80,11 +80,23 @@ const APP_ICON_URL =
 // Get WalletConnect project ID from environment
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 
-// Validate WalletConnect Project ID - throw error on module load if missing
-if (!walletConnectProjectId) {
+// Warn if WalletConnect Project ID is missing (required for production, optional for local dev)
+const isDevMode = process.env.NODE_ENV === 'development'
+const hasValidProjectId = walletConnectProjectId &&
+  walletConnectProjectId !== 'YOUR_PROJECT_ID_HERE' &&
+  walletConnectProjectId.length > 10
+
+if (!hasValidProjectId && !isDevMode) {
   throw new Error(
     'WalletConnect Project ID is required. Set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID. ' +
     'Get your Project ID at https://cloud.reown.com'
+  )
+}
+
+if (!hasValidProjectId && isDevMode) {
+  console.warn(
+    '[wagmi] WalletConnect Project ID not configured. ' +
+    'Some wallet features may be limited. Get your Project ID at https://cloud.reown.com'
   )
 }
 
@@ -110,6 +122,12 @@ export function getWagmiConfig() {
     return _config
   }
 
+  // Use a fallback project ID for development if not configured
+  // This allows local development without WalletConnect, but limits some features
+  const effectiveProjectId = hasValidProjectId
+    ? walletConnectProjectId!
+    : 'development-placeholder-id'
+
   // For SSR, create a minimal config that satisfies type requirements
   // This won't work for actual wallet operations, but prevents build errors
   if (typeof window === 'undefined') {
@@ -117,9 +135,9 @@ export function getWagmiConfig() {
     // Note: getDefaultWallets is still valid in v2 when you need custom connector logic
     const { connectors: defaultConnectors } = getDefaultWallets({
       appName: APP_NAME,
-      projectId: walletConnectProjectId!,
+      projectId: effectiveProjectId,
     })
-    
+
     return createConfig({
       chains: configuredChains,
       connectors: defaultConnectors,
@@ -136,7 +154,7 @@ export function getWagmiConfig() {
   // is still available and appropriate when you need conditional connectors (like Farcaster)
   const { connectors: defaultConnectors } = getDefaultWallets({
     appName: APP_NAME,
-    projectId: walletConnectProjectId!,
+    projectId: effectiveProjectId,
   })
 
   // CRITICAL: Check for Farcaster environment AFTER window is ready

@@ -258,34 +258,6 @@ export const shareToX = async (text: string, url?: string): Promise<boolean> => 
 // Share a cast (post) on Farcaster
 export const shareCast = async (text: string, url?: string): Promise<boolean> => {
   try {
-    // IMPORTANT: Do NOT use the Web Share API here.
-    // On mobile (including inside Warpcast), navigator.share will only share a plain
-    // link + text and will NOT create an embed with a pressable miniapp frame.
-    // To get a preview + frame, we must always use the Warpcast compose URL with
-    // ?text=...&embeds[]=...
-
-    // Build Warpcast compose URL with pre-filled text and embed
-    // Warpcast compose URL format: https://warpcast.com/~/compose?text=...&embeds[]=...
-    //
-    // IMPORTANT:
-    // - For referral links that already use the Farcaster miniapp URL
-    //   (https://farcaster.xyz/miniapps/.../decleanup-rewards?ref=0x...),
-    //   we should pass that exact URL as the embed so Warpcast shows the
-    //   mini app preview + pressable frame.
-    // - Using an intermediate /share page can result in a plain link with
-    //   no miniapp frame, especially on mobile.
-    let farcasterUrl: string
-    if (url) {
-      const embedUrl = url
-      // Include both text and embed URL
-      farcasterUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(
-        text
-      )}&embeds[]=${encodeURIComponent(embedUrl)}`
-    } else {
-      // Just text, no embed
-      farcasterUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
-    }
-
     // Check if we are in Farcaster context
     let inFarcaster = false
     try {
@@ -295,42 +267,81 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
       inFarcaster = false
     }
 
+    // INSIDE FARCASTER MINIAPP: Use SDK's composeCast action directly
+    // This is the correct way to open the composer from within a miniapp
     if (inFarcaster) {
       try {
-        // In Farcaster, use SDK's openUrl
-        await openUrl(farcasterUrl)
-        return true
-      } catch (openUrlError) {
-        console.warn('openUrl failed in Farcaster context, trying window.open:', openUrlError)
-        // Fallback to window.open even in Farcaster context
+        console.log('[shareCast] In Farcaster, using sdk.actions.composeCast...')
+
+        // Build embeds array if URL is provided
+        const embeds = url ? [url] : undefined
+
+        // Use the SDK's composeCast action - this opens Warpcast's native composer
+        if (sdk.actions && typeof sdk.actions.composeCast === 'function') {
+          await sdk.actions.composeCast({
+            text,
+            embeds,
+          })
+          console.log('[shareCast] composeCast called successfully')
+          return true
+        } else if (sdk.actions && typeof (sdk.actions as any).openComposer === 'function') {
+          // Fallback to openComposer if composeCast doesn't exist
+          await (sdk.actions as any).openComposer({
+            text,
+            embeds,
+          })
+          console.log('[shareCast] openComposer called successfully')
+          return true
+        } else {
+          console.warn('[shareCast] composeCast/openComposer not available, falling back to openUrl')
+          // Fall back to openUrl with Warpcast compose URL
+          const farcasterUrl = url
+            ? `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(url)}`
+            : `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
+          await openUrl(farcasterUrl)
+          return true
+        }
+      } catch (sdkError) {
+        console.error('[shareCast] SDK composeCast failed:', sdkError)
+        // Try openUrl as fallback
+        try {
+          const farcasterUrl = url
+            ? `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(url)}`
+            : `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
+          await openUrl(farcasterUrl)
+          return true
+        } catch (openUrlError) {
+          console.warn('[shareCast] openUrl also failed:', openUrlError)
+        }
       }
     }
 
-    // For browser (not in Farcaster), open Warpcast compose in new tab
+    // OUTSIDE FARCASTER (browser): Open Warpcast compose URL in new tab
+    // Build Warpcast compose URL with pre-filled text and embed
+    const farcasterUrl = url
+      ? `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}&embeds[]=${encodeURIComponent(url)}`
+      : `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
+
     if (typeof window !== 'undefined') {
-      console.log('Opening Warpcast compose in browser:', farcasterUrl)
+      console.log('[shareCast] Opening Warpcast compose in browser:', farcasterUrl)
       try {
-        // Use window.open with noopener for security
         const newWindow = window.open(farcasterUrl, '_blank', 'noopener,noreferrer')
         if (newWindow) {
-          // Successfully opened
-          console.log('Successfully opened Warpcast compose window')
+          console.log('[shareCast] Successfully opened Warpcast compose window')
           return true
         } else {
-          // Popup blocked - fall through to clipboard
-          console.warn('Popup blocked by browser, falling back to clipboard')
+          console.warn('[shareCast] Popup blocked by browser')
           throw new Error('Popup blocked')
         }
       } catch (openError) {
-        console.error('window.open failed:', openError)
+        console.error('[shareCast] window.open failed:', openError)
         throw new Error('Failed to open share window')
       }
     }
 
-    // Last resort: copy to clipboard
     throw new Error('No sharing method available')
   } catch (error) {
-    console.error('Failed to share cast:', error)
+    console.error('[shareCast] Failed to share cast:', error)
     // Fallback: try to copy to clipboard
     try {
       const fullText = text + (url ? ` ${url}` : '')
@@ -340,34 +351,14 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
           alert('Share popup was blocked. Message copied to clipboard! Paste it into Warpcast to share.')
         }
         return true
-      } else {
-        throw new Error('Clipboard API not available')
       }
     } catch (clipboardError) {
-      console.error('Failed to copy to clipboard:', clipboardError)
+      console.error('[shareCast] Clipboard fallback failed:', clipboardError)
       if (typeof window !== 'undefined') {
-        // Show the text in an alert so user can copy manually
-        const shareText = `Failed to open share dialog. Please copy this manually:\n\n${text}${
-          url ? ` ${url}` : ''
-        }`
-        alert(shareText)
-        // Also try to select the text if possible
-        const textarea = document.createElement('textarea')
-        textarea.value = text + (url ? ` ${url}` : '')
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        document.body.appendChild(textarea)
-        textarea.select()
-        try {
-          document.execCommand('copy')
-          document.body.removeChild(textarea)
-          alert('Text selected - press Ctrl+C (Cmd+C on Mac) to copy')
-        } catch (e) {
-          document.body.removeChild(textarea)
-        }
+        alert(`Failed to share. Please copy manually:\n\n${text}${url ? ` ${url}` : ''}`)
       }
-      return false
     }
+    return false
   }
 }
 

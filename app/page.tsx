@@ -13,6 +13,7 @@ import { getUserCleanupStatus } from '@/lib/verification'
 import { claimImpactProductFromVerification, getClaimFee, getUserLevel } from '@/lib/contracts'
 import { isFarcasterContext } from '@/lib/farcaster'
 import { REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
+import { SmartWalletConnect } from '@/components/auth/SmartWalletConnect'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   ? 'Basescan (Sepolia)'
@@ -496,25 +497,11 @@ export default function Home() {
               </div>
             </div>
           ) : (
-            <div className="mx-auto max-w-md space-y-4">
-              <div>
-                <p className="mb-3 text-xs text-muted-foreground">
-                  Connect your wallet to get started.
-                </p>
-                <Button
-                  size="lg"
-                  className="w-full gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
-                  disabled={isPending || !primaryConnector}
-                  onClick={() => handleConnect(primaryConnector)}
-                >
-                  <Wallet className="h-5 w-5" />
-                  {isPending ? 'Connecting...' : 'Log In'}
-                </Button>
-                <p className="mt-2 text-xs text-muted-foreground text-center">
-                  Use, when on Farcaster. Connects you with FC wallet
-                </p>
-              </div>
-            </div>
+            <SmartWalletConnect
+              onConnect={(address) => {
+                console.log('[Home] Wallet connected:', address)
+              }}
+            />
           )}
         </section>
 
