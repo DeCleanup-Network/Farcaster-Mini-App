@@ -2,10 +2,12 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useAccount, useChainId, useDisconnect, useConnect } from 'wagmi'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { ConnectButton, useConnectModal, useAccountModal, useChainModal } from '@rainbow-me/rainbowkit'
 import { Wallet, LogOut, ChevronDown } from 'lucide-react'
 import { REQUIRED_CHAIN_ID } from '@/lib/wagmi'
 import { Button } from '@/components/ui/button'
+import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
+import { lookupENS } from '@/lib/ens'
 
 /**
  * WalletConnect component using RainbowKit
@@ -23,21 +25,40 @@ export function WalletConnect() {
   const chainId = useChainId()
   const { disconnect } = useDisconnect()
   const { connect, connectors, isPending } = useConnect()
+  const { isMiniApp } = useFarcaster()
   const previousConnectedRef = useRef(false)
   const previousAddressRef = useRef<string | undefined>(undefined)
+  const [ensName, setEnsName] = useState<string | null>(null)
+  
+  // Use RainbowKit modal hooks for programmatic control
+  // These hooks provide access to modal state and open functions
+  const { openConnectModal, connectModalOpen } = useConnectModal()
+  const { openAccountModal, accountModalOpen } = useAccountModal()
+  const { openChainModal, chainModalOpen } = useChainModal()
+
+  // Lookup ENS name for connected address (web flow only)
+  useEffect(() => {
+    if (!isMiniApp && isConnected && address) {
+      lookupENS(address).then(name => {
+        if (name) {
+          setEnsName(name)
+        } else {
+          setEnsName(null)
+        }
+      }).catch(() => {
+        setEnsName(null)
+      })
+    } else {
+      setEnsName(null)
+    }
+  }, [isMiniApp, isConnected, address])
 
   // Initialize on mount
   useEffect(() => {
     setMounted(true)
     
     // Log connector status for debugging
-    const isFarcasterEnv = 
-      typeof window !== 'undefined' && (
-        window.location.search.includes('fc_wallet=1') ||
-        (window as any).farcaster?.sdk !== undefined
-      )
-    
-    if (isFarcasterEnv) {
+    if (isMiniApp) {
       console.log('🔵 Farcaster environment detected in WalletConnect')
       console.log('Available connectors:', connectors.map(c => ({
         id: c.id,
@@ -169,7 +190,8 @@ export function WalletConnect() {
               }
               
               // Try RainbowKit modal first (works well on desktop and some mobile browsers)
-              if (openConnectModal && typeof openConnectModal === 'function') {
+              // Use the hook-provided function for better reliability
+              if (openConnectModal) {
                 try {
                   console.log('Opening RainbowKit connect modal...')
                   openConnectModal()
@@ -196,13 +218,9 @@ export function WalletConnect() {
             }
 
             const handleDirectConnect = async () => {
-              // CRITICAL: Check for Farcaster environment FIRST
-              // In Farcaster, we MUST use the Farcaster connector, not injected wallets
-              const isFarcasterEnv = 
-                typeof window !== 'undefined' && (
-                  window.location.search.includes('fc_wallet=1') ||
-                  (window as any).farcaster?.sdk !== undefined
-                )
+              // CRITICAL: Use proper environment detection from FarcasterProvider
+              // In Farcaster Mini App, we MUST use the Farcaster connector, not injected wallets
+              const isFarcasterEnv = isMiniApp
               
               // Detect mobile browsers (iOS Safari, Chrome Mobile, etc.)
               const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
@@ -415,12 +433,20 @@ export function WalletConnect() {
             <div className="flex items-center gap-2">
               <div 
                 className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-2 py-1.5 sm:px-3 sm:py-2 cursor-pointer hover:border-brand-green transition-colors"
-                onClick={openAccountModal}
+                onClick={() => {
+                  // Use hook-provided function for better reliability
+                  if (openAccountModal) {
+                    openAccountModal()
+                  } else if (accountModalOpen === false) {
+                    // Fallback to the render prop function if hook not available
+                    openAccountModal()
+                  }
+                }}
                 title={`Click to view account details or disconnect. Full address: ${account.address}`}
               >
                 <Wallet className="h-3 w-3 text-brand-green sm:h-4 sm:w-4" />
                 <span className="text-xs font-medium text-white sm:text-sm">
-                  {account.displayName}
+                  {ensName || account.displayName}
                 </span>
               </div>
               <Button
@@ -433,7 +459,9 @@ export function WalletConnect() {
                   } catch (error) {
                     console.error('Error disconnecting wallet:', error)
                     // Fallback: try opening account modal which has disconnect option
-                    openAccountModal()
+                    if (openAccountModal) {
+                      openAccountModal()
+                    }
                   }
                 }}
                 className="gap-2 border-2 border-gray-700 bg-black text-white hover:bg-gray-900 text-xs sm:text-sm"
@@ -446,12 +474,6 @@ export function WalletConnect() {
         }}
       </ConnectButton.Custom>
       
-      {/* Network info */}
-      <div className="flex flex-col items-end gap-0.5 w-full">
-        <span className="text-[10px] text-muted-foreground/70 text-right">
-          Use, when on web app. Base Sepolia
-        </span>
-      </div>
     </div>
   )
 }

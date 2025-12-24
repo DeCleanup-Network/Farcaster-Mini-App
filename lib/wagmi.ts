@@ -1,12 +1,20 @@
 import { base, baseSepolia } from 'wagmi/chains'
 import { createConfig, http } from 'wagmi'
-import { getDefaultWallets } from '@rainbow-me/rainbowkit'
+import { connectorsForWallets } from '@rainbow-me/rainbowkit'
+import {
+  metaMaskWallet,
+  walletConnectWallet,
+  coinbaseWallet,
+  injectedWallet,
+  safeWallet,
+} from '@rainbow-me/rainbowkit/wallets'
 import { farcasterMiniApp } from '@farcaster/miniapp-wagmi-connector'
 import { defineChain, type Chain } from 'viem'
 
 const baseMainnetRpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'
 const baseSepoliaRpcUrl = process.env.NEXT_PUBLIC_TESTNET_RPC_URL || 'https://sepolia.base.org'
 
+// Enhanced Base Mainnet chain configuration with custom metadata
 const baseMainnet = {
   ...base,
   rpcUrls: {
@@ -23,6 +31,9 @@ const baseMainnet = {
       url: 'https://basescan.org',
     },
   },
+  // Add icon for better UI display in RainbowKit
+  iconUrl: 'https://base.org/favicon.ico',
+  iconBackground: '#0052FF',
 }
 
 const baseSepoliaChain = defineChain({
@@ -49,6 +60,9 @@ const baseSepoliaChain = defineChain({
   },
   contracts: baseSepolia.contracts,
   testnet: true,
+  // Add icon for better UI display in RainbowKit
+  iconUrl: 'https://base.org/favicon.ico',
+  iconBackground: '#0052FF',
 })
 
 const configuredChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet]
@@ -114,11 +128,46 @@ export function getWagmiConfig() {
   // This won't work for actual wallet operations, but prevents build errors
   if (typeof window === 'undefined') {
     // Create minimal config for SSR - connectors will be empty but config structure is valid
-    // Note: getDefaultWallets is still valid in v2 when you need custom connector logic
-    const { connectors: defaultConnectors } = getDefaultWallets({
-      appName: APP_NAME,
-      projectId: walletConnectProjectId!,
-    })
+    // Use connectorsForWallets for consistency with client-side config
+    // Note: connectorsForWallets returns an array of connector functions directly
+    let defaultConnectors: any[] = []
+    try {
+      const result = connectorsForWallets(
+        [
+          {
+            groupName: 'Recommended',
+            wallets: [metaMaskWallet, walletConnectWallet, coinbaseWallet, injectedWallet],
+          },
+        ],
+        {
+          appName: APP_NAME,
+          projectId: walletConnectProjectId!,
+        }
+      )
+      
+      // connectorsForWallets returns an array of connector functions directly
+      if (Array.isArray(result)) {
+        defaultConnectors = result
+      } else if (result && typeof result === 'object' && 'connectors' in result) {
+        // Fallback: check if it's an object with connectors property (older API)
+        const connectors = result.connectors
+        if (Array.isArray(connectors)) {
+          defaultConnectors = connectors
+        } else {
+          defaultConnectors = []
+        }
+      } else {
+        defaultConnectors = []
+      }
+    } catch (error) {
+      console.error('Error creating connectors for SSR:', error)
+      defaultConnectors = []
+    }
+    
+    // Final safety check - ensure defaultConnectors is an array
+    if (!Array.isArray(defaultConnectors)) {
+      defaultConnectors = []
+    }
     
     return createConfig({
       chains: configuredChains,
@@ -130,22 +179,73 @@ export function getWagmiConfig() {
     })
   }
 
-  // Get default RainbowKit connectors (MetaMask, WalletConnect, Coinbase Wallet, etc.)
-  // Note: getDefaultWallets is still valid in RainbowKit v2 when you need custom connector logic
-  // The migration guide recommends getDefaultConfig for simple cases, but getDefaultWallets
-  // is still available and appropriate when you need conditional connectors (like Farcaster)
-  const { connectors: defaultConnectors } = getDefaultWallets({
-    appName: APP_NAME,
-    projectId: walletConnectProjectId!,
-  })
+  // Use custom wallet list with connectorsForWallets for better control
+  // This allows us to specify exact wallets and their order
+  // Note: connectorsForWallets returns an array of connector functions directly
+  let defaultConnectors: any[] = []
+  try {
+    const result = connectorsForWallets(
+      [
+        {
+          groupName: 'Recommended',
+          wallets: [
+            metaMaskWallet,
+            walletConnectWallet,
+            coinbaseWallet,
+            injectedWallet,
+            safeWallet,
+          ],
+        },
+      ],
+      {
+        appName: APP_NAME,
+        projectId: walletConnectProjectId!,
+      }
+    )
+    
+    // connectorsForWallets returns an array of connector functions directly
+    if (Array.isArray(result)) {
+      defaultConnectors = result
+    } else if (result && typeof result === 'object' && 'connectors' in result) {
+      // Fallback: check if it's an object with connectors property (older API)
+      const connectors = result.connectors
+      if (Array.isArray(connectors)) {
+        defaultConnectors = connectors
+      } else {
+        console.warn('connectorsForWallets returned non-array connectors:', typeof connectors)
+        defaultConnectors = []
+      }
+    } else {
+      console.warn('connectorsForWallets returned unexpected structure:', typeof result, result)
+      defaultConnectors = []
+    }
+  } catch (error) {
+    console.error('Error creating connectors with connectorsForWallets:', error)
+    // Fallback: return empty array if connectorsForWallets fails
+    defaultConnectors = []
+  }
 
-  // CRITICAL: Check for Farcaster environment AFTER window is ready
-  // window.farcaster.sdk is NOT instantly available at page load
-  // Farcaster injects it 100-300ms after page mount
-  // By checking here (when getWagmiConfig() is called), we ensure SDK is available
-  const isFarcasterEnv =
-    window.location.search.includes('fc_wallet=1') ||
-    (window as any).farcaster?.sdk !== undefined
+  // Final safety check - ensure defaultConnectors is an array
+  if (!Array.isArray(defaultConnectors)) {
+    console.warn('defaultConnectors is not an array after processing, using empty array as fallback')
+    defaultConnectors = []
+  }
+
+  // CRITICAL: Check for Farcaster environment using official SDK method
+  // We need to check synchronously here, but the proper detection happens in FarcasterProvider
+  // This is a fallback check - the FarcasterProvider will have already detected the environment
+  // and called ready() by the time this config is used
+  let isFarcasterEnv = false
+  try {
+    // Check if SDK is available (synchronous check)
+    // The proper async check (sdk.isInMiniApp()) happens in FarcasterProvider
+    if ((window as any).farcaster?.sdk) {
+      isFarcasterEnv = true
+    }
+  } catch {
+    // SDK not available - not in Farcaster environment
+    isFarcasterEnv = false
+  }
 
   // Add Farcaster Mini App connector ONLY when in Farcaster environment
   // MUST be last in array to prevent auto-selection outside Farcaster
