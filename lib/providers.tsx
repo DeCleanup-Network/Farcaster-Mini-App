@@ -10,7 +10,7 @@ import dynamic from 'next/dynamic'
 const RainbowKitProviderWithTheme = dynamic(
   () => import('@rainbow-me/rainbowkit').then(async (mod) => {
     // Import theme utilities
-    const { darkTheme, Theme } = mod
+    const { darkTheme } = mod
     
     // Create enhanced custom theme matching DeCleanup brand
     // Using darkTheme as base and extending with custom colors
@@ -20,10 +20,11 @@ const RainbowKitProviderWithTheme = dynamic(
       borderRadius: 'medium',
       fontStack: 'system',
       overlayBlur: 'small',
-    }) as Theme
+    })
     
     // Enhanced theme with additional customizations
-    const enhancedTheme: Theme = {
+    // Type is inferred from darkTheme return value
+    const enhancedTheme = {
       ...customTheme,
       colors: {
         ...customTheme.colors,
