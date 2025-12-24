@@ -148,14 +148,6 @@ export function getWagmiConfig() {
       // connectorsForWallets returns an array of connector functions directly
       if (Array.isArray(result)) {
         defaultConnectors = result
-      } else if (result && typeof result === 'object' && 'connectors' in result) {
-        // Fallback: check if it's an object with connectors property (older API)
-        const connectors = result.connectors
-        if (Array.isArray(connectors)) {
-          defaultConnectors = connectors
-        } else {
-          defaultConnectors = []
-        }
       } else {
         defaultConnectors = []
       }
@@ -206,17 +198,8 @@ export function getWagmiConfig() {
     // connectorsForWallets returns an array of connector functions directly
     if (Array.isArray(result)) {
       defaultConnectors = result
-    } else if (result && typeof result === 'object' && 'connectors' in result) {
-      // Fallback: check if it's an object with connectors property (older API)
-      const connectors = result.connectors
-      if (Array.isArray(connectors)) {
-        defaultConnectors = connectors
-      } else {
-        console.warn('connectorsForWallets returned non-array connectors:', typeof connectors)
-        defaultConnectors = []
-      }
     } else {
-      console.warn('connectorsForWallets returned unexpected structure:', typeof result, result)
+      console.warn('connectorsForWallets returned unexpected structure:', typeof result)
       defaultConnectors = []
     }
   } catch (error) {
@@ -227,7 +210,6 @@ export function getWagmiConfig() {
 
   // Final safety check - ensure defaultConnectors is an array
   if (!Array.isArray(defaultConnectors)) {
-    console.warn('defaultConnectors is not an array after processing, using empty array as fallback')
     defaultConnectors = []
   }
 
