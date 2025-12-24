@@ -434,11 +434,9 @@ export function WalletConnect() {
               <div 
                 className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-2 py-1.5 sm:px-3 sm:py-2 cursor-pointer hover:border-brand-green transition-colors"
                 onClick={() => {
-                  // Use hook-provided function for better reliability
-                  if (openAccountModal) {
-                    openAccountModal()
-                  } else if (accountModalOpen === false) {
-                    // Fallback to the render prop function if hook not available
+                  // Use the render prop function from ConnectButton.Custom
+                  // This is the most reliable way inside the ConnectButton context
+                  if (openAccountModal && typeof openAccountModal === 'function') {
                     openAccountModal()
                   }
                 }}
@@ -459,7 +457,8 @@ export function WalletConnect() {
                   } catch (error) {
                     console.error('Error disconnecting wallet:', error)
                     // Fallback: try opening account modal which has disconnect option
-                    if (openAccountModal) {
+                    // Use the render prop's openAccountModal (from ConnectButton.Custom)
+                    if (openAccountModal && typeof openAccountModal === 'function') {
                       openAccountModal()
                     }
                   }
