@@ -65,8 +65,12 @@ const baseSepoliaChain = defineChain({
   iconBackground: '#0052FF',
 })
 
-// Include mainnet for ENS resolution (RainbowKit needs it to resolve ENS names)
-const configuredChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet, mainnet]
+// Chains for wagmi config (includes mainnet for ENS resolution)
+// Mainnet is needed in transports for ENS, but we'll exclude it from RainbowKit chain switcher
+const allChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet, mainnet]
+
+// Chains to show in RainbowKit chain switcher (excludes mainnet)
+const configuredChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet]
 // Default to Base Sepolia (84532) since contracts are deployed there
 // Change to baseMainnet.id (8453) after deploying contracts to mainnet
 const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || baseSepoliaChain.id)
@@ -163,7 +167,7 @@ export function getWagmiConfig() {
     }
     
     return createConfig({
-      chains: configuredChains,
+      chains: allChains, // Include mainnet for ENS resolution
       connectors: defaultConnectors,
       transports: {
         [baseMainnet.id]: http(baseMainnetRpcUrl),
@@ -248,7 +252,7 @@ export function getWagmiConfig() {
   // Create config with all connectors
   // Using createConfig directly is valid in v2 when you need custom connector logic
   _config = createConfig({
-    chains: configuredChains,
+    chains: allChains, // Include mainnet for ENS resolution
     connectors,
     transports: {
       [baseMainnet.id]: http(baseMainnetRpcUrl),
@@ -266,6 +270,12 @@ export function getWagmiConfig() {
 // This will throw on SSR, which is expected - use getWagmiConfig() in client components
 // Type assertion needed because config can be null during SSR
 export const config: ReturnType<typeof createConfig> = typeof window !== 'undefined' ? getWagmiConfig() : ({} as ReturnType<typeof createConfig>)
+
+// Export chains for RainbowKit (excludes mainnet - only Base chains)
+// Mainnet is kept in wagmi config for ENS resolution but hidden from chain switcher
+export function getRainbowKitChains(): [Chain, ...Chain[]] {
+  return configuredChains
+}
 
 // Default/Base chain metadata exports
 export const DEFAULT_CHAIN_ID = requiredChainId

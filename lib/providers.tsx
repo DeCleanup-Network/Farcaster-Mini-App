@@ -8,7 +8,10 @@ import dynamic from 'next/dynamic'
 
 // Dynamically import RainbowKitProvider and theme to avoid SSR issues with Node.js modules
 const RainbowKitProviderWithTheme = dynamic(
-  () => import('@rainbow-me/rainbowkit').then((mod) => {
+  () => Promise.all([
+    import('@rainbow-me/rainbowkit'),
+    import('./wagmi').then(m => m.getRainbowKitChains)
+  ]).then(([mod, getRainbowKitChains]) => {
     // Simple custom theme matching DeCleanup brand
     const { darkTheme } = mod
     const customTheme = darkTheme({
@@ -19,9 +22,13 @@ const RainbowKitProviderWithTheme = dynamic(
       overlayBlur: 'small',
     })
     
-    // Return provider component with custom theme
+    // Get chains for RainbowKit (excludes mainnet - only Base chains)
+    // Mainnet is kept in wagmi config for ENS resolution but hidden from chain switcher
+    const rainbowKitChains = getRainbowKitChains()
+    
     const RainbowKitProviderWithCustomTheme = ({ children, ...props }: any) => (
       <mod.RainbowKitProvider 
+        chains={rainbowKitChains}
         theme={customTheme} 
         modalSize="compact"
         initialChain={undefined}
