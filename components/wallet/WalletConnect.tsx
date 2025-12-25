@@ -36,8 +36,9 @@ export function WalletConnect() {
   const { openChainModal, chainModalOpen } = useChainModal()
 
   // Use wagmi's useEnsName hook for ENS resolution (web flow only)
-  // This is the recommended way to resolve ENS names
-  const { data: ensName, isLoading: ensLoading } = useEnsName({
+  // RainbowKit's account.displayName already includes ENS, but we use this as fallback
+  // for cases where we need ENS outside of ConnectButton.Custom context
+  const { data: ensName } = useEnsName({
     address: !isMiniApp && isConnected && address ? address : undefined,
     chainId: mainnet.id, // ENS is on mainnet
     query: {
@@ -46,13 +47,6 @@ export function WalletConnect() {
       staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     },
   })
-  
-  // Debug ENS resolution
-  useEffect(() => {
-    if (!isMiniApp && isConnected && address) {
-      console.log('ENS resolution:', { address, ensName, ensLoading, isConnected })
-    }
-  }, [isMiniApp, isConnected, address, ensName, ensLoading])
 
   // Initialize on mount
   useEffect(() => {
@@ -501,7 +495,8 @@ export function WalletConnect() {
               >
                 <Wallet className="h-3 w-3 text-brand-green sm:h-4 sm:w-4" />
                 <span className="text-xs font-medium text-white sm:text-sm">
-                  {ensName || account.displayName}
+                  {/* RainbowKit's account.displayName automatically includes ENS if available */}
+                  {account.displayName || `${account.address.slice(0, 6)}...${account.address.slice(-4)}`}
                 </span>
               </div>
               <Button

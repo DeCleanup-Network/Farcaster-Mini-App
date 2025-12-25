@@ -787,6 +787,11 @@ function ProfileContent() {
             </p>
             {ensName && address && (
               <p className="text-xs text-gray-500 font-mono">
+                {address}
+              </p>
+            )}
+            {!ensName && address && (
+              <p className="text-xs text-gray-500 font-mono">
                 {address.slice(0, 6)}...{address.slice(-4)}
               </p>
             )}

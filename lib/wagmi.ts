@@ -1,4 +1,4 @@
-import { base, baseSepolia } from 'wagmi/chains'
+import { base, baseSepolia, mainnet } from 'wagmi/chains'
 import { createConfig, http } from 'wagmi'
 import { connectorsForWallets } from '@rainbow-me/rainbowkit'
 import {
@@ -65,7 +65,8 @@ const baseSepoliaChain = defineChain({
   iconBackground: '#0052FF',
 })
 
-const configuredChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet]
+// Include mainnet for ENS resolution (RainbowKit needs it to resolve ENS names)
+const configuredChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet, mainnet]
 // Default to Base Sepolia (84532) since contracts are deployed there
 // Change to baseMainnet.id (8453) after deploying contracts to mainnet
 const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || baseSepoliaChain.id)
@@ -167,6 +168,7 @@ export function getWagmiConfig() {
       transports: {
         [baseMainnet.id]: http(baseMainnetRpcUrl),
         [baseSepoliaChain.id]: http(baseSepoliaRpcUrl),
+        [mainnet.id]: http(), // Mainnet RPC for ENS resolution (RainbowKit needs this)
       },
     })
   }
@@ -251,6 +253,7 @@ export function getWagmiConfig() {
     transports: {
       [baseMainnet.id]: http(baseMainnetRpcUrl),
       [baseSepoliaChain.id]: http(baseSepoliaRpcUrl),
+      [mainnet.id]: http(), // Mainnet RPC for ENS resolution (RainbowKit needs this)
     },
     // CRITICAL: autoConnect is false by default in wagmi v2
     // This prevents wagmi from auto-selecting Farcaster connector outside FC environment
