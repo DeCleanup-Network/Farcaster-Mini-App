@@ -770,7 +770,7 @@ export async function submitCleanup(
     args: readonly unknown[]
     value: bigint
   }) => Promise<`0x${string}`> // Optional transaction sender (for Builder Code support)
-): Promise<bigint> {
+): Promise<{ cleanupId: bigint; transactionHash: `0x${string}` }> {
   // CRITICAL: Ensure wallet is connected FIRST - before ANY other logic
   // This prevents WalletConnect QR hang bug by ensuring connector is bound before chain switching
   await ensureWalletConnected()
@@ -1105,7 +1105,12 @@ export async function submitCleanup(
       const fallbackId = finalCounter - BigInt(1)
       if (fallbackId >= BigInt(1)) {
         console.log('Got cleanup ID on retry:', fallbackId.toString())
-        return fallbackId
+        // Note: hash should be available from the outer scope where transaction was sent
+        if (hash) {
+          return { cleanupId: fallbackId, transactionHash: hash }
+        }
+        // If hash is not available (shouldn't happen), throw error
+        throw new Error('Transaction hash not available for fallback cleanup ID')
       }
       console.error('Retry returned invalid ID:', fallbackId.toString(), 'Counter:', finalCounter.toString())
     } catch (retryError: any) {

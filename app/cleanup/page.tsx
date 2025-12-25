@@ -871,6 +871,7 @@ function CleanupContent() {
         
         // Try with Builder Code first, fallback to standard submission if it fails
         let cleanupId: bigint
+        let transactionHash: `0x${string}`
         try {
           // Create transaction sender with Builder Code attribution
           const sendTransaction = async (params: {
@@ -901,8 +902,8 @@ function CleanupContent() {
             chainId, // Pass chainId from useChainId hook to avoid detection bugs
             sendTransaction // Pass Builder Code transaction sender
           )
-          const cleanupId = result.cleanupId
-          const transactionHash = result.transactionHash
+          cleanupId = result.cleanupId
+          transactionHash = result.transactionHash
         } catch (builderCodeError: any) {
           // If Builder Code fails (capabilities error, etc.), retry without it
           const errorMessage = builderCodeError?.message || String(builderCodeError || '')
@@ -927,8 +928,8 @@ function CleanupContent() {
               chainId,
               undefined // No Builder Code - use standard writeContract
             )
-            const cleanupId = result.cleanupId
-            const transactionHash = result.transactionHash
+            cleanupId = result.cleanupId
+            transactionHash = result.transactionHash
           } else {
             // Re-throw if it's not a Builder Code error
             throw builderCodeError
@@ -1164,13 +1165,12 @@ function CleanupContent() {
               <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
             </div>
             <div className="flex-1">
-              <p className="text-sm text-gray-400">Checking referral eligibility...          </p>
+              <p className="text-sm text-gray-400">Checking referral eligibility...</p>
+            </div>
+          </div>
         </div>
-      </div>
-      </div>
-    </>
-  )
-}
+      )
+    }
     
     // Show ineligible message if user already used referral
     if (referralEligible === false) {
@@ -2360,8 +2360,9 @@ function CleanupContent() {
         <p className="mt-4 text-xs text-gray-500">
           Redirecting to home page...
         </p>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
