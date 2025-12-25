@@ -537,6 +537,8 @@ export default function VerifierPage() {
       
       if (isAuthorized) {
         console.log('✅ Address is verified as verifier, storing and loading cleanups...')
+        console.log('✅ Verified address:', addr)
+        console.log('✅ Connected address:', address)
         // Store verification
         localStorage.setItem(VERIFIED_VERIFIER_KEY, JSON.stringify({
           verifiedAddress: addr,
@@ -544,9 +546,16 @@ export default function VerifierPage() {
         }))
         await loadCleanups()
       } else {
-        const errorMsg = `Address ${addr} is not in the verifier allowlist. Please ensure this address is added to the VERIFIER_ADDRESSES in the contract.`
-        console.error('❌ Verifier check failed:', errorMsg)
-        setError(errorMsg)
+        // Double-check that we're checking the correct address
+        const connectedAddr = address
+        if (addr.toLowerCase() !== connectedAddr?.toLowerCase()) {
+          console.error('❌ Address mismatch! Checking:', addr, 'but connected address is:', connectedAddr)
+          setError(`Address mismatch: Checking ${addr} but connected wallet is ${connectedAddr}. Please reconnect your wallet.`)
+        } else {
+          const errorMsg = `Address ${addr} is not in the verifier allowlist. Please ensure this address is added to the VERIFIER_ADDRESSES in the contract.`
+          console.error('❌ Verifier check failed:', errorMsg)
+          setError(errorMsg)
+        }
         setIsVerifier(false)
       }
     } catch (error) {

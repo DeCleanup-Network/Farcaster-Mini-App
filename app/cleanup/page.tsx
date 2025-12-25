@@ -2318,11 +2318,28 @@ function CleanupContent() {
                 alt="Before"
                 className="h-32 w-full rounded-lg object-cover"
                 onError={(e) => {
-                  console.error('Error loading before photo in review:', e)
-                  // Try to use blob URL as fallback if IPFS fails
-                  if (beforePhotoIPFSHash && beforePhotoUrl) {
-                    const img = e.target as HTMLImageElement
+                  const img = e.target as HTMLImageElement
+                  const currentSrc = img.src
+                  console.error('Error loading before photo in review:', currentSrc)
+                  
+                  // If current src is invalid (UUID or blob URL that's been revoked), try fallback
+                  if (currentSrc && (currentSrc.includes('blob:') || currentSrc.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i))) {
+                    // Invalid blob URL or UUID - try IPFS or hide image
+                    if (beforePhotoIPFSHash) {
+                      const ipfsUrl = getIPFSUrl(beforePhotoIPFSHash)
+                      if (ipfsUrl && ipfsUrl !== currentSrc) {
+                        img.src = ipfsUrl
+                        return
+                      }
+                    }
+                    // Hide image if no valid source
+                    img.style.display = 'none'
+                  } else if (beforePhotoIPFSHash && beforePhotoUrl && beforePhotoUrl !== currentSrc) {
+                    // Try blob URL as fallback if IPFS fails
                     img.src = beforePhotoUrl
+                  } else {
+                    // Hide image if no valid source
+                    img.style.display = 'none'
                   }
                 }}
               />
@@ -2338,11 +2355,28 @@ function CleanupContent() {
                 alt="After"
                 className="h-32 w-full rounded-lg object-cover"
                 onError={(e) => {
-                  console.error('Error loading after photo in review:', e)
-                  // Try to use blob URL as fallback if IPFS fails
-                  if (afterPhotoIPFSHash && afterPhotoUrl) {
-                    const img = e.target as HTMLImageElement
+                  const img = e.target as HTMLImageElement
+                  const currentSrc = img.src
+                  console.error('Error loading after photo in review:', currentSrc)
+                  
+                  // If current src is invalid (UUID or blob URL that's been revoked), try fallback
+                  if (currentSrc && (currentSrc.includes('blob:') || currentSrc.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i))) {
+                    // Invalid blob URL or UUID - try IPFS or hide image
+                    if (afterPhotoIPFSHash) {
+                      const ipfsUrl = getIPFSUrl(afterPhotoIPFSHash)
+                      if (ipfsUrl && ipfsUrl !== currentSrc) {
+                        img.src = ipfsUrl
+                        return
+                      }
+                    }
+                    // Hide image if no valid source
+                    img.style.display = 'none'
+                  } else if (afterPhotoIPFSHash && afterPhotoUrl && afterPhotoUrl !== currentSrc) {
+                    // Try blob URL as fallback if IPFS fails
                     img.src = afterPhotoUrl
+                  } else {
+                    // Hide image if no valid source
+                    img.style.display = 'none'
                   }
                 }}
               />

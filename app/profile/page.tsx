@@ -193,13 +193,22 @@ function ProfileContent() {
 
   // Use wagmi's useEnsName hook for ENS resolution (web flow only)
   // This is the recommended way to resolve ENS names
-  const { data: ensName } = useEnsName({
+  const { data: ensName, isLoading: ensLoading } = useEnsName({
     address: !isMiniApp && isConnected && address ? address : undefined,
     chainId: mainnet.id, // ENS is on mainnet
     query: {
       enabled: !isMiniApp && isConnected && !!address, // Only query on web when connected
+      retry: 2, // Retry up to 2 times
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     },
   })
+  
+  // Debug ENS resolution
+  useEffect(() => {
+    if (!isMiniApp && isConnected && address) {
+      console.log('Profile ENS resolution:', { address, ensName, ensLoading, isConnected })
+    }
+  }, [isMiniApp, isConnected, address, ensName, ensLoading])
 
   // Prevent hydration mismatch by ensuring we render only after mounting
   useEffect(() => {

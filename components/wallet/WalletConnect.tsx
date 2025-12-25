@@ -37,13 +37,22 @@ export function WalletConnect() {
 
   // Use wagmi's useEnsName hook for ENS resolution (web flow only)
   // This is the recommended way to resolve ENS names
-  const { data: ensName } = useEnsName({
+  const { data: ensName, isLoading: ensLoading } = useEnsName({
     address: !isMiniApp && isConnected && address ? address : undefined,
     chainId: mainnet.id, // ENS is on mainnet
     query: {
       enabled: !isMiniApp && isConnected && !!address, // Only query on web when connected
+      retry: 2, // Retry up to 2 times
+      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     },
   })
+  
+  // Debug ENS resolution
+  useEffect(() => {
+    if (!isMiniApp && isConnected && address) {
+      console.log('ENS resolution:', { address, ensName, ensLoading, isConnected })
+    }
+  }, [isMiniApp, isConnected, address, ensName, ensLoading])
 
   // Initialize on mount
   useEffect(() => {
@@ -87,6 +96,27 @@ export function WalletConnect() {
     // Detect when connection state changes from disconnected to connected
     const justConnected = !previousConnectedRef.current && isConnected && address
     const addressChanged = previousAddressRef.current !== address && isConnected && address
+    const justDisconnected = previousConnectedRef.current && !isConnected
+    
+    if (justDisconnected) {
+      console.log('Wallet disconnected, resetting state...')
+      // Force UI update to reset modal state
+      setForceUpdate(prev => prev + 1)
+      // Clear any stale WalletConnect session data
+      if (typeof window !== 'undefined' && connector?.id?.includes('walletconnect')) {
+        try {
+          const wcKeys = Object.keys(localStorage).filter(key => 
+            key.startsWith('wc@2:') || key.startsWith('walletconnect')
+          )
+          if (wcKeys.length > 0) {
+            console.log('Clearing WalletConnect session data after disconnect')
+            wcKeys.forEach(key => localStorage.removeItem(key))
+          }
+        } catch (e) {
+          console.warn('Failed to clear WalletConnect storage:', e)
+        }
+      }
+    }
     
     if (justConnected || addressChanged) {
       console.log('Wallet connection detected:', {
@@ -111,7 +141,7 @@ export function WalletConnect() {
     // Update refs for next comparison
     previousConnectedRef.current = isConnected
     previousAddressRef.current = address
-  }, [isConnected, connector?.name, connector?.id, chainId, address])
+  }, [isConnected, connector?.name, connector?.id, chainId, address, connector])
 
   // Show consistent initial state on server and client
   if (!mounted) {
@@ -171,7 +201,42 @@ export function WalletConnect() {
                 isIOSSafari,
                 readyConnectors: readyConnectors.length,
                 hasModal: !!openConnectModal,
+                allConnectors: connectors.map(c => ({ id: c.id, name: c.name, ready: c.ready })),
               })
+              
+              // If no connectors are ready, wait a bit and try again
+              // This is especially important for Safari where connectors may take time to initialize
+              if (!hasReadyConnectors) {
+                console.log('⏳ No ready connectors, waiting for initialization...')
+                // Wait for connectors to become ready (up to 3 seconds)
+                let attempts = 0
+                const checkConnectors = setInterval(() => {
+                  attempts++
+                  const nowReady = connectors.filter(c => c.ready)
+                  if (nowReady.length > 0 || attempts >= 6) {
+                    clearInterval(checkConnectors)
+                    if (nowReady.length > 0) {
+                      console.log(`✅ Connectors ready after ${attempts * 500}ms`)
+                      // Retry the connection
+                      handleConnect(e)
+                    } else {
+                      console.warn('⚠️ Connectors still not ready after waiting')
+                      // Try opening modal anyway - RainbowKit might handle it
+                      if (openConnectModal) {
+                        try {
+                          openConnectModal()
+                        } catch (error) {
+                          console.warn('RainbowKit modal failed:', error)
+                          handleDirectConnect()
+                        }
+                      } else {
+                        handleDirectConnect()
+                      }
+                    }
+                  }
+                }, 500)
+                return
+              }
               
               // On mobile, prefer direct connect if connectors are ready
               // RainbowKit modal works on mobile, but direct connect is more reliable
