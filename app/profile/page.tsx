@@ -1,7 +1,8 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useState } from 'react'
-import { useAccount } from 'wagmi'
+import { useAccount, useEnsName } from 'wagmi'
+import { mainnet } from 'wagmi/chains'
 import type { Address } from 'viem'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
@@ -46,6 +47,7 @@ import {
 } from '@/lib/contracts'
 import { useBuilderCodeAttribution } from '@/lib/hooks/useBuilderCode'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
+import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { useChainId } from 'wagmi'
 import { generateReferralLink, formatReferralMessage } from '@/lib/farcaster'
@@ -135,6 +137,7 @@ function ProfileContent() {
   useFarcasterReady()
   
   const { address, isConnected } = useAccount()
+  const { context: farcasterContext, isMiniApp } = useFarcaster()
   const chainId = useChainId()
   const searchParams = useSearchParams()
   const [hasMounted, setHasMounted] = useState(false)
@@ -187,6 +190,16 @@ function ProfileContent() {
   const [showReferralNotification, setShowReferralNotification] = useState(false)
   const [referralEligible, setReferralEligible] = useState<boolean | null>(null)
   const [referralIneligibleReason, setReferralIneligibleReason] = useState<string | null>(null)
+
+  // Use wagmi's useEnsName hook for ENS resolution (web flow only)
+  // This is the recommended way to resolve ENS names
+  const { data: ensName } = useEnsName({
+    address: !isMiniApp && isConnected && address ? address : undefined,
+    chainId: mainnet.id, // ENS is on mainnet
+    query: {
+      enabled: !isMiniApp && isConnected && !!address, // Only query on web when connected
+    },
+  })
 
   // Prevent hydration mismatch by ensuring we render only after mounting
   useEffect(() => {
@@ -761,8 +774,13 @@ function ProfileContent() {
               My Profile
             </h1>
             <p className="text-sm text-gray-400">
-              {address?.slice(0, 6)}...{address?.slice(-4)}
+              {ensName || (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '')}
             </p>
+            {ensName && address && (
+              <p className="text-xs text-gray-500 font-mono">
+                {address.slice(0, 6)}...{address.slice(-4)}
+              </p>
+            )}
           </div>
           <Button
             variant="ghost"
@@ -788,6 +806,92 @@ function ProfileContent() {
 
         {/* Referral Notification */}
         <ReferralNotification />
+
+        {/* Farcaster Account Info */}
+        {isMiniApp && farcasterContext?.user && (
+          <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900 p-6">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border-2 border-gray-700">
+                <Image
+                  src={farcasterContext.user.pfp?.url || 'https://farcaster.xyz/avatar.png'}
+                  alt={farcasterContext.user.displayName || farcasterContext.user.username}
+                  fill
+                  className="object-cover"
+                  sizes="48px"
+                  onError={(e) => {
+                    // Fallback to default avatar
+                    const img = e.currentTarget as HTMLImageElement
+                    img.src = 'https://farcaster.xyz/avatar.png'
+                  }}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg font-bold uppercase tracking-wide text-white truncate">
+                  {farcasterContext.user.displayName || farcasterContext.user.username}
+                </h2>
+                <p className="text-sm text-gray-400 truncate">
+                  @{farcasterContext.user.username}
+                </p>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              {address && (
+                <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-400 mb-1">Wallet Address</p>
+                      <p className="text-sm font-mono text-white truncate">
+                        {address}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(address)
+                          setCopyingField('wallet')
+                          setTimeout(() => setCopyingField(null), 2000)
+                        } catch (error) {
+                          console.error('Failed to copy wallet address:', error)
+                          alert(`Wallet Address: ${address}`)
+                        }
+                      }}
+                      className="flex-shrink-0 text-gray-400 hover:text-white"
+                      title="Copy wallet address"
+                    >
+                      {copyingField === 'wallet' ? (
+                        <CheckCircle className="h-4 w-4 text-brand-green" />
+                      ) : (
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          />
+                        </svg>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {farcasterContext.user.bio?.text && (
+                <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+                  <p className="text-xs text-gray-400 mb-1">Bio</p>
+                  <p className="text-sm text-gray-300">{farcasterContext.user.bio.text}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Stats Grid - Total Balance and Total Rewards */}
         <div className="mb-6 grid gap-4 sm:grid-cols-2">

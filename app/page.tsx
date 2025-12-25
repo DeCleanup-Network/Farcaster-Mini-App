@@ -7,11 +7,11 @@ import { SuccessModal } from '@/components/ui/success-modal'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
+import { useFarcasterAutoConnect } from '@/lib/hooks/useFarcasterAutoConnect'
 import type { Connector } from 'wagmi'
 import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, X } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
 import { claimImpactProductFromVerification, getClaimFee, getUserLevel } from '@/lib/contracts'
-import { isFarcasterContext } from '@/lib/farcaster'
 import { REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
@@ -22,6 +22,8 @@ const getExplorerTxUrl = (hash: `0x${string}`) => `${REQUIRED_BLOCK_EXPLORER_URL
 export default function Home() {
   // Ensure ready() is called early on this landing page
   useFarcasterReady()
+  // Auto-connect Farcaster wallet and account when in Mini App
+  useFarcasterAutoConnect()
   
   const [mounted, setMounted] = useState(false)
   const { context, isLoading } = useFarcaster()
@@ -42,7 +44,6 @@ export default function Home() {
   const [userLevel, setUserLevel] = useState<number | null>(null)
   const [showRejectionAlert, setShowRejectionAlert] = useState(false)
   const [isClaiming, setIsClaiming] = useState(false)
-  const [isInFarcaster, setIsInFarcaster] = useState(false)
   const [hasSwitchedNetwork, setHasSwitchedNetwork] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [successModalData, setSuccessModalData] = useState<{
@@ -50,6 +51,10 @@ export default function Home() {
     message: string
     transactionHash?: string
   } | null>(null)
+  
+  // Use isMiniApp from FarcasterProvider context (proper detection)
+  const { isMiniApp } = useFarcaster()
+  
   const farcasterConnector = connectors.find((c) => {
     const name = c.name.toLowerCase()
     const id = c.id?.toLowerCase() || ''
@@ -62,7 +67,8 @@ export default function Home() {
     return !name.includes('farcaster') && !name.includes('frame') && !name.includes('miniapp') && !id.includes('farcaster') && !id.includes('frame') && !id.includes('miniapp')
   })
 
-  const primaryConnector: Connector | undefined = isInFarcaster && farcasterConnector ? farcasterConnector : externalConnectors[0]
+  // In Mini App, prioritize Farcaster connector; otherwise use external connectors
+  const primaryConnector: Connector | undefined = isMiniApp && farcasterConnector ? farcasterConnector : externalConnectors[0]
 
   const handleConnect = async (connector?: Connector) => {
     if (!connector) {
@@ -108,7 +114,6 @@ export default function Home() {
   // Fix hydration error by only showing wallet state after mount
   useEffect(() => {
     setMounted(true)
-    setIsInFarcaster(isFarcasterContext())
   }, [])
 
   // Note: Chain switching is handled by ensureWalletOnRequiredChain() in contract functions
@@ -225,23 +230,12 @@ export default function Home() {
             <p className="mx-auto mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base md:text-lg">
               Apply with your cleanup results to receive a DeCleanup Impact Product, earn community token $bDCU, and progress through levels.
             </p>
+            <p className="mx-auto mt-4 text-xs text-muted-foreground sm:text-sm">
+              Connect your wallet on Base Sepolia to get started
+            </p>
           </div>
 
-          {!mounted ? (
-            // Show consistent initial state on server and client
-            <div className="mx-auto max-w-md">
-              <Button
-                size="lg"
-                disabled
-                className="w-full gap-2 bg-brand-green text-black"
-              >
-                LOG IN
-              </Button>
-              <p className="mt-4 text-xs text-muted-foreground">
-                Connect your wallet to get started
-              </p>
-            </div>
-          ) : isConnected ? (
+          {mounted && isConnected ? (
             <div className="mx-auto max-w-md space-y-4">
               {/* Status Banner */}
               {cleanupStatus && (
@@ -495,27 +489,7 @@ export default function Home() {
                 </Button>
               </div>
             </div>
-          ) : (
-            <div className="mx-auto max-w-md space-y-4">
-              <div>
-                <p className="mb-3 text-xs text-muted-foreground">
-                  Connect your wallet to get started.
-                </p>
-                <Button
-                  size="lg"
-                  className="w-full gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
-                  disabled={isPending || !primaryConnector}
-                  onClick={() => handleConnect(primaryConnector)}
-                >
-                  <Wallet className="h-5 w-5" />
-                  {isPending ? 'Connecting...' : 'Log In'}
-                </Button>
-                <p className="mt-2 text-xs text-muted-foreground text-center">
-                  Use, when on Farcaster. Connects you with FC wallet
-                </p>
-              </div>
-            </div>
-          )}
+          ) : null}
         </section>
 
 
@@ -548,7 +522,8 @@ export default function Home() {
                     const { generateReferralLink, shareCast, formatReferralMessage } = await import('@/lib/farcaster')
                       // Use Farcaster miniapp URL for Farcaster sharing
                       const referralLink = generateReferralLink(address, 'farcaster', false)
-                      const message = formatReferralMessage(referralLink, 'farcaster')
+                      // Format message with link text - link will also be passed as embed for pressability
+                      const message = formatReferralMessage(referralLink, 'farcaster').trim()
                       console.log('Sharing to Farcaster:', { message, embedLink: referralLink })
                       await shareCast(message, referralLink)
                     } catch (error) {

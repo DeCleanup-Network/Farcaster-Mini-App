@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { useAccount, useChainId, useDisconnect, useConnect } from 'wagmi'
+import { useAccount, useChainId, useDisconnect, useConnect, useEnsName } from 'wagmi'
 import { ConnectButton, useConnectModal, useAccountModal, useChainModal } from '@rainbow-me/rainbowkit'
 import { Wallet, LogOut, ChevronDown } from 'lucide-react'
 import { REQUIRED_CHAIN_ID } from '@/lib/wagmi'
 import { Button } from '@/components/ui/button'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
-import { lookupENS } from '@/lib/ens'
+import { mainnet } from 'wagmi/chains'
 
 /**
  * WalletConnect component using RainbowKit
@@ -28,7 +28,6 @@ export function WalletConnect() {
   const { isMiniApp } = useFarcaster()
   const previousConnectedRef = useRef(false)
   const previousAddressRef = useRef<string | undefined>(undefined)
-  const [ensName, setEnsName] = useState<string | null>(null)
   
   // Use RainbowKit modal hooks for programmatic control
   // These hooks provide access to modal state and open functions
@@ -36,22 +35,15 @@ export function WalletConnect() {
   const { openAccountModal, accountModalOpen } = useAccountModal()
   const { openChainModal, chainModalOpen } = useChainModal()
 
-  // Lookup ENS name for connected address (web flow only)
-  useEffect(() => {
-    if (!isMiniApp && isConnected && address) {
-      lookupENS(address).then(name => {
-        if (name) {
-          setEnsName(name)
-        } else {
-          setEnsName(null)
-        }
-      }).catch(() => {
-        setEnsName(null)
-      })
-    } else {
-      setEnsName(null)
-    }
-  }, [isMiniApp, isConnected, address])
+  // Use wagmi's useEnsName hook for ENS resolution (web flow only)
+  // This is the recommended way to resolve ENS names
+  const { data: ensName } = useEnsName({
+    address: !isMiniApp && isConnected && address ? address : undefined,
+    chainId: mainnet.id, // ENS is on mainnet
+    query: {
+      enabled: !isMiniApp && isConnected && !!address, // Only query on web when connected
+    },
+  })
 
   // Initialize on mount
   useEffect(() => {

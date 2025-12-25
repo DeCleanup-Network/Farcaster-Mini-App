@@ -3,16 +3,13 @@ import { sdk } from '@farcaster/miniapp-sdk'
 const APP_NAME = 'DeCleanup Rewards'
 export const MINIAPP_URL =
   process.env.NEXT_PUBLIC_MINIAPP_URL || 'https://miniapp.decleanup.net'
-const FARCASTER_HANDLE = '@base'
+const FARCASTER_HANDLE = '@base.base.eth'
 const REFERRAL_COPY_FARCASTER =
-  'Join me in @decleanupnet Rewards! Clean up, share proof, earn tokens, and trade on Base\n\n'
+  'Join me in @decleanupnet Rewards! Clean up, share proof, earn tokens, and trade on @base.base.eth\n\n'
 const REFERRAL_COPY_WEB =
-  'Join me in @decleanupnet Rewards! Clean up, share proof, earn tokens, and trade on @base.\n\n'
+  'Join me in @decleanupnet Rewards! Clean up, share proof, earn tokens, and trade on @base.base.eth.\n\n'
 const REFERRAL_COPY_COPY =
   'Join me in DeCleanup Rewards! Clean up, share proof, earn tokens, and trade on Base.\n\n'
-
-// Tip message for Farcaster app referrals
-const FARCASTER_WALLET_TIP = '\n\nTip: Use Farcaster wallet for smooth experience'
 
 // Profile share messages
 export const formatReferralMessage = (
@@ -26,16 +23,13 @@ export const formatReferralMessage = (
       ? REFERRAL_COPY_WEB
       : REFERRAL_COPY_COPY
   
-  // Add tip message only for Farcaster app referrals
-  const tip = type === 'farcaster' ? FARCASTER_WALLET_TIP : ''
-  
   // For Farcaster, put link inline in the message so it's clickable
   // Links need to be inline in Farcaster/Warpcast to be pressable
   if (type === 'farcaster') {
-    return `${copy}${referralLink}${tip}`
+    return `${copy}${referralLink}`
   }
   
-  return `${copy}${referralLink}${tip}`
+  return `${copy}${referralLink}`
 }
 
 // Claim share messages
@@ -63,10 +57,7 @@ export const formatImpactShareMessage = (
     message = `I've just minted ${levelLabel}! Earn tokens for cleanups and trade on @base: ${normalizedLink}`
   }
   
-  // Add tip message only for Farcaster app sharing (after the link)
-  const tip = type === 'farcaster' ? FARCASTER_WALLET_TIP : ''
-  
-  return `${message}${tip}`
+  return message
 }
 
 // EIP-1193 Provider type (for wallet integration)
@@ -121,12 +112,16 @@ export const getFarcasterWalletProvider = (): EIP1193Provider | null => {
 }
 
 // Check if running in Farcaster context
+// DEPRECATED: Use detectFarcasterEnvironment() or isMiniApp from FarcasterProvider context
+// This function provides a synchronous fallback check
 export const isFarcasterContext = (): boolean => {
   try {
     if (typeof window === 'undefined') {
       return false
     }
     // Check if we're actually in Farcaster by checking for SDK context
+    // Note: This is a synchronous check and may not be 100% accurate
+    // For accurate detection, use detectFarcasterEnvironment() or isMiniApp from context
     const hasSdkContext = !!sdk.context
     return hasSdkContext
   } catch {
@@ -258,13 +253,42 @@ export const shareToX = async (text: string, url?: string): Promise<boolean> => 
 // Share a cast (post) on Farcaster
 export const shareCast = async (text: string, url?: string): Promise<boolean> => {
   try {
-    // IMPORTANT: Do NOT use the Web Share API here.
-    // On mobile (including inside Warpcast), navigator.share will only share a plain
-    // link + text and will NOT create an embed with a pressable miniapp frame.
-    // To get a preview + frame, we must always use the Warpcast compose URL with
-    // ?text=...&embeds[]=...
+    // Check if we are in Farcaster context
+    let inFarcaster = false
+    try {
+      inFarcaster = isFarcasterContext()
+    } catch (error) {
+      console.log('Error checking Farcaster context, assuming browser:', error)
+      inFarcaster = false
+    }
 
-    // Build Warpcast compose URL with pre-filled text and embed
+    // In Farcaster Mini App, use SDK's composeCast action for proper link handling
+    if (inFarcaster) {
+      try {
+        // Use SDK's composeCast action - this properly handles embeds and makes links pressable
+        // For referral links, we want the link to be pressable, so we pass it as an embed
+        // The embed will show a preview and be clickable
+        if (url) {
+          // Keep text as-is (may contain the link text), but pass URL as embed
+          // The embed makes the link pressable and shows a preview
+          await sdk.actions.composeCast({
+            text: text.trim(),
+            embeds: [url], // Pass URL as embed - this makes it pressable and shows preview
+          })
+        } else {
+          await sdk.actions.composeCast({
+            text: text.trim(),
+          })
+        }
+        console.log('✅ Cast composed using SDK composeCast with embed:', url || 'no embed')
+        return true
+      } catch (composeError) {
+        console.warn('SDK composeCast failed, falling back to Warpcast compose URL:', composeError)
+        // Fall through to Warpcast compose URL method
+      }
+    }
+
+    // Fallback: Build Warpcast compose URL with pre-filled text and embed
     // Warpcast compose URL format: https://warpcast.com/~/compose?text=...&embeds[]=...
     //
     // IMPORTANT:
@@ -272,8 +296,6 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
     //   (https://farcaster.xyz/miniapps/.../decleanup-rewards?ref=0x...),
     //   we should pass that exact URL as the embed so Warpcast shows the
     //   mini app preview + pressable frame.
-    // - Using an intermediate /share page can result in a plain link with
-    //   no miniapp frame, especially on mobile.
     let farcasterUrl: string
     if (url) {
       const embedUrl = url
@@ -284,15 +306,6 @@ export const shareCast = async (text: string, url?: string): Promise<boolean> =>
     } else {
       // Just text, no embed
       farcasterUrl = `https://warpcast.com/~/compose?text=${encodeURIComponent(text)}`
-    }
-
-    // Check if we are in Farcaster context
-    let inFarcaster = false
-    try {
-      inFarcaster = isFarcasterContext()
-    } catch (error) {
-      console.log('Error checking Farcaster context, assuming browser:', error)
-      inFarcaster = false
     }
 
     if (inFarcaster) {

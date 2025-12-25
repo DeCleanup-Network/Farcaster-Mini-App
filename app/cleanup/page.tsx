@@ -14,6 +14,10 @@ import type { Address } from 'viem'
 import { useBuilderCodeAttribution } from '@/lib/hooks/useBuilderCode'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import { tryAddRequiredChain } from '@/lib/network'
+import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
+import { resolveENS, isValidENSFormat } from '@/lib/ens'
+import { resolveFID, isValidFIDFormat, getFIDFromUsername } from '@/lib/farcaster-fid'
+import { TransactionModal, useTransactionModal } from '@/components/ui/transaction-modal'
 import {
   REQUIRED_CHAIN_ID,
   REQUIRED_CHAIN_NAME,
@@ -56,6 +60,7 @@ function CleanupContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { sendWithBuilderCode } = useBuilderCodeAttribution()
+  const { isMiniApp } = useFarcaster()
   const [mounted, setMounted] = useState(false)
   const [referrerAddress, setReferrerAddress] = useState<Address | null>(null)
   const [step, setStep] = useState<Step>('before')
@@ -86,6 +91,7 @@ function CleanupContent() {
   const [checkingPending, setCheckingPending] = useState(true)
   const [clearingPending, setClearingPending] = useState(false)
   const [userLevel, setUserLevel] = useState<number | null>(null)
+  const { modal, showSuccess, hideModal } = useTransactionModal()
   
   // Fix hydration error by only rendering after mount
   useEffect(() => {
@@ -283,6 +289,10 @@ function CleanupContent() {
     preventionIdeas: '',
     additionalNotes: '',
   })
+
+  // State for contributor resolution (ENS/FID)
+  const [contributorResolving, setContributorResolving] = useState<Record<number, boolean>>({})
+  const [contributorErrors, setContributorErrors] = useState<Record<number, string>>({})
 
   // Preset options
   const locationTypeOptions = [
@@ -879,7 +889,7 @@ function CleanupContent() {
             })
           }
 
-          cleanupId = await submitCleanup(
+          const result = await submitCleanup(
             beforeHash.hash,
             afterHash.hash,
             location.lat,
@@ -891,6 +901,8 @@ function CleanupContent() {
             chainId, // Pass chainId from useChainId hook to avoid detection bugs
             sendTransaction // Pass Builder Code transaction sender
           )
+          const cleanupId = result.cleanupId
+          const transactionHash = result.transactionHash
         } catch (builderCodeError: any) {
           // If Builder Code fails (capabilities error, etc.), retry without it
           const errorMessage = builderCodeError?.message || String(builderCodeError || '')
@@ -903,7 +915,7 @@ function CleanupContent() {
           if (isBuilderCodeError) {
             console.warn('⚠️ Builder Code submission failed, retrying with standard transaction:', errorMessage)
             // Retry without Builder Code (standard submission)
-            cleanupId = await submitCleanup(
+            const result = await submitCleanup(
               beforeHash.hash,
               afterHash.hash,
               location.lat,
@@ -915,6 +927,8 @@ function CleanupContent() {
               chainId,
               undefined // No Builder Code - use standard writeContract
             )
+            const cleanupId = result.cleanupId
+            const transactionHash = result.transactionHash
           } else {
             // Re-throw if it's not a Builder Code error
             throw builderCodeError
@@ -922,12 +936,27 @@ function CleanupContent() {
         }
 
         console.log('✅ Cleanup submitted with ID:', cleanupId.toString())
+        console.log('✅ Transaction hash:', transactionHash)
         console.log('✅ Referrer address used in submission:', referrerAddress || 'none (no referrer)')
         if (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') {
           console.log('✅ Referral reward will be distributed when cleanup is verified!')
         }
         setCleanupId(cleanupId)
         setStep('review')
+        
+        // Show transaction modal with success message
+        const explorerUrl = `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${transactionHash}`
+        showSuccess(
+          'Cleanup Submitted Successfully!',
+          `Your cleanup has been submitted and is pending verification. Cleanup ID: ${cleanupId.toString()}`,
+          {
+            transactionHash,
+            actionLabel: 'View Transaction',
+            onAction: () => {
+              window.open(explorerUrl, '_blank', 'noopener,noreferrer')
+            },
+          }
+        )
         
         // Store cleanup ID in localStorage for verification checking (scoped to user address)
         if (typeof window !== 'undefined' && address) {
@@ -946,10 +975,10 @@ function CleanupContent() {
           localStorage.removeItem('pending_cleanup_location')
         }
         
-        // Redirect to home after 3 seconds
+        // Redirect to home after 5 seconds (give user time to see transaction modal)
         setTimeout(() => {
           router.push('/')
-        }, 3000)
+        }, 5000)
       } catch (submitError: any) {
         console.error('Error submitting cleanup:', submitError)
         const errorMessage = submitError?.message || submitError?.shortMessage || String(submitError) || 'Unknown error'
@@ -1135,12 +1164,13 @@ function CleanupContent() {
               <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
             </div>
             <div className="flex-1">
-              <p className="text-sm text-gray-400">Checking referral eligibility...</p>
-            </div>
-          </div>
+              <p className="text-sm text-gray-400">Checking referral eligibility...          </p>
         </div>
-      )
-    }
+      </div>
+      </div>
+    </>
+  )
+}
     
     // Show ineligible message if user already used referral
     if (referralEligible === false) {
@@ -1939,27 +1969,161 @@ function CleanupContent() {
                   <span className="font-mono text-xs">{address || 'Your wallet address'}</span>
                   <span className="ml-2 text-gray-500">(You)</span>
                 </div>
-                {enhancedData.contributors.map((contributor, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={contributor}
-                      onChange={(e) => {
-                        const newContributors = [...enhancedData.contributors]
-                        newContributors[idx] = e.target.value
-                        setEnhancedData({ ...enhancedData, contributors: newContributors })
-                      }}
-                      placeholder="Contributor address (0x...)"
-                      className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500 text-sm"
-                    />
-                    <button
-                      onClick={() => setEnhancedData({ ...enhancedData, contributors: enhancedData.contributors.filter((_, i) => i !== idx) })}
-                      className="rounded-lg border border-red-500 bg-red-500/10 px-3 py-2 text-red-400 hover:bg-red-500/20"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+                {enhancedData.contributors.map((contributor, idx) => {
+                  const isResolving = contributorResolving[idx] || false
+                  const error = contributorErrors[idx]
+                  const inputValue = contributor
+                  const isAddress = /^0x[a-fA-F0-9]{40}$/.test(inputValue.trim())
+                  
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex gap-2">
+                        <div className="flex-1 relative">
+                          <input
+                            type="text"
+                            value={contributor}
+                            onChange={(e) => {
+                              const newContributors = [...enhancedData.contributors]
+                              newContributors[idx] = e.target.value
+                              setEnhancedData({ ...enhancedData, contributors: newContributors })
+                              
+                              // Clear previous error when typing
+                              setContributorErrors(prev => {
+                                const updated = { ...prev }
+                                delete updated[idx]
+                                return updated
+                              })
+                            }}
+                            onPaste={(e) => {
+                              // Allow paste - will be resolved when user clicks search
+                              e.preventDefault()
+                              const pasted = e.clipboardData.getData('text')
+                              const newContributors = [...enhancedData.contributors]
+                              newContributors[idx] = pasted
+                              setEnhancedData({ ...enhancedData, contributors: newContributors })
+                            }}
+                            placeholder={
+                              isMiniApp 
+                                ? "Paste Farcaster FID, @username, or wallet address" 
+                                : "Paste ENS name (e.g., vitalik.eth) or wallet address (0x...)"
+                            }
+                            className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500 text-sm"
+                            disabled={isResolving}
+                          />
+                          {isResolving && (
+                            <div className="absolute right-12 top-1/2 -translate-y-1/2">
+                              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                            </div>
+                          )}
+                        </div>
+                        {!isAddress && inputValue.trim() && (
+                          <button
+                            onClick={async () => {
+                              const trimmed = inputValue.trim()
+                              if (!trimmed) return
+                              
+                              // Check if it's already an address
+                              if (/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+                                return // Already an address, no need to resolve
+                              }
+
+                              setContributorResolving(prev => ({ ...prev, [idx]: true }))
+                              setContributorErrors(prev => {
+                                const updated = { ...prev }
+                                delete updated[idx]
+                                return updated
+                              })
+
+                              try {
+                                let resolved: Address | null = null
+                                
+                                // First check if it's already a valid address
+                                if (/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+                                  resolved = trimmed as Address
+                                } else if (isMiniApp) {
+                                  // Farcaster flow: try FID or username
+                                  if (isValidFIDFormat(trimmed)) {
+                                    resolved = await resolveFID(trimmed)
+                                  } else if (trimmed.startsWith('@')) {
+                                    const fid = await getFIDFromUsername(trimmed)
+                                    if (fid) {
+                                      resolved = await resolveFID(fid)
+                                    } else {
+                                      throw new Error('Farcaster username not found')
+                                    }
+                                  } else {
+                                    throw new Error('Enter FID (e.g., 12345), @username, or wallet address (0x...)')
+                                  }
+                                } else {
+                                  // Web flow: try ENS or address
+                                  if (isValidENSFormat(trimmed)) {
+                                    resolved = await resolveENS(trimmed)
+                                  } else {
+                                    throw new Error('Enter ENS name (e.g., vitalik.eth) or wallet address (0x...)')
+                                  }
+                                }
+
+                                if (resolved) {
+                                  const newContributors = [...enhancedData.contributors]
+                                  newContributors[idx] = resolved
+                                  setEnhancedData({ ...enhancedData, contributors: newContributors })
+                                } else {
+                                  throw new Error(isMiniApp ? 'FID or username not found' : 'ENS name not found')
+                                }
+                              } catch (err: any) {
+                                setContributorErrors(prev => ({ 
+                                  ...prev, 
+                                  [idx]: err?.message || 'Failed to resolve' 
+                                }))
+                              } finally {
+                                setContributorResolving(prev => {
+                                  const updated = { ...prev }
+                                  delete updated[idx]
+                                  return updated
+                                })
+                              }
+                            }}
+                            disabled={isResolving || !inputValue.trim() || isAddress}
+                            className="rounded-lg border border-brand-green bg-brand-green/10 px-3 py-2 text-brand-green hover:bg-brand-green/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Search and resolve"
+                          >
+                            {isResolving ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            setEnhancedData({ ...enhancedData, contributors: enhancedData.contributors.filter((_, i) => i !== idx) })
+                            setContributorErrors(prev => {
+                              const updated = { ...prev }
+                              delete updated[idx]
+                              return updated
+                            })
+                            setContributorResolving(prev => {
+                              const updated = { ...prev }
+                              delete updated[idx]
+                              return updated
+                            })
+                          }}
+                          className="rounded-lg border border-red-500 bg-red-500/10 px-3 py-2 text-red-400 hover:bg-red-500/20"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {error && (
+                        <p className="text-xs text-red-400">{error}</p>
+                      )}
+                      {isAddress && (
+                        <p className="text-xs text-green-400">✓ Valid address</p>
+                      )}
+                    </div>
+                  )
+                })}
                 <button
                   type="button"
                   onClick={() => setEnhancedData({ ...enhancedData, contributors: [...enhancedData.contributors, ''] })}
@@ -1969,7 +2133,11 @@ function CleanupContent() {
                   Add Contributor
                 </button>
                 {enhancedData.contributors.length > 0 && (
-                  <p className="text-xs text-gray-500">Contributors are listed for attribution purposes only</p>
+                  <p className="text-xs text-gray-500">
+                    {isMiniApp 
+                      ? 'Search by Farcaster FID (e.g., 12345) or @username. Contributors are listed for attribution purposes only.'
+                      : 'Search by ENS name (e.g., vitalik.eth) or enter address directly. Contributors are listed for attribution purposes only.'}
+                  </p>
                 )}
               </div>
             </div>
@@ -2114,8 +2282,19 @@ function CleanupContent() {
 
   // Step 5: In Review
   return (
-    <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
-      <div className="mx-auto max-w-md text-center">
+    <>
+      <TransactionModal
+        open={modal.open}
+        onClose={hideModal}
+        type={modal.type}
+        title={modal.title}
+        message={modal.message}
+        transactionHash={modal.transactionHash}
+        actionLabel={modal.actionLabel}
+        onAction={modal.onAction}
+      />
+      <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
+        <div className="mx-auto max-w-md text-center">
         <div className="mb-6">
           <Loader2 className="mx-auto mb-4 h-16 w-16 animate-spin text-brand-green" />
           <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">

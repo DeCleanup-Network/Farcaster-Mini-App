@@ -1082,7 +1082,7 @@ export async function submitCleanup(
       throw new Error(`Invalid cleanup ID: ${cleanupId.toString()}. Counter: ${cleanupCounter.toString()}`)
     }
     
-    return cleanupId
+    return { cleanupId, transactionHash: hash }
   } catch (error: any) {
     const errorMessage = getErrorMessage(error)
     console.error('Error getting cleanup ID:', errorMessage)
@@ -1090,7 +1090,7 @@ export async function submitCleanup(
     // If we have a simulated ID, use it as fallback
     if (simulatedCleanupId && simulatedCleanupId >= BigInt(1)) {
       console.warn('Using simulated cleanup ID as fallback:', simulatedCleanupId.toString())
-      return simulatedCleanupId
+      return { cleanupId: simulatedCleanupId, transactionHash: hash }
     }
     
     // Last resort: try to get counter one more time with longer wait

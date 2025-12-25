@@ -1,41 +1,23 @@
 /**
  * Farcaster environment detection utilities
- * Determines if the app is running inside Farcaster Mini App
- * and whether Farcaster Wallet is available
+ * 
+ * DEPRECATED: Use detectFarcasterEnvironment() from @/lib/farcaster-environment instead.
+ * This file is kept for backward compatibility but uses the official SDK method.
  */
+
+import { sdk } from '@farcaster/miniapp-sdk'
 
 /**
  * Check if the app is running inside Farcaster Mini App
- * Uses multiple detection methods for reliability
+ * 
+ * DEPRECATED: Use detectFarcasterEnvironment() for accurate async detection.
+ * This function provides a synchronous fallback check.
  */
 export const isFarcaster = (): boolean => {
   if (typeof window === 'undefined') return false
 
   try {
-    // Method 1: Check user agent
-    const userAgent = navigator.userAgent || ''
-    if (userAgent.includes('Farcaster') || userAgent.includes('fc:frame')) {
-      return true
-    }
-
-    // Method 2: Check if in iframe (Farcaster apps run in iframes)
-    // Exclude localhost to avoid false positives in development
-    if (window.parent !== window) {
-      const hostname = window.location.hostname
-      const isLocalhost = 
-        hostname === 'localhost' || 
-        hostname === '127.0.0.1' ||
-        hostname.startsWith('192.168.') ||
-        hostname.startsWith('10.') ||
-        hostname.includes('.local')
-      
-      // In iframe and not localhost - likely Farcaster
-      if (!isLocalhost) {
-        return true
-      }
-    }
-
-    // Method 3: Check for Farcaster SDK
+    // Use SDK check if available (most reliable)
     if ((window as any).farcaster?.sdk) {
       return true
     }
@@ -48,20 +30,21 @@ export const isFarcaster = (): boolean => {
 
 /**
  * Check if Farcaster Wallet is available and connected
+ * 
+ * Uses the official SDK to check for wallet provider availability.
  */
 export const isFarcasterWallet = (): boolean => {
   if (typeof window === 'undefined') return false
 
   try {
-    const eth = (window as any).ethereum
-    
-    // Check if ethereum provider exists and is Farcaster
-    if (eth?.isFarcaster === true || eth?.provider?.isFarcaster === true) {
+    // Check Farcaster SDK wallet provider (official method)
+    if (sdk.wallet?.ethProvider) {
       return true
     }
 
-    // Check Farcaster SDK wallet provider
-    if ((window as any).farcaster?.sdk?.wallet?.ethProvider) {
+    // Fallback: Check window.ethereum for Farcaster wallet
+    const eth = (window as any).ethereum
+    if (eth?.isFarcaster === true || eth?.provider?.isFarcaster === true) {
       return true
     }
 
