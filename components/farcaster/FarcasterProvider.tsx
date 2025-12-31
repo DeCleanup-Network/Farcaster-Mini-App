@@ -42,14 +42,20 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // CRITICAL: Call ready() immediately like the user's other app
     // This must be called as early as possible to prevent infinite loading
-    try {
-      sdk.actions.ready()
-      console.log('✅ Farcaster SDK ready() called directly')
-    } catch (error) {
-      // If SDK not available, we're likely not in Farcaster context (browser mode)
-      // This is OK - continue with initialization
-      console.log('ℹ️ ready() call skipped (not in Farcaster context):', error)
+    // Base preview requires this to be called and awaited properly
+    const callReady = async () => {
+      try {
+        await sdk.actions.ready()
+        console.log('✅ Farcaster SDK ready() called and awaited in FarcasterProvider')
+      } catch (error) {
+        // If SDK not available, we're likely not in Farcaster context (browser mode)
+        // This is OK - detectFarcasterEnvironment and useFarcasterReady will also try
+        console.log('ℹ️ ready() call in FarcasterProvider skipped (will retry elsewhere):', error)
+      }
     }
+    
+    // Call ready() immediately without blocking
+    callReady()
 
     const init = async () => {
       try {
