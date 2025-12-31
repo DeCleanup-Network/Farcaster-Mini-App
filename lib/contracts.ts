@@ -20,6 +20,11 @@ import {
 } from './wagmi'
 import { tryAddRequiredChain, switchToRequiredChainViaProvider } from './network'
 import * as pointsLib from './points'
+import { getCurrentChainIdCached, clearChainIdCache } from './chain-detection'
+import { validatePreFlight } from './preflight-validation'
+import { withTimeout, TimeoutError } from './timeout-utils'
+import { logTransactionAttempt, logTransactionSuccess, logTransactionError, logChainSwitchAttempt, logChainSwitchSuccess, logChainSwitchError } from './structured-logging'
+import { cleanupAddressStorage, setPendingCleanupId, setPendingCleanupLocation, removeReferrer } from './storage-manager'
 
 // Base Builder Code for attribution
 const BUILDER_CODE = 'bc_e7e2idp7'
@@ -153,9 +158,14 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
     return
   }
 
-  // Use provided chainId if available, otherwise try to get it
-  let currentChainId: number | null = providedChainId !== undefined ? providedChainId : await getCurrentChainId()
+  // Use provided chainId if available, otherwise try to get it (with caching)
+  let currentChainId: number | null = providedChainId !== undefined ? providedChainId : await getCurrentChainIdCached()
   console.log(`[${context}] Current chain ID: ${currentChainId}, required: ${REQUIRED_CHAIN_ID}`)
+  
+  // Log chain switch attempt
+  if (currentChainId !== null && currentChainId !== REQUIRED_CHAIN_ID) {
+    await logChainSwitchAttempt(currentChainId, REQUIRED_CHAIN_ID)
+  }
 
   // If we can't determine chain (e.g., WalletConnect), try to add the chain first
   if (currentChainId === null) {
@@ -220,18 +230,24 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
       console.warn(`[${context}] Pre-add chain attempt failed:`, addError)
     }
 
-    // Now try to switch
+    // Now try to switch with timeout
     try {
       console.log(`[${context}] Attempting to switch chain - wallet should prompt...`)
-      await switchChain(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
+      await withTimeout(
+        switchChain(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 }),
+        30000, // 30 seconds timeout for chain switch
+        'Chain switch timeout - please switch manually in your wallet'
+      )
 
       // Poll for chain update
       let retries = 0
       while (retries < 5) {
         await new Promise(resolve => setTimeout(resolve, 1000))
-        const newChainId = await getCurrentChainId()
+        const newChainId = await getCurrentChainIdCached(true) // Force refresh after switch
         if (newChainId === REQUIRED_CHAIN_ID) {
           console.log(`[${context}] ✅ Successfully switched to ${REQUIRED_CHAIN_NAME}`)
+          clearChainIdCache() // Clear cache after successful switch
+          await logChainSwitchSuccess(REQUIRED_CHAIN_ID)
           return
         }
         retries++
@@ -242,15 +258,18 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
       await new Promise(resolve => setTimeout(resolve, 2000))
       await switchChain(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
       await new Promise(resolve => setTimeout(resolve, 3000))
-      const finalCheck = await getCurrentChainId()
+      const finalCheck = await getCurrentChainIdCached(true) // Force refresh
       if (finalCheck === REQUIRED_CHAIN_ID) {
         console.log(`[${context}] ✅ Successfully switched to ${REQUIRED_CHAIN_NAME} on retry`)
+        clearChainIdCache() // Clear cache after successful switch
+        await logChainSwitchSuccess(REQUIRED_CHAIN_ID)
         return
       }
       
       throw new Error(`Failed to switch network. Please manually switch to ${REQUIRED_CHAIN_NAME} in your wallet.`)
     } catch (error: any) {
       console.error(`[${context}] Switch failed:`, error)
+      await logChainSwitchError(error, currentChainId, REQUIRED_CHAIN_ID)
       
       // Check for WalletConnect stale session error first
       if (isWalletConnectStaleSessionError(error)) {
@@ -378,47 +397,52 @@ async function ensureWalletConnected(): Promise<void> {
 }
 
 async function getCurrentChainId(): Promise<number | null> {
-  // Set up error handler to suppress the getChainId error
-  let suppressedError: Error | null = null
-  const errorHandler = (event: ErrorEvent) => {
-    if (event.message?.includes('getChainId') && event.message?.includes('is not a function')) {
-      event.preventDefault()
-      suppressedError = new Error(event.message)
-    }
-  }
-  
-  // Add error listener temporarily
-  if (typeof window !== 'undefined') {
-    window.addEventListener('error', errorHandler)
-  }
-  
+  // Use cached version to prevent race conditions
   try {
-    // Try the standard getChainId first
-    // This will throw if the connector doesn't support it
-    const chainId = await getChainId(getWagmiConfig())
+    return await getCurrentChainIdCached()
+  } catch (error) {
+    // Fallback to direct call if cache fails
+    // Set up error handler to suppress the getChainId error
+    let suppressedError: Error | null = null
+    const errorHandler = (event: ErrorEvent) => {
+      if (event.message?.includes('getChainId') && event.message?.includes('is not a function')) {
+        event.preventDefault()
+        suppressedError = new Error(event.message)
+      }
+    }
+    
+    // Add error listener temporarily
     if (typeof window !== 'undefined') {
-      window.removeEventListener('error', errorHandler)
-    }
-    return chainId
-  } catch (error: any) {
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('error', errorHandler)
+      window.addEventListener('error', errorHandler)
     }
     
-    // Check if it's the specific connector.getChainId error
-    const errorMessage = getErrorMessage(error)
-    const isConnectorError = errorMessage.includes('getChainId') || 
-                            errorMessage.includes('connector') ||
-                            errorMessage.includes('is not a function') ||
-                            suppressedError !== null
-    
-    if (isConnectorError) {
-      // Silently skip chain verification for unsupported connectors
-      // The wallet will validate the network when the transaction is sent
-      return null
-    }
-    
-    // For other errors, try getting from account as fallback
+    try {
+      // Try the standard getChainId first
+      // This will throw if the connector doesn't support it
+      const chainId = await getChainId(getWagmiConfig())
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('error', errorHandler)
+      }
+      return chainId
+    } catch (chainError: any) {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('error', errorHandler)
+      }
+      
+      // Check if it's the specific connector.getChainId error
+      const errorMessage = getErrorMessage(chainError)
+      const isConnectorError = errorMessage.includes('getChainId') || 
+                              errorMessage.includes('connector') ||
+                              errorMessage.includes('is not a function') ||
+                              suppressedError !== null
+      
+      if (isConnectorError) {
+        // Silently skip chain verification for unsupported connectors
+        // The wallet will validate the network when the transaction is sent
+        return null
+      }
+      
+      // For other errors, try getting from account as fallback
     try {
       const account = await getAccount(getWagmiConfig())
       if (account.chainId) {
@@ -781,6 +805,32 @@ export async function submitCleanup(
     throw new Error('Wallet connection lost. Please reconnect and try again.')
   }
   
+  // Pre-flight validation
+  const validation = await validatePreFlight({
+    checkWallet: true,
+    checkChain: true,
+    checkRewardBalance: false, // Don't check balance for submission
+  })
+  
+  if (!validation.valid) {
+    const errorMessage = validation.errors.join('\n')
+    await logTransactionError('submitCleanup', new Error(errorMessage), { validation })
+    throw new Error(`Pre-flight validation failed:\n${errorMessage}`)
+  }
+  
+  // Log warnings if any
+  if (validation.warnings.length > 0) {
+    console.warn('[submitCleanup] Validation warnings:', validation.warnings)
+  }
+  
+  // Log transaction attempt
+  await logTransactionAttempt('submitCleanup', {
+    referrerAddress: referrerAddress || null,
+    hasImpactForm,
+    latitude,
+    longitude,
+  })
+  
   // Log referrer for debugging
   if (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') {
     console.log('[submitCleanup] Referrer address provided:', referrerAddress)
@@ -1014,8 +1064,15 @@ export async function submitCleanup(
     }
 
     console.log('[submitCleanup] Transaction sent, hash:', hash)
+    await logTransactionSuccess('submitCleanup', hash, { cleanupId: simulatedCleanupId?.toString() })
   } catch (error: any) {
     console.error('[submitCleanup] Transaction failed:', error)
+    await logTransactionError('submitCleanup', error, { 
+      beforePhotoHash,
+      afterPhotoHash,
+      latitude,
+      longitude,
+    })
     
     // Check for WalletConnect stale session error
     if (isWalletConnectStaleSessionError(error)) {
@@ -1053,9 +1110,25 @@ export async function submitCleanup(
     throw error // Re-throw if not a stale session error
   }
 
-  // Wait for transaction receipt
-  const receipt = await waitForTransactionReceipt(getWagmiConfig(), { hash })
-  console.log('Transaction confirmed in block:', receipt.blockNumber)
+  // Wait for transaction receipt with timeout
+  let receipt
+  try {
+    receipt = await withTimeout(
+      waitForTransactionReceipt(getWagmiConfig(), { hash }),
+      120000, // 2 minutes timeout
+      'Transaction receipt timeout - transaction may still be pending. Please check the block explorer.'
+    )
+    console.log('Transaction confirmed in block:', receipt.blockNumber)
+  } catch (timeoutError) {
+    if (timeoutError instanceof TimeoutError) {
+      throw new Error(
+        `Transaction submitted but receipt timeout. ` +
+        `Transaction hash: ${hash}. ` +
+        `Please check the block explorer: ${getTxExplorerUrl(hash)}`
+      )
+    }
+    throw timeoutError
+  }
   
   // Get cleanup ID from counter (counter - 1, since counter increments after submission)
   let cleanupId: bigint
@@ -1154,6 +1227,33 @@ export async function claimImpactProductFromVerification(
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
   }
+
+  // Pre-flight validation (including reward balance check)
+  // Estimate required reward amount (level: 10, streak: 2, referral: 2, impact: 5 = max 19 tokens)
+  // We'll check for a conservative amount
+  const MAX_REWARD_AMOUNT = BigInt(19) * BigInt(10 ** 18) // 19 tokens in wei
+  
+  const validation = await validatePreFlight({
+    checkWallet: true,
+    checkChain: true,
+    checkRewardBalance: true,
+    requiredRewardAmount: MAX_REWARD_AMOUNT,
+    rewardType: 'level',
+  })
+  
+  if (!validation.valid) {
+    const errorMessage = validation.errors.join('\n')
+    await logTransactionError('claimImpactProduct', new Error(errorMessage), { cleanupId: cleanupId.toString(), validation })
+    throw new Error(`Pre-flight validation failed:\n${errorMessage}`)
+  }
+  
+  // Log warnings if any
+  if (validation.warnings.length > 0) {
+    console.warn('[claimImpactProduct] Validation warnings:', validation.warnings)
+  }
+  
+  // Log transaction attempt
+  await logTransactionAttempt('claimImpactProduct', { cleanupId: cleanupId.toString() })
 
   // Note: Chain switching is handled by wallet - user should ensure they're on Base Sepolia
   try {
@@ -1255,8 +1355,10 @@ export async function claimImpactProductFromVerification(
       })
     }
 
+    await logTransactionSuccess('claimImpactProduct', hash, { cleanupId: cleanupId.toString() })
     return hash
   } catch (error: any) {
+    await logTransactionError('claimImpactProduct', error, { cleanupId: cleanupId.toString() })
     const errorMessage = getErrorMessage(error)
     
     // Check for specific "already claimed" errors

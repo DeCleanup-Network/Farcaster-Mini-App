@@ -8,6 +8,7 @@
  */
 
 import { sdk } from '@farcaster/miniapp-sdk'
+import { checkIsInMiniAppWithRetry, callFarcasterReady, getFarcasterContextWithRetry } from './farcaster-ready'
 
 export interface FarcasterEnvironment {
   isMiniApp: boolean
@@ -15,10 +16,10 @@ export interface FarcasterEnvironment {
 }
 
 /**
- * Detect Farcaster Mini App environment using the official SDK
+ * Detect Farcaster Mini App environment using the official SDK with retries
  * 
  * This function:
- * 1. Calls sdk.isInMiniApp() to detect the environment
+ * 1. Calls sdk.isInMiniApp() to detect the environment (with retries)
  * 2. If in Mini App, calls sdk.actions.ready() (mandatory to avoid infinite loading)
  * 3. Returns environment info including context
  * 
@@ -26,15 +27,18 @@ export interface FarcasterEnvironment {
  */
 export async function detectFarcasterEnvironment(): Promise<FarcasterEnvironment> {
   try {
-    // Use the official SDK method - this is the ONLY correct way
-    const isMiniApp = await sdk.isInMiniApp()
+    // Use retry-enabled detection
+    const isMiniApp = await checkIsInMiniAppWithRetry()
     
     if (isMiniApp) {
       // CRITICAL: Must call ready() when in Mini App to avoid infinite loading screen
-      await sdk.actions.ready()
+      const readySuccess = await callFarcasterReady()
+      if (!readySuccess) {
+        console.warn('[farcaster-environment] Failed to call ready() after retries, but continuing...')
+      }
       
-      // Get context (user info, location, client, etc.)
-      const context = await sdk.context
+      // Get context with retries
+      const context = await getFarcasterContextWithRetry()
       
       return {
         isMiniApp: true,

@@ -959,21 +959,15 @@ function CleanupContent() {
           }
         )
         
-        // Store cleanup ID in localStorage for verification checking (scoped to user address)
+        // Store cleanup ID using storage manager (scoped to user address)
         if (typeof window !== 'undefined' && address) {
-          const pendingKey = `pending_cleanup_id_${address.toLowerCase()}`
-          const locationKey = `pending_cleanup_location_${address.toLowerCase()}`
-          localStorage.setItem(pendingKey, cleanupId.toString())
-          localStorage.setItem(locationKey, JSON.stringify(location))
+          const { setPendingCleanupId, setPendingCleanupLocation, removeReferrer } = await import('@/lib/storage-manager')
+          setPendingCleanupId(address, cleanupId)
+          setPendingCleanupLocation(address, location)
           
           // Clear referrer from localStorage after successful submission
           // The referrer is now stored on-chain, so we don't need to keep it locally
-          const referrerKey = `referrer_${address.toLowerCase()}`
-          localStorage.removeItem(referrerKey)
-          
-          // Also clear old global keys if they exist
-          localStorage.removeItem('pending_cleanup_id')
-          localStorage.removeItem('pending_cleanup_location')
+          removeReferrer(address)
         }
         
         // Redirect to home after 5 seconds (give user time to see transaction modal)

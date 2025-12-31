@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { sdk } from '@farcaster/miniapp-sdk'
+import { callFarcasterReady } from '@/lib/farcaster-ready'
 
 /**
  * Hook to ensure sdk.actions.ready() is called on main landing pages
@@ -16,15 +16,8 @@ export function useFarcasterReady() {
   useEffect(() => {
     const init = async () => {
       try {
-        // 1. Call Farcaster SDK ready() if available
-        if (sdk && sdk.actions && typeof sdk.actions.ready === 'function') {
-          try {
-            await sdk.actions.ready()
-            console.log('✅ Page-level Farcaster SDK ready() called successfully')
-          } catch (readyError: any) {
-            console.log('ℹ️ Page-level Farcaster SDK ready() call:', readyError?.message || 'not available')
-          }
-        }
+        // 1. Call Farcaster SDK ready() with retries
+        await callFarcasterReady()
 
         // 2. Try Base MiniKit setFrameReady if available (for Base Mini Apps)
         try {

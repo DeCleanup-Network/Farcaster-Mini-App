@@ -3,6 +3,8 @@
  * Handles photo uploads to IPFS using Pinata
  */
 
+import { logIPFSUploadAttempt, logIPFSUploadSuccess, logIPFSUploadError } from './structured-logging'
+
 export interface IPFSUploadResult {
   hash: string
   url: string
@@ -14,6 +16,8 @@ export interface IPFSUploadResult {
  * @returns IPFS hash (CID) and URL
  */
 export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
+  await logIPFSUploadAttempt(file.name, file.size)
+  
   try {
     // Use API route to avoid CORS issues
     const formData = new FormData()
@@ -77,12 +81,16 @@ export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
       throw new Error('No IPFS hash returned from upload')
     }
 
+    await logIPFSUploadSuccess(file.name, ipfsHash)
+    
     return {
       hash: ipfsHash,
       url: ipfsUrl,
     }
   } catch (error) {
     console.error('IPFS upload error:', error)
+    await logIPFSUploadError(file.name, error)
+    
     if (error instanceof Error) {
       // Provide more helpful error messages
       if (error.message.includes('Network') || error.message.includes('Failed to fetch')) {
