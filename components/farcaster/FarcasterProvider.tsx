@@ -41,37 +41,32 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // CRITICAL: Call ready() IMMEDIATELY - this must happen before ANY other logic
-    // This prevents the splash screen from getting stuck when opening from referral links
-    // Base Apps and Farcaster both require ready() to be called immediately
+    // Base Build preview checks for ready() synchronously, so we must call it immediately
+    // Following Base migration guide pattern: https://docs.base.org/mini-apps/quickstart/migrate-existing-apps
     
-    const callReady = async () => {
-      // Priority 1: Base MiniKit (for Base Apps)
-      // Base Apps use minikit.setFrameReady() - call this first if available
-      try {
-        if (typeof window !== 'undefined' && (window as any).minikit?.setFrameReady) {
-          (window as any).minikit.setFrameReady()
-          console.log('✅ Base MiniKit setFrameReady() called immediately')
-        }
-      } catch (minikitError) {
-        // Base MiniKit not available - continue to Farcaster SDK
-        console.debug('ℹ️ Base MiniKit not available, trying Farcaster SDK')
+    // Priority 1: Base MiniKit (for Base Apps) - call synchronously if available
+    try {
+      if (typeof window !== 'undefined' && (window as any).minikit?.setFrameReady) {
+        (window as any).minikit.setFrameReady()
+        console.log('✅ Base MiniKit setFrameReady() called immediately')
       }
-      
-      // Priority 2: Farcaster SDK (for Farcaster Mini Apps)
-      // Both Base Apps and Farcaster can use Farcaster SDK
-      try {
-        await sdk.actions.ready()
-        console.log('✅ Farcaster SDK ready() called and awaited in FarcasterProvider')
-      } catch (error) {
-        // If SDK not available, we're likely not in Mini App context (browser mode)
-        // This is OK - detectFarcasterEnvironment and useFarcasterReady will also try
-        console.log('ℹ️ Farcaster SDK ready() call skipped (will retry elsewhere):', error)
-      }
+    } catch (minikitError) {
+      // Base MiniKit not available - continue to Farcaster SDK
+      console.debug('ℹ️ Base MiniKit not available, trying Farcaster SDK')
     }
     
-    // Call ready() IMMEDIATELY - don't wait, don't block, fire and forget
-    // This is critical for referral links - splash screen will stick if ready() isn't called
-    callReady()
+    // Priority 2: Farcaster SDK (for Farcaster Mini Apps)
+    // Base migration guide shows calling it directly in useEffect (not in async function)
+    // This ensures Base Build preview can detect it synchronously
+    try {
+      // Call directly (synchronously) - Base Build preview checks for this
+      sdk.actions.ready()
+      console.log('✅ Farcaster SDK ready() called synchronously (Base Build compatible)')
+    } catch (error) {
+      // If SDK not available, we're likely not in Mini App context (browser mode)
+      // This is OK - detectFarcasterEnvironment and useFarcasterReady will also try
+      console.log('ℹ️ Farcaster SDK ready() call skipped (will retry elsewhere):', error)
+    }
 
     const init = async () => {
       try {
