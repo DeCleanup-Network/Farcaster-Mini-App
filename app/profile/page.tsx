@@ -793,7 +793,7 @@ function ProfileContent() {
             {!ensName && address && (
               <p className="text-xs text-gray-500 font-mono">
                 {address.slice(0, 6)}...{address.slice(-4)}
-              </p>
+            </p>
             )}
           </div>
           <Button
@@ -1244,7 +1244,7 @@ function ProfileContent() {
                           clearInterval(pollInterval)
                           // Only reload if modal is not showing (user hasn't claimed yet)
                           if (!showSuccessModal) {
-                            window.location.reload()
+                          window.location.reload()
                           }
                         }, 20000) // Max 20 seconds
                       } catch (error: any) {

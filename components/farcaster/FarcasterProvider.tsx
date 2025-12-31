@@ -40,21 +40,37 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
   const [isMiniApp, setIsMiniApp] = useState(false)
 
   useEffect(() => {
-    // CRITICAL: Call ready() immediately like the user's other app
-    // This must be called as early as possible to prevent infinite loading
-    // Base preview requires this to be called and awaited properly
+    // CRITICAL: Call ready() IMMEDIATELY - this must happen before ANY other logic
+    // This prevents the splash screen from getting stuck when opening from referral links
+    // Base Apps and Farcaster both require ready() to be called immediately
+    
     const callReady = async () => {
+      // Priority 1: Base MiniKit (for Base Apps)
+      // Base Apps use minikit.setFrameReady() - call this first if available
+      try {
+        if (typeof window !== 'undefined' && (window as any).minikit?.setFrameReady) {
+          (window as any).minikit.setFrameReady()
+          console.log('✅ Base MiniKit setFrameReady() called immediately')
+        }
+      } catch (minikitError) {
+        // Base MiniKit not available - continue to Farcaster SDK
+        console.debug('ℹ️ Base MiniKit not available, trying Farcaster SDK')
+      }
+      
+      // Priority 2: Farcaster SDK (for Farcaster Mini Apps)
+      // Both Base Apps and Farcaster can use Farcaster SDK
       try {
         await sdk.actions.ready()
         console.log('✅ Farcaster SDK ready() called and awaited in FarcasterProvider')
       } catch (error) {
-        // If SDK not available, we're likely not in Farcaster context (browser mode)
+        // If SDK not available, we're likely not in Mini App context (browser mode)
         // This is OK - detectFarcasterEnvironment and useFarcasterReady will also try
-        console.log('ℹ️ ready() call in FarcasterProvider skipped (will retry elsewhere):', error)
+        console.log('ℹ️ Farcaster SDK ready() call skipped (will retry elsewhere):', error)
       }
     }
     
-    // Call ready() immediately without blocking
+    // Call ready() IMMEDIATELY - don't wait, don't block, fire and forget
+    // This is critical for referral links - splash screen will stick if ready() isn't called
     callReady()
 
     const init = async () => {
@@ -75,16 +91,8 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           setIsInitialized(true)
         }
 
-        // Try Base MiniKit setFrameReady if available (for Base Mini Apps)
-        try {
-          if (typeof window !== 'undefined' && (window as any).minikit?.setFrameReady) {
-            (window as any).minikit.setFrameReady()
-            console.log('✅ Base MiniKit setFrameReady() called successfully')
-          }
-        } catch (minikitError) {
-          // Base MiniKit not available - this is OK
-          console.debug('ℹ️ Base MiniKit not available')
-        }
+        // Base MiniKit setFrameReady is already called at the start of useEffect
+        // No need to call it again here
       } catch (error) {
         // Ignore errors if not in Farcaster/Base context
         // This allows the app to work in regular browsers too

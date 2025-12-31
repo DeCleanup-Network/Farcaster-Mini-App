@@ -470,14 +470,23 @@ export const CONTRACT_ADDRESSES = {
     (process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS ||
       process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT ||
       '') as Address,
-  // $bDCU Token contract (Clanker) - not needed for frontend, only used internally by Reward Distributor
+  // $bDCU Token contract (Clanker) - the actual bDCU token contract on Base
   // Token name: bDCU (DeCleanup Token on Base)
   // Mainnet: 0x30171b7014c02229497cde6745dd3ad821f12b07 (ClankerToken)
   // Note: "bDCU" = Base DeCleanup, "DCU" was the old name (deprecated)
   // 15% of tokens are reserved for rewards and are currently locked by Clanker
-  // The Reward Distributor contract uses this internally for transfers, but the frontend
-  // reads user balances from Reward Distributor's totalDistributed mapping instead.
-  // Token flow: Clanker (locked) → Unlock → Multisig → Reward Distributor → Users
+  //
+  // Frontend usage:
+  // - Used in ImportTokenModal to show users the token contract address for wallet import
+  // - NOT used to read user balances (balances are read from Reward Distributor's totalDistributed mapping)
+  //
+  // Reward Distributor contract usage:
+  // - The Reward Distributor contract was deployed with this token address in its constructor
+  // - It uses this address to call token.transfer() when automatically distributing rewards to users
+  // - TO Reward Distributor: Manual transfers from multisig (NOT automated, team must send tokens)
+  // - FROM Reward Distributor: Automated transfers to users (AUTOMATED when users claim Impact Products, etc.)
+  //
+  // Token flow: Clanker (locked) → Unlock → Multisig → Reward Distributor (manual) → Users (automated)
   BDCU_TOKEN:
     (process.env.NEXT_PUBLIC_BDCU_TOKEN_ADDRESS || '') as Address,
   // bDCU Reward Distributor contract (for automatic token distributions)

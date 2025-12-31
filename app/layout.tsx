@@ -7,7 +7,6 @@ import { NetworkChecker } from "@/components/network/NetworkChecker";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { ErrorHandler, ErrorBoundary } from "@/components/ErrorHandler";
-import { FarcasterRedirectModal } from "@/components/ui/farcaster-redirect-modal";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,8 +35,8 @@ const EMBED_METADATA = {
   button: {
     title: "Open DeCleanup Rewards",
     action: {
-      type: "launch_frame",
-      url: FARCASTER_MINIAPP_URL,
+      type: "launch_miniapp", // Use launch_miniapp for new Mini Apps (per Base docs)
+      url: SITE_URL, // Use homeUrl, not Farcaster-specific URL
       name: "DeCleanup Rewards",
       splashImageUrl: "https://gateway.pinata.cloud/ipfs/bafkreic5tpnu533jemlcwpy4gplg6thjeqmdwgveaapw3iv7tupzlvy5i4?filename=DCUSplashNEW.png",
       splashBackgroundColor: "#000000",
@@ -125,7 +124,6 @@ export default function RootLayout({
             <FarcasterProvider>
               <AppHeader />
               <NetworkChecker />
-              <FarcasterRedirectModal />
               <main className="min-h-screen pt-20 pb-20 safe-area-inset-bottom">
                 {children}
               </main>

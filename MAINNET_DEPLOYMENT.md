@@ -13,8 +13,12 @@
 1. **Clanker Lock**: 15% of tokens reserved for rewards are locked by Clanker (token contract)
 2. **Unlock/Release**: When unlocked, tokens are released from Clanker
 3. **Multisig**: Unlocked tokens are sent to the multisig wallet for management
-4. **Reward Distributor**: Multisig sends tokens to the Reward Distributor contract as needed
-5. **Distribution**: Reward Distributor automatically distributes tokens to users on-chain
+4. **Reward Distributor**: Multisig **manually** sends tokens to the Reward Distributor contract as needed (NOT automated)
+5. **Distribution**: Reward Distributor **automatically** distributes tokens to users on-chain when they claim Impact Products, maintain streaks, etc. (AUTOMATED)
+
+**Key Distinction:**
+- **TO Reward Distributor**: Manual transfers from multisig (team must send tokens)
+- **FROM Reward Distributor**: Automated transfers to users (happens automatically when users claim rewards)
 
 **Reward Distribution:**
 - The Reward Distributor contract holds bDCU tokens and distributes them automatically when users:
@@ -30,15 +34,17 @@
 - **Reward Distributor Contract**: Must be funded with bDCU tokens from multisig
   - User balances are read from Reward Distributor's `totalDistributed(address)` mapping
   - This shows the cumulative tokens distributed to each user (total rewards earned)
-- **bDCU Token Contract (Clanker)**: Not needed for frontend
+- **bDCU Token Contract (Clanker)**: Optional for frontend
   - **Mainnet Address**: [`0x30171b7014c02229497cde6745dd3ad821f12b07`](https://basescan.org/token/0x30171b7014c02229497cde6745dd3ad821f12b07)
   - Contract Name: ClankerToken (DeCleanup Network - bDCU)
   - Decimals: 18
   - **15% of tokens are reserved for rewards and are currently locked by Clanker**
-  - The Reward Distributor contract uses this internally for token transfers
-  - The frontend reads user balances from Reward Distributor, not the token contract
-  - **No need to configure `NEXT_PUBLIC_BDCU_TOKEN_ADDRESS` in environment variables**
-  - **Note**: When reward tokens are unlocked from Clanker, they flow: Clanker → Multisig → Reward Distributor → Users
+  - **Reward Distributor Contract Usage**: The Reward Distributor contract was deployed with the token address in its constructor. It uses this address to call `token.transfer()` when automatically distributing rewards to users (Reward Distributor → Users transfers are automated).
+  - **Multisig → Reward Distributor**: Manual transfers from multisig to Reward Distributor (not automated, done by team)
+  - **Frontend Usage**: Only needed for the "Import Token" feature (to show users the token contract address for wallet import)
+  - **Balance Reading**: The frontend reads user balances from Reward Distributor's `totalDistributed` mapping, NOT from the token contract
+  - **Optional Environment Variable**: `NEXT_PUBLIC_BDCU_TOKEN_ADDRESS` is optional - only needed if you want to enable the Import Token feature
+  - **Token Flow**: Clanker (locked) → Unlock → Multisig (manual transfer) → Reward Distributor → Users (automated via contract)
 
 ### Environment Variables
 
@@ -54,9 +60,11 @@ NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS=0x...
 NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS=0x...
 NEXT_PUBLIC_BDCU_REWARD_DISTRIBUTOR_ADDRESS=0x...
 
-# Note: NEXT_PUBLIC_BDCU_TOKEN_ADDRESS is NOT needed
-# User balances are read from Reward Distributor's totalDistributed mapping
-# The token contract is only used internally by Reward Distributor for transfers
+# Note: NEXT_PUBLIC_BDCU_TOKEN_ADDRESS is OPTIONAL
+# - User balances are read from Reward Distributor's totalDistributed mapping (not from token contract)
+# - The token contract address is only needed for the "Import Token" feature (to show users the address)
+# - The Reward Distributor contract was deployed with the token address and uses it to call transfer() when distributing rewards
+# - Multisig → Reward Distributor transfers are manual (not automated)
 ```
 
 #### Pre-Deployment Checklist
@@ -82,7 +90,7 @@ To monitor the Reward Distributor balance:
 
 ### Important Notes
 
-1. **Token Contract Not Needed**: The bDCU token contract address (`NEXT_PUBLIC_BDCU_TOKEN_ADDRESS`) is **not needed** for the frontend. User balances are read directly from the Reward Distributor contract's `totalDistributed(address)` mapping, which tracks the cumulative tokens distributed to each user. The token contract is only used internally by the Reward Distributor for executing transfers.
+1. **Token Contract Address**: The bDCU token contract address (`NEXT_PUBLIC_BDCU_TOKEN_ADDRESS`) is **optional** for the frontend. It's only needed for the "Import Token" feature. User balances are read directly from the Reward Distributor contract's `totalDistributed(address)` mapping. The Reward Distributor contract was deployed with the token address and uses it to call `token.transfer()` when automatically distributing rewards to users. Multisig → Reward Distributor transfers are manual (done by team), but Reward Distributor → Users transfers are automated (contract calls token.transfer()).
 
 2. **User Balance Reading**: The frontend reads user balances from `Reward Distributor.totalDistributed(userAddress)`, which shows the total rewards earned by each user. This is more accurate than reading from the token contract's `balanceOf()` since it shows cumulative rewards regardless of whether the user has spent/transferred tokens.
 
