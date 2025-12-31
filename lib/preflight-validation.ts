@@ -111,14 +111,14 @@ export async function validateRewardDistributorBalance(
   const warnings: string[] = []
 
   try {
-    if (!CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR) {
+    if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
       errors.push('Reward Distributor contract address not configured')
       return { valid: false, errors, warnings }
     }
 
     // Get token address from Reward Distributor
     const tokenAddress = await readContract(getWagmiConfig(), {
-      address: CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR,
+      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
       abi: REWARD_DISTRIBUTOR_ABI,
       functionName: 'bDCUToken',
     }) as Address
@@ -128,7 +128,7 @@ export async function validateRewardDistributorBalance(
       address: tokenAddress,
       abi: ERC20_ABI,
       functionName: 'balanceOf',
-      args: [CONTRACT_ADDRESSES.REWARD_DISTRIBUTOR],
+      args: [CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR],
     }) as bigint
 
     if (balance < requiredAmount) {
