@@ -4,28 +4,83 @@ import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
+import { sdk } from '@farcaster/miniapp-sdk'
 import { ExternalLink, X } from 'lucide-react'
 
 const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards'
 const STORAGE_KEY = 'farcaster_redirect_choice'
 
+/**
+ * Check if we're in Farcaster using multiple methods
+ * This is a safety check to ensure we NEVER show the modal in Farcaster
+ */
+function isInFarcasterEnvironment(): boolean {
+  if (typeof window === 'undefined') return false
+  
+  // Check 1: window.farcaster object exists (strong indicator)
+  if ((window as any).farcaster?.sdk || (window as any).farcaster) {
+    return true
+  }
+  
+  // Check 2: URL contains Farcaster Mini App indicators
+  const url = window.location.href.toLowerCase()
+  if (url.includes('farcaster.xyz/miniapps') || 
+      url.includes('warpcast.com/~/')) {
+    return true
+  }
+  
+  // Check 3: Check if SDK actions are available (indicates SDK is injected)
+  try {
+    if (sdk?.actions && typeof sdk.actions.ready === 'function') {
+      // SDK is available - we're likely in Farcaster
+      // But don't assume - let the async detection handle it
+      // This is just a safety check
+      return false // Let async detection decide
+    }
+  } catch {
+    // SDK not available - we're on web
+  }
+  
+  return false
+}
+
 export function FarcasterRedirectModal() {
   const { isMiniApp, isLoading, isInitialized } = useFarcaster()
   const [isOpen, setIsOpen] = useState(false)
+  const [directCheck, setDirectCheck] = useState<boolean | null>(null)
+
+  // Direct check for Farcaster environment (safety net)
+  useEffect(() => {
+    const check = isInFarcasterEnvironment()
+    setDirectCheck(check)
+  }, [])
 
   useEffect(() => {
+    // NEVER show modal if:
+    // 1. window.farcaster exists (definitive indicator)
+    // 2. Direct check indicates we're in Farcaster
+    // 3. Context says we're in Mini App
+    // 4. Still loading/initializing
+    // 5. URL indicates Farcaster
+    
+    const hasFarcasterSDK = typeof window !== 'undefined' && 
+      ((window as any).farcaster?.sdk || (window as any).farcaster)
+    
+    const inFarcaster = hasFarcasterSDK || directCheck === true || isMiniApp || isInFarcasterEnvironment()
+    
     // Only show modal if:
     // 1. Detection is complete (isInitialized === true)
     // 2. We're NOT in a Mini App (isMiniApp === false)
-    // 3. We're on web (not loading and initialized)
-    // This ensures we never show the modal when already in Farcaster
-    if (isInitialized && !isMiniApp && !isLoading && typeof window !== 'undefined') {
+    // 3. window.farcaster does NOT exist
+    // 4. Direct check says we're NOT in Farcaster
+    // 5. We're on web (not loading and initialized)
+    if (isInitialized && !inFarcaster && !isLoading && typeof window !== 'undefined') {
       // Always show modal on web - don't check localStorage
       setIsOpen(true)
     } else {
       setIsOpen(false)
     }
-  }, [isMiniApp, isLoading, isInitialized])
+  }, [isMiniApp, isLoading, isInitialized, directCheck])
 
   const handleStayOnWeb = () => {
     if (typeof window !== 'undefined') {
@@ -44,11 +99,22 @@ export function FarcasterRedirectModal() {
     }
   }
 
-  // Don't render if:
+  // NEVER render if:
   // - Still loading/initializing
-  // - Already in Mini App
+  // - Already in Mini App (from context) - this is the PRIMARY check
+  // - Direct check indicates Farcaster
   // - Not initialized yet (wait for detection to complete)
-  if (isLoading || isMiniApp || !isInitialized) {
+  // - window.farcaster exists (definitive indicator we're in Farcaster)
+  // - Any Farcaster indicators detected
+  
+  // Most reliable check: window.farcaster object
+  const hasFarcasterSDK = typeof window !== 'undefined' && 
+    ((window as any).farcaster?.sdk || (window as any).farcaster)
+  
+  const inFarcaster = hasFarcasterSDK || directCheck === true || isMiniApp || isInFarcasterEnvironment()
+  
+  // If we're in Farcaster in ANY way, never show modal
+  if (isLoading || inFarcaster || !isInitialized) {
     return null
   }
 
