@@ -1959,9 +1959,13 @@ function CleanupContent() {
                 Contributors
               </label>
               <div className="space-y-2">
-                <div className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-400 break-all">
-                  <span className="font-mono text-xs">{address || 'Your wallet address'}</span>
-                  <span className="ml-2 text-gray-500">(You)</span>
+                <div className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-400">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-white">You</span>
+                    <span className="font-mono text-xs text-gray-400">
+                      {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
+                    </span>
+                  </div>
                 </div>
                 {enhancedData.contributors.map((contributor, idx) => {
                   const isResolving = contributorResolving[idx] || false

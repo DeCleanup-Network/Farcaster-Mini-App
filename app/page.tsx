@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { SuccessModal } from '@/components/ui/success-modal'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import { useFarcasterAutoConnect } from '@/lib/hooks/useFarcasterAutoConnect'
+import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow'
 import type { Connector } from 'wagmi'
 import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, X } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
@@ -26,6 +28,7 @@ export default function Home() {
   useFarcasterAutoConnect()
   
   const [mounted, setMounted] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const { context, isLoading } = useFarcaster()
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
@@ -114,7 +117,22 @@ export default function Home() {
   // Fix hydration error by only showing wallet state after mount
   useEffect(() => {
     setMounted(true)
+    
+    // Show onboarding for first-time users (check localStorage)
+    if (typeof window !== 'undefined') {
+      const hasSeenOnboarding = localStorage.getItem('decleanup_onboarding_seen')
+      if (!hasSeenOnboarding) {
+        setShowOnboarding(true)
+      }
+    }
   }, [])
+  
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('decleanup_onboarding_seen', 'true')
+    }
+  }
 
   // Note: Chain switching is handled by ensureWalletOnRequiredChain() in contract functions
   // No need for auto-switch here - it will be handled when user tries to interact (claim, etc.)
@@ -534,7 +552,7 @@ export default function Home() {
                   className="flex-1 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
                 >
                   <Users className="h-4 w-4" />
-                  Share on Farcaster
+                      Share
                 </Button>
 
                 <Button
@@ -708,18 +726,39 @@ export default function Home() {
           />
         )}
 
-        {/* Farcaster User Info */}
+        {/* User Info */}
         {context?.user && (
           <section className="mx-auto mt-8 max-w-md rounded-lg border border-gray-800 bg-gray-900 p-4 sm:p-6">
-            <h3 className="mb-2 text-base font-bold uppercase tracking-wide text-foreground sm:text-lg">
-              Welcome, {context.user.displayName || context.user.username}!
-            </h3>
-            <p className="text-xs text-gray-400 sm:text-sm">
-              Connected via Farcaster
-            </p>
+            <div className="flex items-center gap-3">
+              {context.user.pfp?.url && (
+                <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border-2 border-gray-700">
+                  <Image
+                    src={context.user.pfp.url}
+                    alt={context.user.displayName || context.user.username || 'User'}
+                    fill
+                    className="object-cover"
+                    sizes="48px"
+                    unoptimized
+                  />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <h3 className="mb-1 text-base font-bold uppercase tracking-wide text-foreground sm:text-lg truncate">
+                  Welcome, {context.user.displayName || context.user.username}!
+                </h3>
+                {context.user.username && (
+                  <p className="text-xs text-gray-400 sm:text-sm truncate">
+                    @{context.user.username}
+                  </p>
+                )}
+              </div>
+            </div>
           </section>
         )}
       </main>
+
+      {/* Onboarding Flow */}
+      {showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
     </div>
   )
 }

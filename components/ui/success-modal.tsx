@@ -45,25 +45,25 @@ export function SuccessModal({
     return () => document.removeEventListener('keydown', handleEscape)
   }, [isOpen, onClose])
 
-  // Handle Farcaster share
-  const handleShareFarcaster = async () => {
+  // Handle share (client-agnostic)
+  const handleShare = async () => {
     if (!level || sharing) return
     setSharing(true)
     try {
       const { generateClaimShareLink, formatImpactShareMessage, shareCast } = await import('@/lib/farcaster')
-      // Use Farcaster miniapp URL for Farcaster sharing (no referral, just achievement sharing)
+      // Use miniapp URL for sharing (no referral, just achievement sharing)
       const claimLink = generateClaimShareLink(level, 'farcaster')
       const text = formatImpactShareMessage(level, claimLink, 'farcaster')
       const success = await shareCast(text, claimLink)
       if (success) {
-        console.log('✅ Successfully shared on Farcaster')
+        console.log('✅ Successfully shared')
       } else {
         console.warn('⚠️ Share returned false')
       }
     } catch (error: any) {
-      console.error('Failed to share on Farcaster:', error)
+      console.error('Failed to share:', error)
       const errorMsg = error?.message || 'Unknown error'
-      alert(`Failed to share on Farcaster: ${errorMsg}\n\nPlease try again or share manually.`)
+      alert(`Failed to share: ${errorMsg}\n\nPlease try again or share manually.`)
     } finally {
       setSharing(false)
     }
@@ -165,7 +165,7 @@ export function SuccessModal({
               </p>
               <div className="flex gap-2">
                 <Button
-                  onClick={handleShareFarcaster}
+                  onClick={handleShare}
                   disabled={sharing}
                   className="flex-1 gap-2 bg-purple-600 text-white hover:bg-purple-700"
                 >
@@ -177,7 +177,7 @@ export function SuccessModal({
                   ) : (
                     <>
                       <Share2 className="h-4 w-4" />
-                      Share on Farcaster
+                      Share Achievement
                     </>
                   )}
                 </Button>

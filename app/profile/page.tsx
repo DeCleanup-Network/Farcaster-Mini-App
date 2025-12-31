@@ -821,7 +821,7 @@ function ProfileContent() {
         {/* Referral Notification */}
         <ReferralNotification />
 
-        {/* Farcaster Account Info */}
+        {/* Account Info */}
         {isMiniApp && farcasterContext?.user && (
           <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900 p-6">
             <div className="mb-4 flex items-center gap-3">
@@ -855,9 +855,14 @@ function ProfileContent() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-400 mb-1">Wallet Address</p>
-                      <p className="text-sm font-mono text-white truncate">
-                        {address}
+                      <p className="text-sm font-medium text-white truncate">
+                        {ensName || `${address.slice(0, 6)}...${address.slice(-4)}`}
                       </p>
+                      {ensName && (
+                        <p className="text-xs font-mono text-gray-400 truncate mt-0.5">
+                          {address}
+                        </p>
+                      )}
                     </div>
                     <Button
                       variant="ghost"
@@ -1295,7 +1300,7 @@ function ProfileContent() {
                   </Button>
                   {featureLock.isLocked && (
                     <p className="mt-2 text-xs text-yellow-400 text-center">
-                      Connect Farcaster wallet to claim
+                      Connect wallet to claim
                     </p>
                   )}
                 </div>
