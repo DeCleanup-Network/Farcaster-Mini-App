@@ -443,18 +443,19 @@ async function getCurrentChainId(): Promise<number | null> {
       }
       
       // For other errors, try getting from account as fallback
-    try {
-      const account = await getAccount(getWagmiConfig())
-      if (account.chainId) {
-        return account.chainId
+      try {
+        const account = await getAccount(getWagmiConfig())
+        if (account.chainId) {
+          return account.chainId
+        }
+      } catch (accountError: any) {
+        // getAccount might also fail with the same error, so just return null
       }
-    } catch (accountError: any) {
-      // getAccount might also fail with the same error, so just return null
+      
+      // If both fail, return null to indicate we couldn't determine the chain
+      // The transaction will proceed and the wallet will reject if on wrong network
+      return null
     }
-    
-    // If both fail, return null to indicate we couldn't determine the chain
-    // The transaction will proceed and the wallet will reject if on wrong network
-    return null
   }
 }
 
