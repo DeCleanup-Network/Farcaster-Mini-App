@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Leaf, Award, Users, TrendingUp, ArrowRight } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, Leaf, Award, Users, TrendingUp, ArrowRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 
@@ -9,40 +9,101 @@ interface OnboardingFlowProps {
   onComplete: () => void
 }
 
+// IPFS gateways with fallbacks for faster loading
+const IPFS_GATEWAYS = [
+  'https://gateway.pinata.cloud/ipfs/',
+  'https://ipfs.io/ipfs/',
+  'https://cloudflare-ipfs.com/ipfs/',
+  'https://dweb.link/ipfs/',
+]
+
+function getIPFSUrl(hash: string, gatewayIndex: number = 0): string {
+  const gateway = IPFS_GATEWAYS[gatewayIndex] || IPFS_GATEWAYS[0]
+  return `${gateway}${hash}`
+}
+
 export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [currentStep, setCurrentStep] = useState(0)
+  const [imageLoading, setImageLoading] = useState<Record<number, boolean>>({})
+  const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({})
+  const [preloadedImages, setPreloadedImages] = useState<Set<number>>(new Set())
 
-  // Onboarding images - can be customized via environment variables or replaced directly
+  // Onboarding images - IPFS hashes
+  const imageHashes = [
+    process.env.NEXT_PUBLIC_ONBOARDING_IMAGE_1 || 'bafybeigfymrdokx3hkl2asb7zjtqzy3e5n2ffvzx6fbsfkedmortfhivvy',
+    process.env.NEXT_PUBLIC_ONBOARDING_IMAGE_2 || 'bafybeihphf34gm5ivemhhmkvq5csyaohow3bk2gxj54fclpfacnv3euniu',
+    process.env.NEXT_PUBLIC_ONBOARDING_IMAGE_3 || 'bafybeid5buaqdqqriiexbw7wyntmq5z4ptvqoojxe52j5a657n47k3qdqa',
+    process.env.NEXT_PUBLIC_ONBOARDING_IMAGE_4 || 'bafybeibk6v4ozxyrpjvumaeavway2taejbq536rrogon4bfhmnr7ixzvpa',
+  ]
+
   const steps = [
     {
       icon: Leaf,
       title: 'Submit Your Cleanup',
       description: 'Take before and after photos of your environmental cleanup. Add location and details to show your impact.',
-      image: process.env.NEXT_PUBLIC_ONBOARDING_IMAGE_1 || 
-             'https://gateway.pinata.cloud/ipfs/bafybeigfymrdokx3hkl2asb7zjtqzy3e5n2ffvzx6fbsfkedmortfhivvy',
+      hash: imageHashes[0],
     },
     {
       icon: Award,
       title: 'Earn Impact Products',
       description: 'Get your cleanup verified by the community. Claim your Impact Product NFT and progress through 10 levels.',
-      image: process.env.NEXT_PUBLIC_ONBOARDING_IMAGE_2 || 
-             'https://gateway.pinata.cloud/ipfs/bafybeihphf34gm5ivemhhmkvq5csyaohow3bk2gxj54fclpfacnv3euniu',
+      hash: imageHashes[1],
     },
     {
       icon: TrendingUp,
       title: 'Earn Token Rewards',
       description: 'Receive $bDCU tokens for each level, maintain streaks, refer friends, and contribute to the community.',
-      image: process.env.NEXT_PUBLIC_ONBOARDING_IMAGE_3 || 
-             'https://gateway.pinata.cloud/ipfs/bafybeid5buaqdqqriiexbw7wyntmq5z4ptvqoojxe52j5a657n47k3qdqa',
+      hash: imageHashes[2],
     },
     {
       icon: Users,
       title: 'Join the Movement',
       description: 'Tokenize your environmental impact and be part of a global community making a real difference.',
-      image: process.env.NEXT_PUBLIC_ONBOARDING_IMAGE_4 || 
-             'https://gateway.pinata.cloud/ipfs/bafybeibk6v4ozxyrpjvumaeavway2taejbq536rrogon4bfhmnr7ixzvpa',
+      hash: imageHashes[3],
     },
   ]
+
+  // Preload all images on mount for faster transitions
+  useEffect(() => {
+    const preloadImages = async () => {
+      const promises = steps.map(async (step, index) => {
+        // Try primary gateway first
+        const img = new window.Image()
+        return new Promise<void>((resolve) => {
+          let gatewayIndex = 0
+          const tryGateway = () => {
+            if (gatewayIndex < IPFS_GATEWAYS.length) {
+              img.src = getIPFSUrl(step.hash, gatewayIndex)
+            } else {
+              resolve() // All gateways failed
+            }
+          }
+          img.onload = () => {
+            setPreloadedImages((prev) => new Set([...prev, index]))
+            resolve()
+          }
+          img.onerror = () => {
+            gatewayIndex++
+            tryGateway()
+          }
+          tryGateway()
+        })
+      })
+      await Promise.allSettled(promises)
+    }
+    preloadImages()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Get current image URL with fallback
+  const getCurrentImageUrl = (stepIndex: number): string => {
+    const hash = steps[stepIndex].hash
+    // If image failed to load, try next gateway
+    if (imageErrors[stepIndex]) {
+      return getIPFSUrl(hash, 1) // Try fallback
+    }
+    return getIPFSUrl(hash, 0) // Primary gateway
+  }
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
@@ -97,18 +158,50 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
 
           {/* Image */}
-          <div className="mb-4 aspect-video w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-800">
+          <div className="mb-4 aspect-video w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-800 relative">
+            {imageLoading[currentStep] && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                <Loader2 className="h-8 w-8 animate-spin text-brand-green" />
+              </div>
+            )}
             <Image
-              src={currentStepData.image}
+              src={getCurrentImageUrl(currentStep)}
               alt={currentStepData.title}
               width={600}
               height={400}
-              className="h-full w-full object-cover"
+              className={`h-full w-full object-cover transition-opacity duration-300 ${
+                imageLoading[currentStep] ? 'opacity-0' : 'opacity-100'
+              }`}
               unoptimized
+              priority={currentStep === 0} // Priority load first image
+              onLoadStart={() => {
+                setImageLoading((prev) => ({ ...prev, [currentStep]: true }))
+              }}
+              onLoad={() => {
+                setImageLoading((prev) => ({ ...prev, [currentStep]: false }))
+              }}
               onError={(e) => {
-                // Hide image if it fails to load
                 const img = e.currentTarget as HTMLImageElement
-                img.style.display = 'none'
+                const hash = currentStepData.hash
+                
+                // Extract current gateway index from URL
+                let currentGatewayIndex = 0
+                for (let i = 0; i < IPFS_GATEWAYS.length; i++) {
+                  if (img.src.includes(IPFS_GATEWAYS[i].replace('/ipfs/', ''))) {
+                    currentGatewayIndex = i
+                    break
+                  }
+                }
+                
+                if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
+                  // Try next gateway
+                  img.src = getIPFSUrl(hash, currentGatewayIndex + 1)
+                } else {
+                  // All gateways failed
+                  setImageErrors((prev) => ({ ...prev, [currentStep]: true }))
+                  setImageLoading((prev) => ({ ...prev, [currentStep]: false }))
+                  img.style.display = 'none'
+                }
               }}
             />
           </div>

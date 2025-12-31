@@ -744,12 +744,12 @@ export default function Home() {
               )}
               <div className="flex-1 min-w-0">
                 <h3 className="mb-1 text-base font-bold uppercase tracking-wide text-foreground sm:text-lg truncate">
-                  Welcome, {context.user.displayName || context.user.username}!
-                </h3>
+              Welcome, {context.user.displayName || context.user.username}!
+            </h3>
                 {context.user.username && (
                   <p className="text-xs text-gray-400 sm:text-sm truncate">
                     @{context.user.username}
-                  </p>
+            </p>
                 )}
               </div>
             </div>

@@ -77,9 +77,100 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
         
         if (env.isMiniApp && env.context) {
           // We're in a Mini App
-          setContext(env.context as unknown as FarcasterContextData | null)
+          // Transform SDK context to our expected format
+          // The SDK context might have different property names, so we check multiple possibilities
+          const rawUser = (env.context as any).user
+          const rawContext = env.context as any
+          
+          let transformedContext: FarcasterContextData = {
+            user: rawUser ? {
+              fid: rawUser.fid || rawUser.userFid || 0,
+              username: rawUser.username || rawUser.userName || '',
+              displayName: rawUser.displayName || rawUser.display_name || rawUser.username || rawUser.userName || '',
+              pfp: {
+                url: rawUser.pfpUrl || rawUser.pfp_url || rawUser.pfp?.url || rawUser.avatar_url || '',
+              },
+              bio: {
+                text: rawUser.bio?.text || rawUser.bio || rawUser.bio_text || '',
+              },
+              followerCount: rawUser.followerCount || rawUser.follower_count || 0,
+              followingCount: rawUser.followingCount || rawUser.following_count || 0,
+            } : undefined,
+            channel: rawContext.channel ? {
+              id: rawContext.channel.id || '',
+              name: rawContext.channel.name || '',
+            } : undefined,
+            cast: rawContext.cast ? {
+              hash: rawContext.cast.hash || '',
+              author: rawContext.cast.author ? {
+                fid: rawContext.cast.author.fid || 0,
+                username: rawContext.cast.author.username || '',
+                displayName: rawContext.cast.author.displayName || rawContext.cast.author.username || '',
+                pfp: {
+                  url: rawContext.cast.author.pfpUrl || rawContext.cast.author.pfp?.url || '',
+                },
+                bio: {
+                  text: rawContext.cast.author.bio?.text || rawContext.cast.author.bio || '',
+                },
+                followerCount: rawContext.cast.author.followerCount || 0,
+                followingCount: rawContext.cast.author.followingCount || 0,
+              } : {
+                fid: 0,
+                username: '',
+                displayName: '',
+                pfp: { url: '' },
+                bio: { text: '' },
+                followerCount: 0,
+                followingCount: 0,
+              },
+            } : undefined,
+          }
+          
+          // If user data is missing FID or pfp, try to fetch from Neynar API using custody address
+          if (transformedContext.user && (!transformedContext.user.fid || !transformedContext.user.pfp?.url)) {
+            try {
+              // Get custody address from wallet if available
+              const custodyAddress = rawUser?.custodyAddress || rawUser?.custody_address
+              if (custodyAddress) {
+                const neynarResponse = await fetch(`/api/neynar/user-by-custody-address?address=${custodyAddress}`)
+                if (neynarResponse.ok) {
+                  const neynarData = await neynarResponse.json()
+                  if (neynarData.user) {
+                    // Merge Neynar data to fill missing fields
+                    if (!transformedContext.user.fid && neynarData.user.fid) {
+                      transformedContext.user.fid = neynarData.user.fid
+                    }
+                    if (!transformedContext.user.pfp?.url && neynarData.user.pfp_url) {
+                      transformedContext.user.pfp.url = neynarData.user.pfp_url
+                    }
+                    if (!transformedContext.user.username && neynarData.user.username) {
+                      transformedContext.user.username = neynarData.user.username
+                    }
+                    if (!transformedContext.user.displayName && neynarData.user.display_name) {
+                      transformedContext.user.displayName = neynarData.user.display_name
+                    }
+                    console.log('✅ Fetched missing user data from Neynar API', {
+                      fid: transformedContext.user.fid,
+                      hasPfp: !!transformedContext.user.pfp?.url,
+                    })
+                  }
+                }
+              }
+            } catch (neynarError) {
+              console.warn('⚠️ Failed to fetch user data from Neynar API:', neynarError)
+            }
+          }
+          
+          console.log('✅ Farcaster Mini App environment detected', {
+            hasUser: !!transformedContext.user,
+            fid: transformedContext.user?.fid,
+            username: transformedContext.user?.username,
+            hasPfp: !!transformedContext.user?.pfp?.url,
+            rawContextKeys: Object.keys(rawContext || {}), // Log keys for debugging
+          })
+          
+          setContext(transformedContext)
           setIsInitialized(true)
-          console.log('✅ Farcaster Mini App environment detected and initialized')
         } else {
           // We're in browser mode
           console.log('ℹ️ Running in browser mode (not in Farcaster Mini App)')
