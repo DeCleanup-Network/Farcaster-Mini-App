@@ -82,7 +82,7 @@ export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
     }
 
     await logIPFSUploadSuccess(file.name, ipfsHash)
-    
+
     return {
       hash: ipfsHash,
       url: ipfsUrl,

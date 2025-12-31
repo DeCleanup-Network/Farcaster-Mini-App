@@ -511,7 +511,7 @@ export function WalletConnect() {
                     // Fallback: try opening account modal which has disconnect option
                     // Use the render prop's openAccountModal (from ConnectButton.Custom)
                     if (openAccountModal && typeof openAccountModal === 'function') {
-                      openAccountModal()
+                    openAccountModal()
                     }
                   }
                 }}

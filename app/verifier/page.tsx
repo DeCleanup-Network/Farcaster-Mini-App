@@ -551,10 +551,10 @@ export default function VerifierPage() {
         if (addr.toLowerCase() !== connectedAddr?.toLowerCase()) {
           console.error('❌ Address mismatch! Checking:', addr, 'but connected address is:', connectedAddr)
           setError(`Address mismatch: Checking ${addr} but connected wallet is ${connectedAddr}. Please reconnect your wallet.`)
-        } else {
-          const errorMsg = `Address ${addr} is not in the verifier allowlist. Please ensure this address is added to the VERIFIER_ADDRESSES in the contract.`
-          console.error('❌ Verifier check failed:', errorMsg)
-          setError(errorMsg)
+      } else {
+        const errorMsg = `Address ${addr} is not in the verifier allowlist. Please ensure this address is added to the VERIFIER_ADDRESSES in the contract.`
+        console.error('❌ Verifier check failed:', errorMsg)
+        setError(errorMsg)
         }
         setIsVerifier(false)
       }

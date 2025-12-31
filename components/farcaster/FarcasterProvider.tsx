@@ -40,6 +40,17 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
   const [isMiniApp, setIsMiniApp] = useState(false)
 
   useEffect(() => {
+    // CRITICAL: Call ready() immediately like the user's other app
+    // This must be called as early as possible to prevent infinite loading
+    try {
+      sdk.actions.ready()
+      console.log('✅ Farcaster SDK ready() called directly')
+    } catch (error) {
+      // If SDK not available, we're likely not in Farcaster context (browser mode)
+      // This is OK - continue with initialization
+      console.log('ℹ️ ready() call skipped (not in Farcaster context):', error)
+    }
+
     const init = async () => {
       try {
         // Use official SDK method to detect environment
@@ -48,7 +59,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
         setIsMiniApp(env.isMiniApp)
         
         if (env.isMiniApp && env.context) {
-          // We're in a Mini App - ready() was already called by detectFarcasterEnvironment()
+          // We're in a Mini App
           setContext(env.context as unknown as FarcasterContextData | null)
           setIsInitialized(true)
           console.log('✅ Farcaster Mini App environment detected and initialized')

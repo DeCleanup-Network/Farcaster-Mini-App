@@ -15,17 +15,7 @@ import { CONTRACT_ADDRESSES } from './contracts'
 const REWARD_DISTRIBUTOR_ABI = [
   {
     inputs: [],
-    name: 'bDCUToken',
-    outputs: [{ internalType: 'address', name: '', type: 'address' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-] as const
-
-const ERC20_ABI = [
-  {
-    inputs: [{ internalType: 'address', name: 'account', type: 'address' }],
-    name: 'balanceOf',
+    name: 'getContractBalance',
     outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     stateMutability: 'view',
     type: 'function',
@@ -102,6 +92,9 @@ export async function validateChain(forceRefresh = false): Promise<ValidationRes
 /**
  * Validate Reward Distributor balance
  * Checks if the Reward Distributor has sufficient balance for rewards
+ * 
+ * Note: Tokens are funded from multisig directly to the Reward Distributor contract.
+ * The contract holds locked bDCU tokens and distributes them to users on-chain.
  */
 export async function validateRewardDistributorBalance(
   requiredAmount: bigint,
@@ -116,19 +109,13 @@ export async function validateRewardDistributorBalance(
       return { valid: false, errors, warnings }
     }
 
-    // Get token address from Reward Distributor
-    const tokenAddress = await readContract(getWagmiConfig(), {
+    // Get balance of Reward Distributor contract directly
+    // Tokens are sent from multisig directly to this contract
+    // The contract internally tracks its token balance
+    const balance = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
       abi: REWARD_DISTRIBUTOR_ABI,
-      functionName: 'bDCUToken',
-    }) as Address
-
-    // Get balance of Reward Distributor
-    const balance = await readContract(getWagmiConfig(), {
-      address: tokenAddress,
-      abi: ERC20_ABI,
-      functionName: 'balanceOf',
-      args: [CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR],
+      functionName: 'getContractBalance',
     }) as bigint
 
     if (balance < requiredAmount) {
@@ -138,7 +125,7 @@ export async function validateRewardDistributorBalance(
         `Insufficient reward balance in Reward Distributor.\n` +
         `Required: ${requiredFormatted} $bDCU\n` +
         `Available: ${balanceFormatted} $bDCU\n` +
-        `Please contact support to fund the Reward Distributor contract.`
+        `Please contact support to fund the Reward Distributor contract from multisig.`
       )
       return { valid: false, errors, warnings }
     }

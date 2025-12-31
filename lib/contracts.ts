@@ -402,59 +402,59 @@ async function getCurrentChainId(): Promise<number | null> {
     return await getCurrentChainIdCached()
   } catch (error) {
     // Fallback to direct call if cache fails
-    // Set up error handler to suppress the getChainId error
-    let suppressedError: Error | null = null
-    const errorHandler = (event: ErrorEvent) => {
-      if (event.message?.includes('getChainId') && event.message?.includes('is not a function')) {
-        event.preventDefault()
-        suppressedError = new Error(event.message)
-      }
+  // Set up error handler to suppress the getChainId error
+  let suppressedError: Error | null = null
+  const errorHandler = (event: ErrorEvent) => {
+    if (event.message?.includes('getChainId') && event.message?.includes('is not a function')) {
+      event.preventDefault()
+      suppressedError = new Error(event.message)
     }
-    
-    // Add error listener temporarily
+  }
+  
+  // Add error listener temporarily
+  if (typeof window !== 'undefined') {
+    window.addEventListener('error', errorHandler)
+  }
+  
+  try {
+    // Try the standard getChainId first
+    // This will throw if the connector doesn't support it
+    const chainId = await getChainId(getWagmiConfig())
     if (typeof window !== 'undefined') {
-      window.addEventListener('error', errorHandler)
+      window.removeEventListener('error', errorHandler)
+    }
+    return chainId
+    } catch (chainError: any) {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('error', errorHandler)
     }
     
-    try {
-      // Try the standard getChainId first
-      // This will throw if the connector doesn't support it
-      const chainId = await getChainId(getWagmiConfig())
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('error', errorHandler)
-      }
-      return chainId
-    } catch (chainError: any) {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('error', errorHandler)
-      }
-      
-      // Check if it's the specific connector.getChainId error
+    // Check if it's the specific connector.getChainId error
       const errorMessage = getErrorMessage(chainError)
-      const isConnectorError = errorMessage.includes('getChainId') || 
-                              errorMessage.includes('connector') ||
-                              errorMessage.includes('is not a function') ||
-                              suppressedError !== null
-      
-      if (isConnectorError) {
-        // Silently skip chain verification for unsupported connectors
-        // The wallet will validate the network when the transaction is sent
-        return null
-      }
-      
-      // For other errors, try getting from account as fallback
-      try {
-        const account = await getAccount(getWagmiConfig())
-        if (account.chainId) {
-          return account.chainId
-        }
-      } catch (accountError: any) {
-        // getAccount might also fail with the same error, so just return null
-      }
-      
-      // If both fail, return null to indicate we couldn't determine the chain
-      // The transaction will proceed and the wallet will reject if on wrong network
+    const isConnectorError = errorMessage.includes('getChainId') || 
+                            errorMessage.includes('connector') ||
+                            errorMessage.includes('is not a function') ||
+                            suppressedError !== null
+    
+    if (isConnectorError) {
+      // Silently skip chain verification for unsupported connectors
+      // The wallet will validate the network when the transaction is sent
       return null
+    }
+    
+    // For other errors, try getting from account as fallback
+    try {
+      const account = await getAccount(getWagmiConfig())
+      if (account.chainId) {
+        return account.chainId
+      }
+    } catch (accountError: any) {
+      // getAccount might also fail with the same error, so just return null
+    }
+    
+    // If both fail, return null to indicate we couldn't determine the chain
+    // The transaction will proceed and the wallet will reject if on wrong network
+    return null
     }
   }
 }
@@ -470,12 +470,19 @@ export const CONTRACT_ADDRESSES = {
     (process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS ||
       process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT ||
       '') as Address,
-  // $bDCU Token contract (from Clanker)
+  // $bDCU Token contract (Clanker) - not needed for frontend, only used internally by Reward Distributor
   // Token name: bDCU (DeCleanup Token on Base)
+  // Mainnet: 0x30171b7014c02229497cde6745dd3ad821f12b07 (ClankerToken)
   // Note: "bDCU" = Base DeCleanup, "DCU" was the old name (deprecated)
+  // 15% of tokens are reserved for rewards and are currently locked by Clanker
+  // The Reward Distributor contract uses this internally for transfers, but the frontend
+  // reads user balances from Reward Distributor's totalDistributed mapping instead.
+  // Token flow: Clanker (locked) → Unlock → Multisig → Reward Distributor → Users
   BDCU_TOKEN:
     (process.env.NEXT_PUBLIC_BDCU_TOKEN_ADDRESS || '') as Address,
   // bDCU Reward Distributor contract (for automatic token distributions)
+  // Funding: Tokens are sent from multisig directly to this contract
+  // The contract holds locked bDCU tokens and distributes them to users on-chain
   BDCU_REWARD_DISTRIBUTOR:
     (process.env.NEXT_PUBLIC_BDCU_REWARD_DISTRIBUTOR_ADDRESS ||
       process.env.NEXT_PUBLIC_BDCU_DISTRIBUTOR_ADDRESS ||
@@ -640,49 +647,64 @@ export async function claimImpactProduct(cleanupId: bigint, level: number): Prom
 
 // $bDCU Token Functions
 // 
-// Integration Strategy:
-// 1. Direct ERC20 token balance from Clanker token contract (if deployed)
-// 2. bDCURewardDistributor contract automatically distributes tokens on user actions
-// 3. Local storage fallback (development only)
+// Integration Strategy (Mainnet):
+// 1. Tokens are sent from multisig directly to Reward Distributor contract
+// 2. Reward Distributor contract automatically distributes tokens to users on-chain
+// 3. User balances are read from Reward Distributor's totalDistributed mapping
+// 4. Local storage fallback (development only)
+//
+// Note: We read from Reward Distributor's totalDistributed() mapping, which tracks
+// the cumulative tokens distributed to each user. This is more accurate than reading
+// from the token contract balanceOf() since it shows total rewards earned, regardless
+// of whether the user has spent/transferred tokens.
 
 /**
- * Get user's $bDCU balance from on-chain storage
+ * Get user's $bDCU balance from Reward Distributor contract
  * 
  * Priority order:
- * 1. Direct ERC20 token balance from Clanker token contract (if deployed)
- * 2. Local storage fallback (development only)
+ * 1. Read from Reward Distributor's totalDistributed mapping (shows total rewards earned)
+ * 2. Fallback to local storage (development only)
+ * 
+ * Note: This reads the cumulative rewards distributed to the user, which is more
+ * accurate than token contract balanceOf() since it shows total rewards earned.
  * 
  * @param userAddress User's wallet address
- * @returns Balance in $bDCU tokens
+ * @returns Total rewards distributed to user (in $bDCU tokens)
  */
 export async function getPointsBalance(userAddress: Address): Promise<number> {
-  // Priority 1: Try to read from Clanker token contract (if deployed)
-  if (CONTRACT_ADDRESSES.BDCU_TOKEN) {
+  // Priority 1: Read from Reward Distributor's totalDistributed mapping
+  // This shows the cumulative tokens distributed to the user
+  if (CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
     try {
-      const tokenBalance = await readContract(getWagmiConfig(), {
-        address: CONTRACT_ADDRESSES.BDCU_TOKEN,
-        abi: ERC20_ABI,
-        functionName: 'balanceOf',
+      const totalDistributed = await readContract(getWagmiConfig(), {
+        address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
+        abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+        functionName: 'totalDistributed',
         args: [userAddress],
       })
       
-      // ERC20 tokens use 18 decimals
-      const balance = Number(tokenBalance) / 1e18
-      console.log(`Read $bDCU balance from token contract: ${balance}`)
+      // Convert from wei (18 decimals) to tokens
+      const { formatUnits } = await import('viem')
+      const balance = parseFloat(formatUnits(totalDistributed as bigint, 18))
+      console.log(`Read $bDCU total distributed from Reward Distributor: ${balance}`)
       return balance
     } catch (error) {
-      console.warn('Error reading from Clanker token contract, falling back to points:', error)
-      // Fall through to points system
+      console.warn('Error reading from Reward Distributor, falling back to local storage:', error)
+      // Fall through to local storage fallback
     }
   }
 
-  // Fallback to local storage for development if token not deployed
+  // Fallback to local storage for development if Reward Distributor not configured
   return pointsLib.getPointsBalance(userAddress)
 }
 
 /**
  * Get user's $bDCU balance (alias for getPointsBalance)
- * Reads from $bDCU token contract (if deployed) or local storage fallback
+ * Reads from Reward Distributor's totalDistributed mapping
+ * 
+ * Note: This shows total rewards earned (cumulative), not current wallet balance.
+ * Users receive tokens via Reward Distributor transfers, and this tracks the total
+ * amount distributed to them.
  */
 export async function getDCUBalance(userAddress: Address): Promise<number> {
   return getPointsBalance(userAddress)
@@ -1119,7 +1141,7 @@ export async function submitCleanup(
       120000, // 2 minutes timeout
       'Transaction receipt timeout - transaction may still be pending. Please check the block explorer.'
     )
-    console.log('Transaction confirmed in block:', receipt.blockNumber)
+  console.log('Transaction confirmed in block:', receipt.blockNumber)
   } catch (timeoutError) {
     if (timeoutError instanceof TimeoutError) {
       throw new Error(
@@ -2617,6 +2639,9 @@ export async function checkVerificationContractLinked(): Promise<{ linked: boole
 
 /**
  * Check if bDCURewardDistributor has tokens (is funded)
+ * 
+ * Note: On mainnet, tokens are sent from multisig directly to this contract.
+ * This function checks the contract's token balance.
  */
 export async function checkRewardDistributorFunded(): Promise<{ funded: boolean; balance: string }> {
   if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {

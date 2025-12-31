@@ -1223,10 +1223,8 @@ function ProfileContent() {
                                   level: status.level,
                                 })
                                 setShowSuccessModal(true)
-                                // Don't reload immediately - let user share first
-                                setTimeout(() => {
-                                  window.location.reload()
-                                }, 5000) // Reload after 5 seconds
+                                // Don't auto-reload - let user share and close modal manually
+                                // User can refresh manually if needed
                               } else {
                                 // Refresh profile data to show new level
                                 window.location.reload()
@@ -1241,10 +1239,13 @@ function ProfileContent() {
                           }
                         }, 2000) // Poll every 2 seconds
 
-                        // Fallback: reload after max time
+                        // Fallback: stop polling after max time (but don't auto-reload if modal is showing)
                         setTimeout(() => {
                           clearInterval(pollInterval)
-                          window.location.reload()
+                          // Only reload if modal is not showing (user hasn't claimed yet)
+                          if (!showSuccessModal) {
+                            window.location.reload()
+                          }
                         }, 20000) // Max 20 seconds
                       } catch (error: any) {
                         console.error('Error claiming:', error)

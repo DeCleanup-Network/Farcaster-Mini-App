@@ -145,8 +145,8 @@ export function getWagmiConfig() {
           },
         ],
         {
-          appName: APP_NAME,
-          projectId: walletConnectProjectId!,
+      appName: APP_NAME,
+      projectId: walletConnectProjectId!,
         }
       )
       
@@ -196,11 +196,11 @@ export function getWagmiConfig() {
         },
       ],
       {
-        appName: APP_NAME,
-        projectId: walletConnectProjectId!,
+    appName: APP_NAME,
+    projectId: walletConnectProjectId!,
       }
     )
-    
+
     // connectorsForWallets returns an array of connector functions directly
     if (Array.isArray(result)) {
       defaultConnectors = result

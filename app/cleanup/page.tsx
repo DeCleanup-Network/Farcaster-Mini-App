@@ -1973,13 +1973,13 @@ function CleanupContent() {
                     <div key={idx} className="space-y-1">
                       <div className="flex gap-2">
                         <div className="flex-1 relative">
-                          <input
-                            type="text"
-                            value={contributor}
-                            onChange={(e) => {
-                              const newContributors = [...enhancedData.contributors]
-                              newContributors[idx] = e.target.value
-                              setEnhancedData({ ...enhancedData, contributors: newContributors })
+                    <input
+                      type="text"
+                      value={contributor}
+                      onChange={(e) => {
+                        const newContributors = [...enhancedData.contributors]
+                        newContributors[idx] = e.target.value
+                        setEnhancedData({ ...enhancedData, contributors: newContributors })
                               
                               // Clear previous error when typing
                               setContributorErrors(prev => {
@@ -2001,7 +2001,7 @@ function CleanupContent() {
                                 ? "Paste Farcaster FID, @username, or wallet address" 
                                 : "Paste ENS name (e.g., vitalik.eth) or wallet address (0x...)"
                             }
-                            className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500 text-sm"
+                      className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500 text-sm"
                             disabled={isResolving}
                           />
                           {isResolving && (
@@ -2011,7 +2011,7 @@ function CleanupContent() {
                           )}
                         </div>
                         {!isAddress && inputValue.trim() && (
-                          <button
+                    <button
                             onClick={async () => {
                               const trimmed = inputValue.trim()
                               if (!trimmed) return
@@ -2104,11 +2104,11 @@ function CleanupContent() {
                               return updated
                             })
                           }}
-                          className="rounded-lg border border-red-500 bg-red-500/10 px-3 py-2 text-red-400 hover:bg-red-500/20"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
+                      className="rounded-lg border border-red-500 bg-red-500/10 px-3 py-2 text-red-400 hover:bg-red-500/20"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                       {error && (
                         <p className="text-xs text-red-400">{error}</p>
                       )}
@@ -2287,8 +2287,8 @@ function CleanupContent() {
         actionLabel={modal.actionLabel}
         onAction={modal.onAction}
       />
-      <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
-        <div className="mx-auto max-w-md text-center">
+    <div className="min-h-screen bg-black px-4 py-6 sm:py-8">
+      <div className="mx-auto max-w-md text-center">
         <div className="mb-6">
           <Loader2 className="mx-auto mb-4 h-16 w-16 animate-spin text-brand-green" />
           <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
@@ -2312,7 +2312,7 @@ function CleanupContent() {
                 alt="Before"
                 className="h-32 w-full rounded-lg object-cover"
                 onError={(e) => {
-                  const img = e.target as HTMLImageElement
+                    const img = e.target as HTMLImageElement
                   const currentSrc = img.src
                   console.error('Error loading before photo in review:', currentSrc)
                   
@@ -2349,7 +2349,7 @@ function CleanupContent() {
                 alt="After"
                 className="h-32 w-full rounded-lg object-cover"
                 onError={(e) => {
-                  const img = e.target as HTMLImageElement
+                    const img = e.target as HTMLImageElement
                   const currentSrc = img.src
                   console.error('Error loading after photo in review:', currentSrc)
                   
@@ -2388,8 +2388,8 @@ function CleanupContent() {
         <p className="mt-4 text-xs text-gray-500">
           Redirecting to home page...
         </p>
-        </div>
       </div>
+    </div>
     </>
   )
 }

@@ -54,10 +54,16 @@ export function SuccessModal({
       // Use Farcaster miniapp URL for Farcaster sharing (no referral, just achievement sharing)
       const claimLink = generateClaimShareLink(level, 'farcaster')
       const text = formatImpactShareMessage(level, claimLink, 'farcaster')
-      await shareCast(text, claimLink)
-    } catch (error) {
+      const success = await shareCast(text, claimLink)
+      if (success) {
+        console.log('✅ Successfully shared on Farcaster')
+      } else {
+        console.warn('⚠️ Share returned false')
+      }
+    } catch (error: any) {
       console.error('Failed to share on Farcaster:', error)
-      alert('Failed to share. Please try again.')
+      const errorMsg = error?.message || 'Unknown error'
+      alert(`Failed to share on Farcaster: ${errorMsg}\n\nPlease try again or share manually.`)
     } finally {
       setSharing(false)
     }
@@ -72,10 +78,16 @@ export function SuccessModal({
       // Use base app URL for X (no referral, just achievement sharing)
       const link = generateClaimShareLink(level, 'web')
       const text = formatImpactShareMessage(level, link, 'web')
-      await shareToX(text)
-    } catch (error) {
+      const success = await shareToX(text)
+      if (success) {
+        console.log('✅ Successfully shared on X')
+      } else {
+        console.warn('⚠️ Share returned false')
+      }
+    } catch (error: any) {
       console.error('Failed to share on X:', error)
-      alert('Failed to share. Please try again.')
+      const errorMsg = error?.message || 'Unknown error'
+      alert(`Failed to share on X: ${errorMsg}\n\nPlease try again or share manually.`)
     } finally {
       setSharing(false)
     }
@@ -84,8 +96,17 @@ export function SuccessModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="relative mx-4 w-full max-w-md rounded-lg border-2 border-brand-green bg-gray-900 p-6 shadow-2xl">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      onClick={(e) => {
+        // Prevent closing on backdrop click - user must click close button
+        e.stopPropagation()
+      }}
+    >
+      <div 
+        className="relative mx-4 w-full max-w-md rounded-lg border-2 border-brand-green bg-gray-900 p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close button */}
         <button
           onClick={onClose}
