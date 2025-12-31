@@ -10,21 +10,22 @@ const FARCASTER_MINIAPP_URL = 'https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decle
 const STORAGE_KEY = 'farcaster_redirect_choice'
 
 export function FarcasterRedirectModal() {
-  const { isMiniApp, isLoading } = useFarcaster()
+  const { isMiniApp, isLoading, isInitialized } = useFarcaster()
   const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
     // Only show modal if:
-    // 1. Not in Mini App
-    // 2. Not loading
-    // Show modal every time user visits (as requested)
-    if (!isLoading && !isMiniApp && typeof window !== 'undefined') {
-      // Always show modal - don't check localStorage
+    // 1. Detection is complete (isInitialized === true)
+    // 2. We're NOT in a Mini App (isMiniApp === false)
+    // 3. We're on web (not loading and initialized)
+    // This ensures we never show the modal when already in Farcaster
+    if (isInitialized && !isMiniApp && !isLoading && typeof window !== 'undefined') {
+      // Always show modal on web - don't check localStorage
       setIsOpen(true)
     } else {
       setIsOpen(false)
     }
-  }, [isMiniApp, isLoading])
+  }, [isMiniApp, isLoading, isInitialized])
 
   const handleStayOnWeb = () => {
     if (typeof window !== 'undefined') {
@@ -43,8 +44,11 @@ export function FarcasterRedirectModal() {
     }
   }
 
-  // Don't render if in Mini App or loading
-  if (isMiniApp || isLoading) {
+  // Don't render if:
+  // - Still loading/initializing
+  // - Already in Mini App
+  // - Not initialized yet (wait for detection to complete)
+  if (isLoading || isMiniApp || !isInitialized) {
     return null
   }
 
