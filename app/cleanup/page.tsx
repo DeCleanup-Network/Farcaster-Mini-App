@@ -691,8 +691,7 @@ function CleanupContent() {
       return
     }
     
-    // Only set hasImpactForm to true if form is valid
-    setHasImpactForm(true)
+    // Submit with form data (hasForm=true)
     await submitCleanupFlow(true)
   }
 
@@ -934,7 +933,6 @@ function CleanupContent() {
         if (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') {
           console.log('✅ Referral reward will be distributed when cleanup is verified!')
         }
-        setCleanupId(cleanupId)
         setStep('review')
         
         // Show transaction modal with success message
