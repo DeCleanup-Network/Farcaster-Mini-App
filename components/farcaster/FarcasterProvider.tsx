@@ -10,6 +10,7 @@ export interface FarcasterContextType {
   isInitialized: boolean
   isLoading: boolean
   isMiniApp: boolean
+  quickAuthToken: string | null
 }
 
 const FarcasterContext = createContext<FarcasterContextType>({
@@ -17,6 +18,7 @@ const FarcasterContext = createContext<FarcasterContextType>({
   isInitialized: false,
   isLoading: true,
   isMiniApp: false,
+  quickAuthToken: null,
 })
 
 export function useFarcaster(): FarcasterContextType {
@@ -38,6 +40,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isMiniApp, setIsMiniApp] = useState(false)
+  const [quickAuthToken, setQuickAuthToken] = useState<string | null>(null)
 
   useEffect(() => {
     // CRITICAL: Call ready() IMMEDIATELY - this must happen before ANY other logic
@@ -331,6 +334,43 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           })
           
           setIsInitialized(true)
+          
+          // Fetch Quick Auth token when user context is available
+          // Quick Auth provides a JWT session token for authenticated requests
+          try {
+            const { token } = await sdk.quickAuth.getToken()
+            if (token) {
+              setQuickAuthToken(token)
+              // Optionally store in sessionStorage for persistence across page reloads
+              if (typeof window !== 'undefined') {
+                try {
+                  sessionStorage.setItem('farcasterQuickAuthToken', token)
+                } catch (storageError) {
+                  // sessionStorage might not be available (e.g., in private mode)
+                  console.debug('Could not store token in sessionStorage:', storageError)
+                }
+              }
+              console.log('✅ Quick Auth token obtained and stored')
+            } else {
+              console.log('ℹ️ Quick Auth token is null (user may not be signed in)')
+            }
+          } catch (quickAuthError) {
+            // Quick Auth might not be available or user might not be signed in
+            // This is OK - it's optional for client-side only apps
+            console.log('ℹ️ Quick Auth not available:', quickAuthError)
+            // Try to load from sessionStorage as fallback
+            if (typeof window !== 'undefined') {
+              try {
+                const storedToken = sessionStorage.getItem('farcasterQuickAuthToken')
+                if (storedToken) {
+                  setQuickAuthToken(storedToken)
+                  console.log('✅ Quick Auth token loaded from sessionStorage')
+                }
+              } catch (storageError) {
+                // Ignore sessionStorage errors
+              }
+            }
+          }
         } else {
           // We're in browser mode
           console.log('ℹ️ Running in browser mode (not in Farcaster Mini App)')
@@ -353,8 +393,24 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
     init()
   }, [])
 
+  // Load Quick Auth token from sessionStorage on mount (if available)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !quickAuthToken) {
+      try {
+        const storedToken = sessionStorage.getItem('farcasterQuickAuthToken')
+        if (storedToken) {
+          setQuickAuthToken(storedToken)
+          console.log('✅ Quick Auth token loaded from sessionStorage on mount')
+        }
+      } catch (storageError) {
+        // sessionStorage might not be available
+        console.debug('Could not load token from sessionStorage:', storageError)
+      }
+    }
+  }, [quickAuthToken])
+
   return (
-    <FarcasterContext.Provider value={{ context, isInitialized, isLoading, isMiniApp }}>
+    <FarcasterContext.Provider value={{ context, isInitialized, isLoading, isMiniApp, quickAuthToken }}>
       {children}
     </FarcasterContext.Provider>
   )

@@ -436,6 +436,53 @@ export const generateReferralLink = (
 }
 
 // Generate claim share link for impact product sharing (no referral tracking)
+/**
+ * Make an authenticated fetch request using Quick Auth token
+ * 
+ * This helper provides two options:
+ * 1. Use SDK's built-in fetch wrapper (recommended) - automatically handles token refresh
+ * 2. Manual fetch with token from context (fallback)
+ * 
+ * @param url - The URL to fetch
+ * @param options - Fetch options (headers, method, body, etc.)
+ * @param quickAuthToken - Optional token from context. If provided, uses manual fetch.
+ *                        If not provided, uses SDK's quickAuth.fetch() wrapper.
+ * @returns Promise<Response>
+ */
+export const authenticatedFetch = async (
+  url: string,
+  options: RequestInit = {},
+  quickAuthToken?: string | null
+): Promise<Response> => {
+  // Option A: Use SDK's built-in fetch wrapper (recommended)
+  // This automatically handles token retrieval and refresh
+  if (!quickAuthToken) {
+    try {
+      // Check if we're in Mini App context
+      const isInMiniApp = await sdk.isInMiniApp()
+      if (isInMiniApp) {
+        // Use SDK's quickAuth.fetch() - automatically adds token and handles refresh
+        return await sdk.quickAuth.fetch(url, options)
+      }
+    } catch (error) {
+      console.debug('SDK quickAuth.fetch not available, falling back to manual fetch:', error)
+    }
+  }
+
+  // Option B: Manual fetch with token from context
+  // This is useful when you have the token already stored
+  const headers = new Headers(options.headers)
+  
+  if (quickAuthToken) {
+    headers.set('Authorization', `Bearer ${quickAuthToken}`)
+  }
+  
+  return fetch(url, {
+    ...options,
+    headers,
+  })
+}
+
 export const generateClaimShareLink = (
   level: number,
   type: 'farcaster' | 'web' | 'copy' = 'web'

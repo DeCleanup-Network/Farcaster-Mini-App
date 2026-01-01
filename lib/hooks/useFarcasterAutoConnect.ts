@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { useAccount, useConnect } from 'wagmi'
-import { sdk } from '@farcaster/miniapp-sdk'
 
 /**
  * Hook to auto-connect Farcaster wallet and account when in Mini App
@@ -68,28 +67,7 @@ export function useFarcasterAutoConnect() {
     return () => clearTimeout(timeoutId)
   }, [isMiniApp, isLoading, isConnected, connectors, connect])
 
-  // Get Quick Auth token if in Mini App and context is available
-  useEffect(() => {
-    if (!isMiniApp || !context?.user) {
-      return
-    }
-
-    const getQuickAuthToken = async () => {
-      try {
-        // Quick Auth provides a JWT token for the user
-        // This is optional - only needed if you want to authenticate the user account
-        const token = await sdk.quickAuth.getToken()
-        console.log('✅ Quick Auth token obtained:', token ? 'Token received' : 'No token')
-        // Store token if needed for API calls
-        // You can store it in state or context if needed
-      } catch (error) {
-        // Quick Auth might not be available or user might not be signed in
-        // This is OK - it's optional
-        console.log('ℹ️ Quick Auth not available:', error)
-      }
-    }
-
-    getQuickAuthToken()
-  }, [isMiniApp, context])
+  // Quick Auth token is now managed by FarcasterProvider
+  // Access it via: const { quickAuthToken } = useFarcaster()
 }
 
