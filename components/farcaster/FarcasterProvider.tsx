@@ -122,6 +122,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             }
           }
           
+          // Initialize user object - even if SDK doesn't provide it, we'll fetch from Neynar
           const transformedContext: FarcasterContextData = {
             user: rawUser ? {
               fid: fid || rawUser.userFid || 0, // Prioritize direct fid from SDK
@@ -135,7 +136,17 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
               },
               followerCount: rawUser.followerCount || rawUser.follower_count || 0,
               followingCount: rawUser.followingCount || rawUser.following_count || 0,
-            } : undefined,
+            } : (fid ? {
+              // If we have FID but no user object from SDK, create empty user object
+              // We'll fill it from Neynar below
+              fid: fid,
+              username: '',
+              displayName: '',
+              pfp: { url: '' },
+              bio: { text: '' },
+              followerCount: 0,
+              followingCount: 0,
+            } : undefined),
             channel: rawContext.channel ? {
               id: rawContext.channel.id || '',
               name: rawContext.channel.name || '',
@@ -166,10 +177,31 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             } : undefined,
           }
           
-          // If we have FID but missing user data, fetch from Neynar API using FID (most reliable)
-          // Neynar is recommended as it's easier to set up (just needs API key)
-          // Using FID is more reliable than custody address since we have it directly from SDK
-          if (transformedContext.user && fid && (!transformedContext.user.pfp?.url || !transformedContext.user.username || !transformedContext.user.displayName)) {
+          // Always fetch user data from Neynar when we have FID
+          // This ensures we have complete user data (username, pfp, displayName) for display
+          // Following Base docs: https://docs.base.org/mini-apps/core-concepts/authentication
+          if (fid) {
+            // Ensure we have a user object
+            if (!transformedContext.user) {
+              transformedContext.user = {
+                fid: fid,
+                username: '',
+                displayName: '',
+                pfp: { url: '' },
+                bio: { text: '' },
+                followerCount: 0,
+                followingCount: 0,
+              }
+            }
+            const needsFetch = !transformedContext.user.pfp?.url || !transformedContext.user.username || !transformedContext.user.displayName
+            if (needsFetch) {
+              console.log('🔄 Fetching user data from Neynar API (FID:', fid, ') - missing:', {
+                pfp: !transformedContext.user.pfp?.url,
+                username: !transformedContext.user.username,
+                displayName: !transformedContext.user.displayName,
+              })
+            }
+            
             // Priority 1: Try Neynar API using FID (most reliable method)
             try {
               const neynarResponse = await fetch(`/api/neynar/user-by-fid?fid=${fid}`)
@@ -178,52 +210,65 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
                 // Neynar v2 API returns { result: { user: {...} } }
                 const user = neynarData.result?.user || neynarData.user
                 if (user) {
-                  // Merge Neynar data to fill missing fields
-                  if (!transformedContext.user.fid && user.fid) {
-                    transformedContext.user.fid = user.fid
-                  }
-                  if (!transformedContext.user.pfp?.url && user.pfp_url) {
+                  // Always update with Neynar data (it's more complete and reliable)
+                  transformedContext.user.fid = user.fid || fid
+                  if (user.pfp_url) {
                     transformedContext.user.pfp.url = user.pfp_url
                   }
-                  if (!transformedContext.user.username && user.username) {
+                  if (user.username) {
                     transformedContext.user.username = user.username
                   }
-                  if (!transformedContext.user.displayName && user.display_name) {
+                  if (user.display_name) {
                     transformedContext.user.displayName = user.display_name
                   }
-                  if (!transformedContext.user.bio?.text && user.profile?.bio?.text) {
+                  if (user.profile?.bio?.text) {
                     transformedContext.user.bio.text = user.profile.bio.text
                   }
-                  console.log('✅ Fetched missing user data from Neynar API (by FID)', {
+                  if (user.follower_count !== undefined) {
+                    transformedContext.user.followerCount = user.follower_count
+                  }
+                  if (user.following_count !== undefined) {
+                    transformedContext.user.followingCount = user.following_count
+                  }
+                  console.log('✅ Fetched user data from Neynar API (by FID)', {
                     fid: transformedContext.user.fid,
                     username: transformedContext.user.username,
                     hasPfp: !!transformedContext.user.pfp?.url,
                     hasDisplayName: !!transformedContext.user.displayName,
                   })
+                } else {
+                  console.warn('⚠️ Neynar API returned OK but no user data in response')
                 }
               } else {
+                const errorText = await neynarResponse.text().catch(() => 'Unknown error')
+                console.warn('⚠️ Neynar API by FID failed:', neynarResponse.status, errorText)
+                
                 // Fallback to custody address if FID lookup fails
                 const custodyAddress = rawUser?.custodyAddress || rawUser?.custody_address
                 if (custodyAddress) {
+                  console.log('🔄 Trying Neynar API by custody address:', custodyAddress)
                   const neynarCustodyResponse = await fetch(`/api/neynar/user-by-custody-address?address=${custodyAddress}`)
                   if (neynarCustodyResponse.ok) {
                     const neynarCustodyData = await neynarCustodyResponse.json()
                     const custodyUser = neynarCustodyData.result?.user || neynarCustodyData.user
                     if (custodyUser) {
-                      if (!transformedContext.user.pfp?.url && custodyUser.pfp_url) {
+                      if (custodyUser.pfp_url) {
                         transformedContext.user.pfp.url = custodyUser.pfp_url
                       }
-                      if (!transformedContext.user.username && custodyUser.username) {
+                      if (custodyUser.username) {
                         transformedContext.user.username = custodyUser.username
                       }
-                      if (!transformedContext.user.displayName && custodyUser.display_name) {
+                      if (custodyUser.display_name) {
                         transformedContext.user.displayName = custodyUser.display_name
                       }
-                      console.log('✅ Fetched missing user data from Neynar API (by custody address fallback)', {
+                      console.log('✅ Fetched user data from Neynar API (by custody address fallback)', {
                         fid: transformedContext.user.fid,
                         hasPfp: !!transformedContext.user.pfp?.url,
+                        hasUsername: !!transformedContext.user.username,
                       })
                     }
+                  } else {
+                    console.warn('⚠️ Neynar API by custody address also failed:', neynarCustodyResponse.status)
                   }
                 }
               }
@@ -236,24 +281,26 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
                   const snapchainData = await snapchainResponse.json()
                   if (snapchainData && !snapchainData.error && snapchainData.fid) {
                     // Merge Snapchain data to fill missing fields
-                    if (!transformedContext.user.pfp?.url && snapchainData.pfp) {
+                    if (snapchainData.pfp) {
                       transformedContext.user.pfp.url = snapchainData.pfp
                     }
-                    if (!transformedContext.user.displayName && snapchainData.displayName) {
+                    if (snapchainData.displayName) {
                       transformedContext.user.displayName = snapchainData.displayName
                     }
-                    if (!transformedContext.user.bio?.text && snapchainData.bio) {
+                    if (snapchainData.bio) {
                       transformedContext.user.bio.text = snapchainData.bio
                     }
-                    if (!transformedContext.user.username && snapchainData.username) {
+                    if (snapchainData.username) {
                       transformedContext.user.username = snapchainData.username
                     }
-                    console.log('✅ Fetched missing user data from Snapchain API (fallback)', {
+                    console.log('✅ Fetched user data from Snapchain API (fallback)', {
                       fid: transformedContext.user.fid,
                       hasPfp: !!transformedContext.user.pfp?.url,
                       hasDisplayName: !!transformedContext.user.displayName,
                     })
                   }
+                } else {
+                  console.warn('⚠️ Snapchain API also failed:', snapchainResponse.status)
                 }
               } catch (snapchainError) {
                 console.warn('⚠️ Failed to fetch user data from all APIs:', {
@@ -272,7 +319,17 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             rawContextKeys: Object.keys(rawContext || {}), // Log keys for debugging
           })
           
-          setContext(transformedContext)
+          // Set context with a new object reference to ensure React detects changes
+          // This is important because we mutate transformedContext.user during async fetch
+          setContext({
+            ...transformedContext,
+            user: transformedContext.user ? {
+              ...transformedContext.user,
+              pfp: transformedContext.user.pfp ? { ...transformedContext.user.pfp } : { url: '' },
+              bio: transformedContext.user.bio ? { ...transformedContext.user.bio } : { text: '' },
+            } : undefined,
+          })
+          
           setIsInitialized(true)
         } else {
           // We're in browser mode
