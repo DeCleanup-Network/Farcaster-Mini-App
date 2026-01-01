@@ -782,18 +782,34 @@ function ProfileContent() {
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               My Profile
             </h1>
-            <p className="text-sm text-gray-400">
-              {ensName || (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '')}
-            </p>
-            {ensName && address && (
-              <p className="text-xs text-gray-500 font-mono">
-                {address}
-              </p>
-            )}
-            {!ensName && address && (
-              <p className="text-xs text-gray-500 font-mono">
-                {address.slice(0, 6)}...{address.slice(-4)}
-            </p>
+            {/* Show Farcaster username in Base App, ENS on web */}
+            {isMiniApp && farcasterContext?.user ? (
+              <>
+                <p className="text-sm text-gray-400">
+                  {farcasterContext.user.displayName || farcasterContext.user.username}
+                </p>
+                {farcasterContext.user.username && (
+                  <p className="text-xs text-gray-500">
+                    @{farcasterContext.user.username}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-400">
+                  {ensName || (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '')}
+                </p>
+                {ensName && address && (
+                  <p className="text-xs text-gray-500 font-mono">
+                    {address}
+                  </p>
+                )}
+                {!ensName && address && (
+                  <p className="text-xs text-gray-500 font-mono">
+                    {address.slice(0, 6)}...{address.slice(-4)}
+                  </p>
+                )}
+              </>
             )}
           </div>
           <Button

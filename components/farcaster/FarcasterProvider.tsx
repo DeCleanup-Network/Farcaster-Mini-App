@@ -75,16 +75,56 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
         
         setIsMiniApp(env.isMiniApp)
         
+        // Also try to get context directly from SDK as a fallback/verification
+        // According to docs: https://miniapps.farcaster.xyz/docs/sdk/context
+        // After getting FID from SDK context, you can use it directly
+        let directContext: Awaited<typeof sdk.context> | null = null
+        try {
+          if (env.isMiniApp) {
+            directContext = await sdk.context
+            console.log('📋 Direct SDK context access:', {
+              hasUser: !!directContext?.user,
+              userFid: directContext?.user?.fid,
+            })
+          }
+        } catch (directContextError) {
+          console.debug('ℹ️ Direct SDK context access failed (using retry method instead):', directContextError)
+        }
+        
         if (env.isMiniApp && env.context) {
           // We're in a Mini App
-          // Transform SDK context to our expected format
-          // The SDK context might have different property names, so we check multiple possibilities
+          // Get FID directly from SDK context - this is the primary source
+          // According to Farcaster SDK docs: https://miniapps.farcaster.xyz/docs/sdk/context
           const rawUser = (env.context as any).user
           const rawContext = env.context as any
           
+          // Log raw SDK context for debugging
+          console.log('📋 Raw SDK context:', {
+            hasUser: !!rawUser,
+            userKeys: rawUser ? Object.keys(rawUser) : [],
+            userFid: rawUser?.fid,
+            contextKeys: Object.keys(rawContext || {}),
+          })
+          
+          // Extract FID directly from SDK context - this is the canonical source
+          // Per Farcaster SDK docs: FID is available in sdk.context.user.fid
+          // After getting FID, you can use it directly for any operations
+          let fid = rawUser?.fid
+          if (fid) {
+            console.log('✅ FID extracted from SDK context:', fid, '- Ready to use directly')
+          } else {
+            // Try direct context if available
+            if (directContext?.user?.fid) {
+              fid = directContext.user.fid
+              console.log('✅ FID found in direct SDK context:', fid)
+            } else {
+              console.warn('⚠️ FID not found in SDK context, user object:', rawUser)
+            }
+          }
+          
           let transformedContext: FarcasterContextData = {
             user: rawUser ? {
-              fid: rawUser.fid || rawUser.userFid || 0,
+              fid: fid || rawUser.userFid || 0, // Prioritize direct fid from SDK
               username: rawUser.username || rawUser.userName || '',
               displayName: rawUser.displayName || rawUser.display_name || rawUser.username || rawUser.userName || '',
               pfp: {
@@ -126,38 +166,101 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             } : undefined,
           }
           
-          // If user data is missing FID or pfp, try to fetch from Neynar API using custody address
-          if (transformedContext.user && (!transformedContext.user.fid || !transformedContext.user.pfp?.url)) {
+          // If we have FID but missing user data, fetch from Neynar API using FID (most reliable)
+          // Neynar is recommended as it's easier to set up (just needs API key)
+          // Using FID is more reliable than custody address since we have it directly from SDK
+          if (transformedContext.user && fid && (!transformedContext.user.pfp?.url || !transformedContext.user.username || !transformedContext.user.displayName)) {
+            // Priority 1: Try Neynar API using FID (most reliable method)
             try {
-              // Get custody address from wallet if available
-              const custodyAddress = rawUser?.custodyAddress || rawUser?.custody_address
-              if (custodyAddress) {
-                const neynarResponse = await fetch(`/api/neynar/user-by-custody-address?address=${custodyAddress}`)
-                if (neynarResponse.ok) {
-                  const neynarData = await neynarResponse.json()
-                  if (neynarData.user) {
-                    // Merge Neynar data to fill missing fields
-                    if (!transformedContext.user.fid && neynarData.user.fid) {
-                      transformedContext.user.fid = neynarData.user.fid
+              const neynarResponse = await fetch(`/api/neynar/user-by-fid?fid=${fid}`)
+              if (neynarResponse.ok) {
+                const neynarData = await neynarResponse.json()
+                // Neynar v2 API returns { result: { user: {...} } }
+                const user = neynarData.result?.user || neynarData.user
+                if (user) {
+                  // Merge Neynar data to fill missing fields
+                  if (!transformedContext.user.fid && user.fid) {
+                    transformedContext.user.fid = user.fid
+                  }
+                  if (!transformedContext.user.pfp?.url && user.pfp_url) {
+                    transformedContext.user.pfp.url = user.pfp_url
+                  }
+                  if (!transformedContext.user.username && user.username) {
+                    transformedContext.user.username = user.username
+                  }
+                  if (!transformedContext.user.displayName && user.display_name) {
+                    transformedContext.user.displayName = user.display_name
+                  }
+                  if (!transformedContext.user.bio?.text && user.profile?.bio?.text) {
+                    transformedContext.user.bio.text = user.profile.bio.text
+                  }
+                  console.log('✅ Fetched missing user data from Neynar API (by FID)', {
+                    fid: transformedContext.user.fid,
+                    username: transformedContext.user.username,
+                    hasPfp: !!transformedContext.user.pfp?.url,
+                    hasDisplayName: !!transformedContext.user.displayName,
+                  })
+                }
+              } else {
+                // Fallback to custody address if FID lookup fails
+                const custodyAddress = rawUser?.custodyAddress || rawUser?.custody_address
+                if (custodyAddress) {
+                  const neynarCustodyResponse = await fetch(`/api/neynar/user-by-custody-address?address=${custodyAddress}`)
+                  if (neynarCustodyResponse.ok) {
+                    const neynarCustodyData = await neynarCustodyResponse.json()
+                    const custodyUser = neynarCustodyData.result?.user || neynarCustodyData.user
+                    if (custodyUser) {
+                      if (!transformedContext.user.pfp?.url && custodyUser.pfp_url) {
+                        transformedContext.user.pfp.url = custodyUser.pfp_url
+                      }
+                      if (!transformedContext.user.username && custodyUser.username) {
+                        transformedContext.user.username = custodyUser.username
+                      }
+                      if (!transformedContext.user.displayName && custodyUser.display_name) {
+                        transformedContext.user.displayName = custodyUser.display_name
+                      }
+                      console.log('✅ Fetched missing user data from Neynar API (by custody address fallback)', {
+                        fid: transformedContext.user.fid,
+                        hasPfp: !!transformedContext.user.pfp?.url,
+                      })
                     }
-                    if (!transformedContext.user.pfp?.url && neynarData.user.pfp_url) {
-                      transformedContext.user.pfp.url = neynarData.user.pfp_url
-                    }
-                    if (!transformedContext.user.username && neynarData.user.username) {
-                      transformedContext.user.username = neynarData.user.username
-                    }
-                    if (!transformedContext.user.displayName && neynarData.user.display_name) {
-                      transformedContext.user.displayName = neynarData.user.display_name
-                    }
-                    console.log('✅ Fetched missing user data from Neynar API', {
-                      fid: transformedContext.user.fid,
-                      hasPfp: !!transformedContext.user.pfp?.url,
-                    })
                   }
                 }
               }
             } catch (neynarError) {
-              console.warn('⚠️ Failed to fetch user data from Neynar API:', neynarError)
+              // Priority 2: Optional fallback to Snapchain API (requires self-hosted instance)
+              console.warn('⚠️ Neynar API failed, trying Snapchain fallback:', neynarError)
+              try {
+                const snapchainResponse = await fetch(`/api/snapchain/user-by-fid?fid=${fid}`)
+                if (snapchainResponse.ok) {
+                  const snapchainData = await snapchainResponse.json()
+                  if (snapchainData && !snapchainData.error && snapchainData.fid) {
+                    // Merge Snapchain data to fill missing fields
+                    if (!transformedContext.user.pfp?.url && snapchainData.pfp) {
+                      transformedContext.user.pfp.url = snapchainData.pfp
+                    }
+                    if (!transformedContext.user.displayName && snapchainData.displayName) {
+                      transformedContext.user.displayName = snapchainData.displayName
+                    }
+                    if (!transformedContext.user.bio?.text && snapchainData.bio) {
+                      transformedContext.user.bio.text = snapchainData.bio
+                    }
+                    if (!transformedContext.user.username && snapchainData.username) {
+                      transformedContext.user.username = snapchainData.username
+                    }
+                    console.log('✅ Fetched missing user data from Snapchain API (fallback)', {
+                      fid: transformedContext.user.fid,
+                      hasPfp: !!transformedContext.user.pfp?.url,
+                      hasDisplayName: !!transformedContext.user.displayName,
+                    })
+                  }
+                }
+              } catch (snapchainError) {
+                console.warn('⚠️ Failed to fetch user data from all APIs:', {
+                  neynarError,
+                  snapchainError,
+                })
+              }
             }
           }
           

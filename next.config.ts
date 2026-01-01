@@ -10,12 +10,15 @@ const nextConfig: NextConfig = {
     root: process.cwd(),
   },
   // Allow images from IPFS gateways (with fallbacks)
+  // Note: We use unoptimized flag in Image components, so remotePatterns are less strict
+  // Full URLs with ?filename= parameter will work with unoptimized flag
   images: {
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'gateway.pinata.cloud',
-        pathname: '/ipfs/**',
+        // Allow any path (for full URLs with ?filename= parameter)
+        pathname: '/**',
       },
       {
         protocol: 'https',
@@ -33,6 +36,8 @@ const nextConfig: NextConfig = {
         pathname: '/ipfs/**',
       },
     ],
+    // Allow unoptimized images from any domain (for full URLs)
+    unoptimized: false, // Keep optimization enabled, but unoptimized flag in component overrides
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {

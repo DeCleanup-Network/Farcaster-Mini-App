@@ -17,9 +17,24 @@ const IPFS_GATEWAYS = [
   'https://dweb.link/ipfs/',
 ]
 
-function getIPFSUrl(hash: string, gatewayIndex: number = 0): string {
+/**
+ * Check if a string is a full URL (starts with http:// or https://)
+ */
+function isFullUrl(value: string): boolean {
+  return value.startsWith('http://') || value.startsWith('https://')
+}
+
+/**
+ * Get image URL - supports both full URLs (with ?filename=) and IPFS hashes
+ */
+function getImageUrl(value: string, gatewayIndex: number = 0): string {
+  // If it's already a full URL, use it directly (preserves ?filename= parameter)
+  if (isFullUrl(value)) {
+    return value
+  }
+  // Otherwise, treat it as an IPFS hash and construct URL
   const gateway = IPFS_GATEWAYS[gatewayIndex] || IPFS_GATEWAYS[0]
-  return `${gateway}${hash}`
+  return `${gateway}${value}`
 }
 
 export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
@@ -28,8 +43,8 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({})
   const [preloadedImages, setPreloadedImages] = useState<Set<number>>(new Set())
 
-  // Onboarding images - IPFS hashes
-  const imageHashes = [
+  // Onboarding images - supports full URLs (with ?filename=) or IPFS hashes
+  const imageSources = [
     process.env.NEXT_PUBLIC_ONBOARDING_IMAGE_1 || 'bafybeigfymrdokx3hkl2asb7zjtqzy3e5n2ffvzx6fbsfkedmortfhivvy',
     process.env.NEXT_PUBLIC_ONBOARDING_IMAGE_2 || 'bafybeihphf34gm5ivemhhmkvq5csyaohow3bk2gxj54fclpfacnv3euniu',
     process.env.NEXT_PUBLIC_ONBOARDING_IMAGE_3 || 'bafybeid5buaqdqqriiexbw7wyntmq5z4ptvqoojxe52j5a657n47k3qdqa',
@@ -41,25 +56,25 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       icon: Leaf,
       title: 'Submit Your Cleanup',
       description: 'Take before and after photos of your environmental cleanup. Add location and details to show your impact.',
-      hash: imageHashes[0],
+      imageSource: imageSources[0],
     },
     {
       icon: Award,
       title: 'Earn Impact Products',
       description: 'Get your cleanup verified by the community. Claim your Impact Product NFT and progress through 10 levels.',
-      hash: imageHashes[1],
+      imageSource: imageSources[1],
     },
     {
       icon: TrendingUp,
       title: 'Earn Token Rewards',
       description: 'Receive $bDCU tokens for each level, maintain streaks, refer friends, and contribute to the community.',
-      hash: imageHashes[2],
+      imageSource: imageSources[2],
     },
     {
       icon: Users,
       title: 'Join the Movement',
       description: 'Tokenize your environmental impact and be part of a global community making a real difference.',
-      hash: imageHashes[3],
+      imageSource: imageSources[3],
     },
   ]
 
@@ -67,26 +82,40 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   useEffect(() => {
     const preloadImages = async () => {
       const promises = steps.map(async (step, index) => {
-        // Try primary gateway first
         const img = new window.Image()
         return new Promise<void>((resolve) => {
-          let gatewayIndex = 0
-          const tryGateway = () => {
-            if (gatewayIndex < IPFS_GATEWAYS.length) {
-              img.src = getIPFSUrl(step.hash, gatewayIndex)
-            } else {
-              resolve() // All gateways failed
+          // If it's a full URL, use it directly (no fallback needed)
+          if (isFullUrl(step.imageSource)) {
+            img.src = step.imageSource
+            img.onload = () => {
+              setPreloadedImages((prev) => new Set([...prev, index]))
+              resolve()
             }
-          }
-          img.onload = () => {
-            setPreloadedImages((prev) => new Set([...prev, index]))
-            resolve()
-          }
-          img.onerror = () => {
-            gatewayIndex++
+            img.onerror = () => {
+              console.warn(`Failed to preload image ${index}:`, step.imageSource)
+              resolve() // Continue even if preload fails
+            }
+          } else {
+            // For IPFS hashes, try gateways with fallback
+            let gatewayIndex = 0
+            const tryGateway = () => {
+              if (gatewayIndex < IPFS_GATEWAYS.length) {
+                img.src = getImageUrl(step.imageSource, gatewayIndex)
+              } else {
+                console.warn(`Failed to preload image ${index} from all gateways`)
+                resolve() // All gateways failed
+              }
+            }
+            img.onload = () => {
+              setPreloadedImages((prev) => new Set([...prev, index]))
+              resolve()
+            }
+            img.onerror = () => {
+              gatewayIndex++
+              tryGateway()
+            }
             tryGateway()
           }
-          tryGateway()
         })
       })
       await Promise.allSettled(promises)
@@ -97,12 +126,18 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   // Get current image URL with fallback
   const getCurrentImageUrl = (stepIndex: number): string => {
-    const hash = steps[stepIndex].hash
-    // If image failed to load, try next gateway
-    if (imageErrors[stepIndex]) {
-      return getIPFSUrl(hash, 1) // Try fallback
+    const imageSource = steps[stepIndex].imageSource
+    
+    // If it's a full URL, use it directly
+    if (isFullUrl(imageSource)) {
+      return imageSource
     }
-    return getIPFSUrl(hash, 0) // Primary gateway
+    
+    // For IPFS hashes, try fallback gateway if primary failed
+    if (imageErrors[stepIndex]) {
+      return getImageUrl(imageSource, 1) // Try fallback gateway
+    }
+    return getImageUrl(imageSource, 0) // Primary gateway
   }
 
   const handleNext = () => {
@@ -182,9 +217,18 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               }}
               onError={(e) => {
                 const img = e.currentTarget as HTMLImageElement
-                const hash = currentStepData.hash
+                const imageSource = currentStepData.imageSource
                 
-                // Extract current gateway index from URL
+                // If it's a full URL and failed, don't try fallbacks (URL is already complete)
+                if (isFullUrl(imageSource)) {
+                  console.error(`Failed to load image from URL:`, imageSource)
+                  setImageErrors((prev) => ({ ...prev, [currentStep]: true }))
+                  setImageLoading((prev) => ({ ...prev, [currentStep]: false }))
+                  img.style.display = 'none'
+                  return
+                }
+                
+                // For IPFS hashes, try next gateway
                 let currentGatewayIndex = 0
                 for (let i = 0; i < IPFS_GATEWAYS.length; i++) {
                   if (img.src.includes(IPFS_GATEWAYS[i].replace('/ipfs/', ''))) {
@@ -195,9 +239,10 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 
                 if (currentGatewayIndex < IPFS_GATEWAYS.length - 1) {
                   // Try next gateway
-                  img.src = getIPFSUrl(hash, currentGatewayIndex + 1)
+                  img.src = getImageUrl(imageSource, currentGatewayIndex + 1)
                 } else {
                   // All gateways failed
+                  console.error(`Failed to load image from all IPFS gateways:`, imageSource)
                   setImageErrors((prev) => ({ ...prev, [currentStep]: true }))
                   setImageLoading((prev) => ({ ...prev, [currentStep]: false }))
                   img.style.display = 'none'
