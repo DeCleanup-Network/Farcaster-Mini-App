@@ -122,7 +122,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             }
           }
           
-          let transformedContext: FarcasterContextData = {
+          const transformedContext: FarcasterContextData = {
             user: rawUser ? {
               fid: fid || rawUser.userFid || 0, // Prioritize direct fid from SDK
               username: rawUser.username || rawUser.userName || '',

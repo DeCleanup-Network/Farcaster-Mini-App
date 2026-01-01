@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       try {
         const metadata = JSON.parse(metadataStr)
         pinataFormData.append('pinataMetadata', JSON.stringify(metadata))
-      } catch (e) {
+      } catch {
         const defaultMetadata = {
           name: file.name,
           keyvalues: {
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       try {
         const options = JSON.parse(optionsStr)
         pinataFormData.append('pinataOptions', JSON.stringify(options))
-      } catch (e) {
+      } catch {
         const defaultOptions = {
           cidVersion: 1,
           wrapWithDirectory: false,

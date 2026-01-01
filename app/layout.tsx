@@ -24,7 +24,6 @@ const bebasNeue = Bebas_Neue({
   subsets: ["latin"],
 });
 
-const FARCASTER_MINIAPP_URL = "https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards";
 const SITE_URL = process.env.NEXT_PUBLIC_MINIAPP_URL || "https://miniapp.decleanup.net"
 const OG_IMAGE_URL = `${SITE_URL}/og/default.png` // Local hosted image for OG/Twitter/Telegram previews
 const FARCASTER_IMAGE_URL = "https://gateway.pinata.cloud/ipfs/bafybeicdkbybpazpp6ucfbfbrrido36ka5v7hslanbem4vsbfrznrf4kzm?filename=DCUSocialNEW.png" // IPFS for Farcaster embeds

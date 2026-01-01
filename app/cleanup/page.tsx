@@ -13,7 +13,6 @@ import { clearPendingCleanupData, resetSubmissionCounting } from '@/lib/clear-cl
 import type { Address } from 'viem'
 import { useBuilderCodeAttribution } from '@/lib/hooks/useBuilderCode'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
-import { tryAddRequiredChain } from '@/lib/network'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { resolveENS, isValidENSFormat } from '@/lib/ens'
 import { resolveFID, isValidFIDFormat, getFIDFromUsername } from '@/lib/farcaster-fid'
@@ -27,11 +26,6 @@ import {
 } from '@/lib/wagmi'
 
 type Step = 'before' | 'after' | 'enhanced' | 'review'
-
-const NATIVE_SYMBOL = 'ETH'
-const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
-  ? 'Basescan (Sepolia)'
-  : 'Basescan'
 const describeChain = (id?: number) => {
   switch (id) {
     case 1:
@@ -81,8 +75,6 @@ function CleanupContent() {
   const [manualLngInput, setManualLngInput] = useState('')
   const [hostName, setHostName] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [cleanupId, setCleanupId] = useState<bigint | null>(null)
-  const [hasImpactForm, setHasImpactForm] = useState(false)
   const [pendingCleanup, setPendingCleanup] = useState<{
     id: bigint
     verified: boolean
@@ -141,7 +133,7 @@ function CleanupContent() {
       try {
         const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '')
         ref = hashParams.get('ref')
-      } catch (e) {
+      } catch {
         // Ignore hash parsing errors
       }
     }
@@ -1324,7 +1316,7 @@ function CleanupContent() {
                 onClick={async () => {
                   try {
                     await switchChain({ chainId: REQUIRED_CHAIN_ID })
-                  } catch (error: any) {
+                  } catch {
                     alert(`Please switch to ${REQUIRED_CHAIN_NAME} manually in MetaMask.`)
                   }
                 }}
