@@ -16,6 +16,7 @@ import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { resolveENS, isValidENSFormat } from '@/lib/ens'
 import { resolveFID, isValidFIDFormat, getFIDFromUsername } from '@/lib/farcaster-fid'
+import { openUrl } from '@/lib/farcaster'
 import { TransactionModal, useTransactionModal } from '@/components/ui/transaction-modal'
 import {
   REQUIRED_CHAIN_ID,
