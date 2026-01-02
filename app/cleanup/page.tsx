@@ -943,8 +943,8 @@ function CleanupContent() {
           {
             transactionHash,
             actionLabel: 'View Transaction',
-            onAction: () => {
-              window.open(explorerUrl, '_blank', 'noopener,noreferrer')
+            onAction: async () => {
+              await openUrl(explorerUrl)
             },
           }
         )
@@ -1955,7 +1955,7 @@ function CleanupContent() {
                     <span className="font-mono text-xs text-gray-400">
                       {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
                     </span>
-                  </div>
+                </div>
                 </div>
                 {enhancedData.contributors.map((contributor, idx) => {
                   const isResolving = contributorResolving[idx] || false

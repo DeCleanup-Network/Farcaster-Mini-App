@@ -140,23 +140,23 @@ export function SuccessModal({
               <p className="text-center text-xs text-gray-400">
                 Share your achievement!
               </p>
-              <Button
+                <Button
                 onClick={handleShare}
-                disabled={sharing}
+                  disabled={sharing}
                 className="w-full gap-2 bg-purple-600 text-white hover:bg-purple-700"
-              >
-                {sharing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Sharing...</span>
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="h-4 w-4" />
+                >
+                  {sharing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Sharing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="h-4 w-4" />
                     Share Achievement
-                  </>
-                )}
-              </Button>
+                    </>
+                  )}
+                </Button>
             </div>
           )}
           

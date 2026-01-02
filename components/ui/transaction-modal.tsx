@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { CheckCircle, XCircle, AlertCircle, ExternalLink, Loader2, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
+import { openUrl } from '@/lib/farcaster'
 
 export type TransactionModalType = 'success' | 'error' | 'info' | 'warning' | 'loading'
 
@@ -139,8 +140,8 @@ export function TransactionModal({
           {onViewTransaction && transactionUrl && (
             <Button
               variant="outline"
-              onClick={() => {
-                window.open(transactionUrl, '_blank')
+              onClick={async () => {
+                await openUrl(transactionUrl)
                 onViewTransaction()
               }}
               className="w-full border-gray-700 bg-gray-800 text-white hover:bg-gray-700 sm:w-auto"

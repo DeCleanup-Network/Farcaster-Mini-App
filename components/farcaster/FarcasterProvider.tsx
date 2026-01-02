@@ -194,7 +194,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
                 bio: { text: '' },
                 followerCount: 0,
                 followingCount: 0,
-              }
+          }
             }
             const needsFetch = !transformedContext.user.pfp?.url || !transformedContext.user.username || !transformedContext.user.displayName
             if (needsFetch) {
@@ -236,8 +236,19 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
                   console.log('✅ Fetched user data from Neynar API (by FID)', {
                     fid: transformedContext.user.fid,
                     username: transformedContext.user.username,
+                    displayName: transformedContext.user.displayName,
                     hasPfp: !!transformedContext.user.pfp?.url,
-                    hasDisplayName: !!transformedContext.user.displayName,
+                    pfpUrl: transformedContext.user.pfp?.url,
+                  })
+                  
+                  // Update context immediately after Neynar fetch to ensure UI updates
+                  setContext({
+                    ...transformedContext,
+                    user: {
+                      ...transformedContext.user,
+                      pfp: transformedContext.user.pfp ? { ...transformedContext.user.pfp } : { url: '' },
+                      bio: transformedContext.user.bio ? { ...transformedContext.user.bio } : { text: '' },
+                    },
                   })
                 } else {
                   console.warn('⚠️ Neynar API returned OK but no user data in response')
@@ -269,7 +280,17 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
                         hasPfp: !!transformedContext.user.pfp?.url,
                         hasUsername: !!transformedContext.user.username,
                       })
-                    }
+                      
+                      // Update context after custody address fallback
+                      setContext({
+                        ...transformedContext,
+                        user: {
+                          ...transformedContext.user,
+                          pfp: transformedContext.user.pfp ? { ...transformedContext.user.pfp } : { url: '' },
+                          bio: transformedContext.user.bio ? { ...transformedContext.user.bio } : { text: '' },
+                        },
+                      })
+        }
                   } else {
                     console.warn('⚠️ Neynar API by custody address also failed:', neynarCustodyResponse.status)
                   }
@@ -278,7 +299,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             } catch (neynarError) {
               // Priority 2: Optional fallback to Snapchain API (requires self-hosted instance)
               console.warn('⚠️ Neynar API failed, trying Snapchain fallback:', neynarError)
-              try {
+        try {
                 const snapchainResponse = await fetch(`/api/snapchain/user-by-fid?fid=${fid}`)
                 if (snapchainResponse.ok) {
                   const snapchainData = await snapchainResponse.json()
@@ -301,6 +322,16 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
                       hasPfp: !!transformedContext.user.pfp?.url,
                       hasDisplayName: !!transformedContext.user.displayName,
                     })
+                    
+                    // Update context after Snapchain fetch
+                    setContext({
+                      ...transformedContext,
+                      user: {
+                        ...transformedContext.user,
+                        pfp: transformedContext.user.pfp ? { ...transformedContext.user.pfp } : { url: '' },
+                        bio: transformedContext.user.bio ? { ...transformedContext.user.bio } : { text: '' },
+                      },
+                    })
                   }
                 } else {
                   console.warn('⚠️ Snapchain API also failed:', snapchainResponse.status)
@@ -318,22 +349,35 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             hasUser: !!transformedContext.user,
             fid: transformedContext.user?.fid,
             username: transformedContext.user?.username,
+            displayName: transformedContext.user?.displayName,
             hasPfp: !!transformedContext.user?.pfp?.url,
+            pfpUrl: transformedContext.user?.pfp?.url,
             rawContextKeys: Object.keys(rawContext || {}), // Log keys for debugging
           })
           
           // Set context with a new object reference to ensure React detects changes
           // This is important because we mutate transformedContext.user during async fetch
-          setContext({
+          const contextToSet = {
             ...transformedContext,
             user: transformedContext.user ? {
               ...transformedContext.user,
               pfp: transformedContext.user.pfp ? { ...transformedContext.user.pfp } : { url: '' },
               bio: transformedContext.user.bio ? { ...transformedContext.user.bio } : { text: '' },
             } : undefined,
+          }
+          
+          console.log('🔧 Setting Farcaster context:', {
+            hasUser: !!contextToSet.user,
+            fid: contextToSet.user?.fid,
+            username: contextToSet.user?.username,
+            displayName: contextToSet.user?.displayName,
+            hasPfp: !!contextToSet.user?.pfp?.url,
+            pfpUrl: contextToSet.user?.pfp?.url,
           })
           
-          setIsInitialized(true)
+          setContext(contextToSet)
+          
+              setIsInitialized(true)
           
           // Fetch Quick Auth token when user context is available
           // Quick Auth provides a JWT session token for authenticated requests

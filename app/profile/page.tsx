@@ -137,7 +137,22 @@ function ProfileContent() {
   useFarcasterReady()
   
   const { address, isConnected } = useAccount()
-  const { context: farcasterContext, isMiniApp } = useFarcaster()
+  const { context: farcasterContext, isMiniApp, isLoading: farcasterLoading } = useFarcaster()
+  
+  // Debug logging for profile display
+  useEffect(() => {
+    console.log('🔍 Profile page - Farcaster context check:', {
+      isMiniApp,
+      farcasterLoading,
+      hasContext: !!farcasterContext,
+      hasUser: !!farcasterContext?.user,
+      userFid: farcasterContext?.user?.fid,
+      username: farcasterContext?.user?.username,
+      displayName: farcasterContext?.user?.displayName,
+      hasPfp: !!farcasterContext?.user?.pfp?.url,
+      pfpUrl: farcasterContext?.user?.pfp?.url,
+    })
+  }, [isMiniApp, farcasterLoading, farcasterContext])
   const chainId = useChainId()
   const searchParams = useSearchParams()
   const [hasMounted, setHasMounted] = useState(false)
@@ -785,7 +800,7 @@ function ProfileContent() {
             {/* Show Farcaster username in Base App, ENS on web */}
             {isMiniApp && farcasterContext?.user ? (
               <>
-                <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-400">
                   {farcasterContext.user.displayName || farcasterContext.user.username}
                 </p>
                 {farcasterContext.user.username && (
@@ -798,7 +813,7 @@ function ProfileContent() {
               <>
                 <p className="text-sm text-gray-400">
                   {ensName || (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '')}
-                </p>
+            </p>
                 {ensName && address && (
                   <p className="text-xs text-gray-500 font-mono">
                     {address}
