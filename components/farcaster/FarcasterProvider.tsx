@@ -83,8 +83,15 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
         // After getting FID from SDK context, you can use it directly
         let directContext: Awaited<typeof sdk.context> | null = null
         try {
-          if (env.isMiniApp) {
-            directContext = await sdk.context
+          // Try to get context even if isMiniApp detection failed (fallback)
+          directContext = await Promise.race([
+            sdk.context,
+            new Promise<null>((_, reject) => 
+              setTimeout(() => reject(new Error('Context timeout')), 2000)
+            ),
+          ]).catch(() => null)
+          
+          if (directContext) {
             console.log('📋 Direct SDK context access:', {
               hasUser: !!directContext?.user,
               userFid: directContext?.user?.fid,
@@ -94,12 +101,23 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           console.debug('ℹ️ Direct SDK context access failed (using retry method instead):', directContextError)
         }
         
-        if (env.isMiniApp && env.context) {
-          // We're in a Mini App
+        // Use context from detection OR direct access (whichever is available)
+        const availableContext = env.context || directContext
+        
+        // Check if we have context (either from detection or direct access)
+        // This handles cases where detection fails but context is still available
+        if (availableContext) {
+          // We're in a Mini App (or have context available)
           // Get FID directly from SDK context - this is the primary source
           // According to Farcaster SDK docs: https://miniapps.farcaster.xyz/docs/sdk/context
-          const rawUser = (env.context as any).user
-          const rawContext = env.context as any
+          const rawUser = (availableContext as any).user
+          const rawContext = availableContext as any
+          
+          // If we have context but isMiniApp was false, update it
+          if (!env.isMiniApp && rawUser) {
+            console.log('⚠️ Context available but isMiniApp was false - updating isMiniApp to true')
+            setIsMiniApp(true)
+          }
           
           // Log raw SDK context for debugging
           console.log('📋 Raw SDK context:', {

@@ -94,10 +94,11 @@ function CleanupContent() {
     if (typeof window !== 'undefined') {
       setHostName(window.location.hostname)
       
-      // Show onboarding for first-time users (check localStorage)
-      // This ensures onboarding appears even when coming from referral links
-      const hasSeenOnboarding = localStorage.getItem('decleanup_onboarding_seen')
-      if (!hasSeenOnboarding) {
+      // Show onboarding for new sessions (check sessionStorage)
+      // This ensures onboarding appears on each new session (when opening links)
+      // but not on page reloads within the same session
+      const hasSeenOnboardingThisSession = sessionStorage.getItem('decleanup_onboarding_seen_session')
+      if (!hasSeenOnboardingThisSession) {
         setShowOnboarding(true)
       }
     }
@@ -106,7 +107,8 @@ function CleanupContent() {
   const handleOnboardingComplete = () => {
     setShowOnboarding(false)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('decleanup_onboarding_seen', 'true')
+      // Mark onboarding as seen for this session only
+      sessionStorage.setItem('decleanup_onboarding_seen_session', 'true')
     }
   }
 

@@ -118,10 +118,12 @@ export default function Home() {
   useEffect(() => {
     setMounted(true)
     
-    // Show onboarding for first-time users (check localStorage)
+    // Show onboarding for new sessions (check sessionStorage)
+    // This ensures onboarding appears on each new session (when opening links)
+    // but not on page reloads within the same session
     if (typeof window !== 'undefined') {
-      const hasSeenOnboarding = localStorage.getItem('decleanup_onboarding_seen')
-      if (!hasSeenOnboarding) {
+      const hasSeenOnboardingThisSession = sessionStorage.getItem('decleanup_onboarding_seen_session')
+      if (!hasSeenOnboardingThisSession) {
         setShowOnboarding(true)
       }
     }
@@ -130,7 +132,8 @@ export default function Home() {
   const handleOnboardingComplete = () => {
     setShowOnboarding(false)
     if (typeof window !== 'undefined') {
-      localStorage.setItem('decleanup_onboarding_seen', 'true')
+      // Mark onboarding as seen for this session only
+      sessionStorage.setItem('decleanup_onboarding_seen_session', 'true')
     }
   }
 

@@ -184,8 +184,10 @@ function ProfileContent() {
       displayName: farcasterContext?.user?.displayName,
       hasPfp: !!farcasterContext?.user?.pfp?.url,
       pfpUrl: farcasterContext?.user?.pfp?.url,
+      fullContext: farcasterContext, // Log full context for debugging
     })
   }, [isMiniApp, farcasterLoading, farcasterContext])
+  
   const chainId = useChainId()
   const searchParams = useSearchParams()
   const [hasMounted, setHasMounted] = useState(false)
@@ -830,8 +832,8 @@ function ProfileContent() {
             <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               My Profile
             </h1>
-            {/* Show Farcaster username in Base App, ENS on web */}
-            {isMiniApp && farcasterContext?.user ? (
+            {/* Show Farcaster username if available, otherwise show ENS/wallet */}
+            {farcasterContext?.user ? (
               <>
                 <p className="text-sm text-gray-400">
                   {farcasterContext.user.displayName || farcasterContext.user.username || 'Farcaster User'}
@@ -891,7 +893,7 @@ function ProfileContent() {
         <ReferralNotification />
 
         {/* Account Info */}
-        {isMiniApp && farcasterContext?.user && (
+        {farcasterContext?.user && (
           <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900 p-6">
             <div className="mb-4 flex items-center gap-3">
               <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border-2 border-gray-700">
