@@ -320,8 +320,8 @@ export function WalletConnect() {
                   // Wait for Farcaster connector to be ready (it may take time to initialize)
                   if (!farcasterConnector.ready) {
                     console.log('⏳ Farcaster connector not ready yet, waiting...')
-                    // Wait up to 3 seconds for Farcaster connector to be ready
-                    for (let attempt = 0; attempt < 6; attempt++) {
+                    // Reduced wait time: up to 1.5 seconds (3 attempts × 500ms)
+                    for (let attempt = 0; attempt < 3; attempt++) {
                       await new Promise(resolve => setTimeout(resolve, 500))
                       if (farcasterConnector.ready) {
                         console.log(`✅ Farcaster connector ready after ${(attempt + 1) * 500}ms`)
@@ -345,12 +345,11 @@ export function WalletConnect() {
                 }
               } else {
                 // NOT in Farcaster - use standard wallet connection logic
-                // CRITICAL: On mobile, connectors take longer to initialize
-                // Wait for connectors to become ready, especially on mobile
+                // Optimized: Reduced wait times for faster connection
                 if (availableConnectors.length === 0) {
                   console.log('⏳ No ready connectors found, waiting for initialization...')
-                  // Wait longer on mobile (up to 5 seconds with retries)
-                  const maxAttempts = isMobile ? 10 : 6
+                  // Reduced wait time: up to 2 seconds on mobile, 1.2 seconds on desktop
+                  const maxAttempts = isMobile ? 4 : 4
                   const delay = isMobile ? 500 : 300
                   
                   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -370,8 +369,8 @@ export function WalletConnect() {
                 // On mobile Safari, injected wallets might not show up as connectors immediately
                 if (availableConnectors.length === 0 && hasInjectedWallet) {
                   console.log('⚠️ No ready connectors but injected wallet detected, waiting a bit more...')
-                  // Give it one more second for mobile wallets
-                  await new Promise(resolve => setTimeout(resolve, isMobile ? 1000 : 500))
+                  // Reduced wait: 500ms for mobile, 300ms for desktop
+                  await new Promise(resolve => setTimeout(resolve, isMobile ? 500 : 300))
                   availableConnectors = connectors.filter(c => c.ready)
                 }
                 
@@ -443,9 +442,20 @@ export function WalletConnect() {
                 // Don't show alert for user rejections
                 if (!errorMsg.toLowerCase().includes('rejected') && 
                     !errorMsg.toLowerCase().includes('denied') &&
-                    !errorMsg.toLowerCase().includes('user cancelled')) {
-                  // Last resort: show alert
-                  alert('Connection failed. Please ensure your wallet is unlocked and try again.')
+                    !errorMsg.toLowerCase().includes('user cancelled') &&
+                    !errorMsg.toLowerCase().includes('user rejected')) {
+                  // Provide more helpful error messages for mobile
+                  let errorMessage = 'Connection failed. '
+                  if (isMobile) {
+                    if (isIOSSafari) {
+                      errorMessage += 'On iOS Safari, please:\n\n1. Ensure your wallet app (MetaMask, etc.) is installed and unlocked\n2. Try refreshing the page\n3. If using WalletConnect, scan the QR code with your wallet app'
+                    } else {
+                      errorMessage += 'Please ensure your wallet app is installed, unlocked, and try again. If using WalletConnect, scan the QR code with your wallet app.'
+                    }
+                  } else {
+                    errorMessage += 'Please ensure your wallet extension is unlocked and try again.'
+                  }
+                  alert(errorMessage)
                 }
               }
             }

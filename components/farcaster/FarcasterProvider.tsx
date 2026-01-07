@@ -356,7 +356,8 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           })
           
           // Set context with a new object reference to ensure React detects changes
-          // This is important because we mutate transformedContext.user during async fetch
+          // Note: If async fetch (Neynar/Snapchain) completed, it already called setContext
+          // This ensures context is set even if async fetch didn't complete or was skipped
           const contextToSet = {
             ...transformedContext,
             user: transformedContext.user ? {
@@ -366,7 +367,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             } : undefined,
           }
           
-          console.log('🔧 Setting Farcaster context:', {
+          console.log('🔧 Setting Farcaster context (final state):', {
             hasUser: !!contextToSet.user,
             fid: contextToSet.user?.fid,
             username: contextToSet.user?.username,
@@ -375,6 +376,8 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             pfpUrl: contextToSet.user?.pfp?.url,
           })
           
+          // Always set context to ensure React sees the update
+          // The async fetch above may have already set it, but this ensures final state
           setContext(contextToSet)
           
               setIsInitialized(true)

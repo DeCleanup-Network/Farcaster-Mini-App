@@ -156,8 +156,8 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const Icon = currentStepData.icon
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
-      <div className="relative mx-4 w-full max-w-md rounded-lg border-2 border-brand-green bg-gray-900 p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="relative mx-auto w-full max-w-md rounded-lg border-2 border-brand-green bg-gray-900 p-4 sm:p-6 shadow-2xl my-auto">
         {/* Close button */}
         <button
           onClick={handleSkip}
@@ -184,7 +184,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         </div>
 
         {/* Content */}
-        <div className="mb-6 text-center">
+        <div className="mb-6 text-center max-h-[calc(100vh-12rem)] overflow-y-auto">
           {/* Icon */}
           <div className="mb-4 flex justify-center">
             <div className="rounded-full bg-brand-green/20 p-4">
@@ -193,7 +193,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
 
           {/* Image */}
-          <div className="mb-4 aspect-video w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-800 relative">
+          <div className="mb-4 aspect-video w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-800 relative max-h-[200px] sm:max-h-none">
             {imageLoading[currentStep] && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
                 <Loader2 className="h-8 w-8 animate-spin text-brand-green" />

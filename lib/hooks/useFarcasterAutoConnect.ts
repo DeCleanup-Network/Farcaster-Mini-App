@@ -61,8 +61,8 @@ export function useFarcasterAutoConnect() {
       }
     }
 
-    // Small delay to ensure connectors are initialized
-    const timeoutId = setTimeout(autoConnect, 500)
+    // Small delay to ensure connectors are initialized (reduced for faster connection)
+    const timeoutId = setTimeout(autoConnect, 200) // Reduced from 500ms to 200ms
 
     return () => clearTimeout(timeoutId)
   }, [isMiniApp, isLoading, isConnected, connectors, connect])

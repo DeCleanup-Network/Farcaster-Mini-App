@@ -18,6 +18,7 @@ import { resolveENS, isValidENSFormat } from '@/lib/ens'
 import { resolveFID, isValidFIDFormat, getFIDFromUsername } from '@/lib/farcaster-fid'
 import { openUrl } from '@/lib/farcaster'
 import { TransactionModal, useTransactionModal } from '@/components/ui/transaction-modal'
+import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow'
 import {
   REQUIRED_CHAIN_ID,
   REQUIRED_CHAIN_NAME,
@@ -85,14 +86,29 @@ function CleanupContent() {
   const [clearingPending, setClearingPending] = useState(false)
   const [userLevel, setUserLevel] = useState<number | null>(null)
   const { modal, showSuccess, hideModal } = useTransactionModal()
+  const [showOnboarding, setShowOnboarding] = useState(false)
   
   // Fix hydration error by only rendering after mount
   useEffect(() => {
     setMounted(true)
     if (typeof window !== 'undefined') {
       setHostName(window.location.hostname)
+      
+      // Show onboarding for first-time users (check localStorage)
+      // This ensures onboarding appears even when coming from referral links
+      const hasSeenOnboarding = localStorage.getItem('decleanup_onboarding_seen')
+      if (!hasSeenOnboarding) {
+        setShowOnboarding(true)
+      }
     }
   }, [])
+  
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('decleanup_onboarding_seen', 'true')
+    }
+  }
 
   // Cleanup object URLs on unmount or when photos change
   useEffect(() => {
@@ -1436,7 +1452,7 @@ function CleanupContent() {
   // Step 1: Before Photo
   if (step === 'before') {
     return (
-      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20">
+      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20 overflow-y-auto">
         <div className="mx-auto max-w-md">
           {/* Only show back button if there's no referral */}
           {!referrerAddress && (
@@ -1597,36 +1613,60 @@ function CleanupContent() {
               </div>
             )}
             {manualLocationMode && (
-              <div className="mt-3 space-y-3 rounded-lg border border-gray-800 bg-gray-950 p-3">
-                <p className="text-xs text-gray-400">
+              <div className="mt-3 space-y-3 rounded-lg border border-gray-800 bg-gray-950 p-4">
+                <p className="text-xs text-gray-400 leading-relaxed">
                   Paste coordinates (e.g. 37.7749, -122.4194) from Google Maps. We'll store them locally for this session.
                 </p>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <input
-                    type="number"
-                    value={manualLatInput}
-                    onChange={(e) => setManualLatInput(e.target.value)}
-                    placeholder="Latitude"
-                    className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500"
-                    step="0.000001"
-                  />
-                  <input
-                    type="number"
-                    value={manualLngInput}
-                    onChange={(e) => setManualLngInput(e.target.value)}
-                    placeholder="Longitude"
-                    className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500"
-                    step="0.000001"
-                  />
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                      Latitude
+                    </label>
+                    <input
+                      type="number"
+                      value={manualLatInput}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      // Prevent scientific notation (e, E, +) but allow negative numbers
+                      if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
+                        setManualLatInput(value)
+                      }
+                    }}
+                      placeholder="e.g. 37.7749"
+                      className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
+                      step="0.000001"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="mb-1.5 block text-xs font-medium text-gray-400">
+                      Longitude
+                    </label>
+                    <input
+                      type="number"
+                      value={manualLngInput}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      // Prevent scientific notation (e, E, +) but allow negative numbers
+                      if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
+                        setManualLngInput(value)
+                      }
+                    }}
+                      placeholder="e.g. -122.4194"
+                      className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
+                      step="0.000001"
+                    />
+                  </div>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleManualLocationApply}
-                  className="w-full bg-brand-green text-black hover:bg-[#4a9a26]"
-                >
-                  Save Manual Location
-                </Button>
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleManualLocationApply}
+                    className="w-full bg-brand-green text-black hover:bg-[#4a9a26] sm:w-auto sm:min-w-[160px]"
+                  >
+                    Save Manual Location
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -1658,7 +1698,7 @@ function CleanupContent() {
   // Step 2: After Photo
   if (step === 'after') {
     return (
-      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20">
+      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20 overflow-y-auto">
         <div className="mx-auto max-w-md">
           <div className="mb-6">
             <BackButton />
@@ -1780,7 +1820,7 @@ function CleanupContent() {
   // Step 4: Impact Report (Optional)
   if (step === 'enhanced') {
     return (
-      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20">
+      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20 overflow-y-auto">
         <div className="mx-auto max-w-md">
           <div className="mb-6">
             <BackButton />
@@ -1800,8 +1840,8 @@ function CleanupContent() {
             </p>
           </div>
 
-          {/* Full form (always visible) - removed scrollable container to prevent state loss */}
-          <div className="mb-6 space-y-4">
+          {/* Full form (always visible) - scrollable on desktop if content is tall */}
+          <div className="mb-6 space-y-4 max-h-[calc(100vh-20rem)] overflow-y-auto pr-2 sm:max-h-none sm:overflow-visible">
             {/* Location Type */}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-300">
@@ -1831,7 +1871,13 @@ function CleanupContent() {
               <input
                 type="number"
                 value={enhancedData.area}
-                onChange={(e) => setEnhancedData({ ...enhancedData, area: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value
+                  // Prevent scientific notation (e, E, +) but allow negative numbers
+                  if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
+                    setEnhancedData({ ...enhancedData, area: value })
+                  }
+                }}
                   className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="50"
                   min="0"
@@ -1857,7 +1903,13 @@ function CleanupContent() {
               <input
                 type="number"
                 value={enhancedData.weight}
-                onChange={(e) => setEnhancedData({ ...enhancedData, weight: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value
+                  // Prevent scientific notation (e, E, +) but allow negative numbers
+                  if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
+                    setEnhancedData({ ...enhancedData, weight: value })
+                  }
+                }}
                   className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="5"
                   min="0"
@@ -1883,7 +1935,13 @@ function CleanupContent() {
               <input
                 type="number"
                 value={enhancedData.bags}
-                onChange={(e) => setEnhancedData({ ...enhancedData, bags: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value
+                  // Prevent scientific notation (e, E, +) but allow negative numbers
+                  if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
+                    setEnhancedData({ ...enhancedData, bags: value })
+                  }
+                }}
                 className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="2"
                 min="0"
@@ -1899,7 +1957,13 @@ function CleanupContent() {
                 <input
                   type="number"
                   value={enhancedData.hours}
-                  onChange={(e) => setEnhancedData({ ...enhancedData, hours: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    // Prevent scientific notation (e, E, +) but allow negative numbers
+                    if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
+                      setEnhancedData({ ...enhancedData, hours: value })
+                    }
+                  }}
                   className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                   placeholder="1"
                   min="0"
@@ -1908,7 +1972,13 @@ function CleanupContent() {
                 <input
                   type="number"
                   value={enhancedData.minutes}
-                  onChange={(e) => setEnhancedData({ ...enhancedData, minutes: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    // Prevent scientific notation (e, E, +) but allow negative numbers
+                    if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
+                      setEnhancedData({ ...enhancedData, minutes: value })
+                    }
+                  }}
                   className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                   placeholder="30"
                   min="0"
@@ -2272,6 +2342,8 @@ function CleanupContent() {
   // Step 5: In Review
   return (
     <>
+      {/* Onboarding Flow - shows for first-time users, including from referral links */}
+      {showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
       <TransactionModal
         open={modal.open}
         onClose={hideModal}

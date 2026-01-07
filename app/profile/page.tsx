@@ -60,6 +60,39 @@ const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   : 'Basescan'
 const getExplorerTxUrl = (hash: `0x${string}`) => `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${hash}`
 
+// Token logo with fallback URLs
+const TOKEN_LOGO_IPFS_HASH = 'bafkreifk3qijhbmrcr6uadoihyinaayogc73hzbfc2hm3yvvrmdrbi4sn4'
+const TOKEN_LOGO_URLS = [
+  `https://gateway.pinata.cloud/ipfs/${TOKEN_LOGO_IPFS_HASH}?filename=DCUTokenLogo.png`,
+  `https://ipfs.io/ipfs/${TOKEN_LOGO_IPFS_HASH}?filename=DCUTokenLogo.png`,
+  `https://cloudflare-ipfs.com/ipfs/${TOKEN_LOGO_IPFS_HASH}?filename=DCUTokenLogo.png`,
+  `https://dweb.link/ipfs/${TOKEN_LOGO_IPFS_HASH}?filename=DCUTokenLogo.png`,
+]
+
+function TokenLogo() {
+  const [logoUrl, setLogoUrl] = useState(TOKEN_LOGO_URLS[0])
+  const [fallbackIndex, setFallbackIndex] = useState(0)
+
+  const handleImageError = () => {
+    const nextIndex = fallbackIndex + 1
+    if (nextIndex < TOKEN_LOGO_URLS.length) {
+      setFallbackIndex(nextIndex)
+      setLogoUrl(TOKEN_LOGO_URLS[nextIndex])
+    }
+  }
+
+  return (
+    <Image
+      src={logoUrl}
+      alt="$bDCU Token"
+      fill
+      className="object-contain rounded-full"
+      sizes="48px"
+      onError={handleImageError}
+    />
+  )
+}
+
 interface ImpactAttribute {
   trait_type?: string
   value?: string | number
@@ -800,12 +833,17 @@ function ProfileContent() {
             {/* Show Farcaster username in Base App, ENS on web */}
             {isMiniApp && farcasterContext?.user ? (
               <>
-            <p className="text-sm text-gray-400">
-                  {farcasterContext.user.displayName || farcasterContext.user.username}
+                <p className="text-sm text-gray-400">
+                  {farcasterContext.user.displayName || farcasterContext.user.username || 'Farcaster User'}
                 </p>
                 {farcasterContext.user.username && (
                   <p className="text-xs text-gray-500">
                     @{farcasterContext.user.username}
+                  </p>
+                )}
+                {farcasterContext.user.fid && (
+                  <p className="text-xs text-gray-500 font-mono">
+                    FID: {farcasterContext.user.fid}
                   </p>
                 )}
               </>
@@ -956,13 +994,7 @@ function ProfileContent() {
             {/* Token logo in top right corner */}
             <div className="absolute top-4 right-4">
               <div className="relative h-12 w-12 rounded-full border-2 border-gray-700 bg-gray-800 p-1">
-                <Image
-                  src="https://gateway.pinata.cloud/ipfs/bafkreifk3qijhbmrcr6uadoihyinaayogc73hzbfc2hm3yvvrmdrbi4sn4?filename=DCUTokenLogo.png"
-                  alt="$bDCU Token"
-                  fill
-                  className="object-contain rounded-full"
-                  sizes="48px"
-                />
+                <TokenLogo />
               </div>
             </div>
             <p className="text-3xl font-bold text-white">

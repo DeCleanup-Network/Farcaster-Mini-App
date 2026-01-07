@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { X, CheckCircle, ExternalLink, Share2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 
 interface SuccessModalProps {
   isOpen: boolean
@@ -30,6 +31,10 @@ export function SuccessModal({
   level,
 }: SuccessModalProps) {
   const [sharing, setSharing] = useState(false)
+  const { isMiniApp } = useFarcaster()
+  
+  // Only show share button in Farcaster Mini App
+  const shouldShowShare = showShare && isMiniApp && level && level > 0
 
   // Close on Escape key
   useEffect(() => {
@@ -134,8 +139,8 @@ export function SuccessModal({
             </a>
           )}
 
-          {/* Share buttons - only show after minting impact product */}
-          {showShare && level && level > 0 && (
+          {/* Share buttons - only show in Farcaster Mini App after minting impact product */}
+          {shouldShowShare && (
             <div className="space-y-2">
               <p className="text-center text-xs text-gray-400">
                 Share your achievement!

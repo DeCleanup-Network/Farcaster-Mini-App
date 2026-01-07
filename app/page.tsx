@@ -420,10 +420,7 @@ export default function Home() {
                                 transactionHash: hash,
                               })
                               setShowSuccessModal(true)
-                              // Redirect to profile after a short delay
-                              setTimeout(() => {
-                                window.location.href = '/profile'
-                              }, 3000)
+                              // Don't auto-redirect - let user close modal manually
                             }
                           }
                         } catch (error) {
@@ -436,17 +433,15 @@ export default function Home() {
                               transactionHash: hash,
                             })
                             setShowSuccessModal(true)
-                            setTimeout(() => {
-                              window.location.href = '/profile'
-                            }, 3000)
+                            // Don't auto-redirect - let user close modal manually
                           }
                         }
                       }, 2000) // Poll every 2 seconds
 
-                      // Fallback: redirect after max time even if polling doesn't complete
+                      // Fallback: stop polling after max time (but don't auto-redirect)
                       setTimeout(() => {
                         clearInterval(pollInterval)
-                        window.location.href = '/profile'
+                        // Don't auto-redirect - let user check status manually
                       }, 20000) // Max 20 seconds
 
                     } catch (error: any) {
@@ -534,26 +529,29 @@ export default function Home() {
               </p>
 
               <div className="flex flex-col gap-3 sm:flex-row">
-                <Button
-                  onClick={async () => {
-                    try {
-                    const { generateReferralLink, shareCast, formatReferralMessage } = await import('@/lib/farcaster')
-                      // Use Farcaster miniapp URL for Farcaster sharing
-                      const referralLink = generateReferralLink(address, 'farcaster', false)
-                      // Format message with link text - link will also be passed as embed for pressability
-                      const message = formatReferralMessage(referralLink, 'farcaster').trim()
-                      console.log('Sharing to Farcaster:', { message, embedLink: referralLink })
-                      await shareCast(message, referralLink)
-                    } catch (error) {
-                      console.error('Failed to share to Farcaster:', error)
-                      alert('Failed to share. Please try again or copy the link manually.')
-                    }
-                  }}
-                  className="flex-1 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
-                >
-                  <Users className="h-4 w-4" />
-                      Share
-                </Button>
+                {/* Share button - only show in Farcaster Mini App */}
+                {isMiniApp && (
+                  <Button
+                    onClick={async () => {
+                      try {
+                      const { generateReferralLink, shareCast, formatReferralMessage } = await import('@/lib/farcaster')
+                        // Use Farcaster miniapp URL for Farcaster sharing
+                        const referralLink = generateReferralLink(address, 'farcaster', false)
+                        // Format message with link text - link will also be passed as embed for pressability
+                        const message = formatReferralMessage(referralLink, 'farcaster').trim()
+                        console.log('Sharing to Farcaster:', { message, embedLink: referralLink })
+                        await shareCast(message, referralLink)
+                      } catch (error) {
+                        console.error('Failed to share to Farcaster:', error)
+                        alert('Failed to share. Please try again or copy the link manually.')
+                      }
+                    }}
+                    className="flex-1 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
+                  >
+                    <Users className="h-4 w-4" />
+                        Share
+                  </Button>
+                )}
 
                 <Button
                   onClick={async () => {

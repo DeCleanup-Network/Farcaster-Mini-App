@@ -91,7 +91,7 @@ export function TransactionModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className={cn('border-gray-800 bg-gray-900/95 backdrop-blur-sm text-white', getBorderColor())}>
+      <DialogContent className={cn('border-gray-800 bg-gray-900/95 backdrop-blur-sm text-white max-h-[90vh] overflow-y-auto', getBorderColor())}>
         <DialogHeader>
           <div className="flex items-center gap-3">
             {getIcon()}

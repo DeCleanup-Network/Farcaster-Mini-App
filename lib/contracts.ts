@@ -8,6 +8,7 @@ import {
   switchChain,
   getAccount,
   connect,
+  getPublicClient,
 } from 'wagmi/actions'
 import { Attribution } from 'ox/erc8021'
 import {
@@ -239,10 +240,10 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
         'Chain switch timeout - please switch manually in your wallet'
       )
 
-      // Poll for chain update
+      // Poll for chain update - optimized with shorter delays and fewer retries
       let retries = 0
-      while (retries < 5) {
-        await new Promise(resolve => setTimeout(resolve, 1000))
+      while (retries < 3) {
+        await new Promise(resolve => setTimeout(resolve, 500)) // Reduced from 1000ms to 500ms
         const newChainId = await getCurrentChainIdCached(true) // Force refresh after switch
         if (newChainId === REQUIRED_CHAIN_ID) {
           console.log(`[${context}] ✅ Successfully switched to ${REQUIRED_CHAIN_NAME}`)
@@ -253,11 +254,11 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
         retries++
       }
 
-      // If switch didn't work after polling, try one more time with longer delay
+      // If switch didn't work after polling, try one more time with shorter delay
       console.log(`[${context}] Chain switch polling didn't detect change, trying one more switch attempt...`)
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Reduced from 2000ms
       await switchChain(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
-      await new Promise(resolve => setTimeout(resolve, 3000))
+      await new Promise(resolve => setTimeout(resolve, 1000)) // Reduced from 3000ms
       const finalCheck = await getCurrentChainIdCached(true) // Force refresh
       if (finalCheck === REQUIRED_CHAIN_ID) {
         console.log(`[${context}] ✅ Successfully switched to ${REQUIRED_CHAIN_NAME} on retry`)
@@ -300,18 +301,18 @@ async function ensureWalletOnRequiredChain(context = 'transaction', providedChai
                                 account.connector?.name?.toLowerCase().includes('walletconnect')
         const isSafariWalletConnect = isSafari && isWalletConnect
         
-        // For Safari/WalletConnect, use longer delays
-        const addDelay = isSafariWalletConnect ? 3000 : 2000
-        const pollDelay = isSafariWalletConnect ? 2000 : 1000
+        // For Safari/WalletConnect, use slightly longer delays (but still optimized)
+        const addDelay = isSafariWalletConnect ? 1500 : 1000 // Reduced from 3000/2000
+        const pollDelay = isSafariWalletConnect ? 1000 : 500 // Reduced from 2000/1000
         
         const added = await tryAddRequiredChain(REQUIRED_CHAIN_ID)
         if (added) {
           await new Promise(resolve => setTimeout(resolve, addDelay))
           try {
             await switchChain(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID as 84532 | 8453 })
-            // Poll again with longer delays for Safari
+            // Poll again with optimized delays
             let retries = 0
-            while (retries < 5) {
+            while (retries < 3) { // Reduced from 5 to 3 retries
               await new Promise(resolve => setTimeout(resolve, pollDelay))
               const newChainId = await getCurrentChainId()
               if (newChainId === REQUIRED_CHAIN_ID) {
@@ -371,7 +372,8 @@ function getTxExplorerUrl(transactionHash: string) {
 // Some connectors (like Farcaster) don't support getChainId, so we gracefully handle this
 // Helper to ensure wallet is connected before transactions
 // CRITICAL: Must check connection status before writeContract to avoid WalletConnect QR hang
-async function ensureWalletConnected(): Promise<void> {
+// Returns the locked wallet address to ensure we use the same address throughout the transaction
+async function ensureWalletConnected(): Promise<Address> {
   const account = getAccount(getWagmiConfig())
   
   // Check if wallet is actually connected
@@ -388,12 +390,55 @@ async function ensureWalletConnected(): Promise<void> {
     )
   }
   
+  const walletAddress = account.address
+  
   console.log('[ensureWalletConnected] ✅ Wallet connected:', {
-    address: account.address,
+    address: walletAddress,
     connector: account.connector.name || account.connector.id,
     status: account.status,
     chainId: account.chainId,
   })
+  
+  return walletAddress
+}
+
+// Check if wallet has sufficient balance for gas fees
+// Estimates a minimum of 0.001 ETH (or equivalent) for gas
+async function checkGasBalance(walletAddress: Address, minBalance: bigint = BigInt('1000000000000000')): Promise<void> {
+  try {
+    const publicClient = getPublicClient(getWagmiConfig())
+    if (!publicClient) {
+      console.warn('[checkGasBalance] Public client not available, skipping balance check')
+      return
+    }
+    
+    // Use publicClient.getBalance() method instead of importing getBalance from viem
+    const balance = await publicClient.getBalance({ address: walletAddress })
+    
+    if (balance < minBalance) {
+      const balanceFormatted = formatUnits(balance, 18)
+      const minFormatted = formatUnits(minBalance, 18)
+      throw new Error(
+        `Insufficient balance for gas fees.\n` +
+        `Your balance: ${balanceFormatted} ETH\n` +
+        `Minimum required: ${minFormatted} ETH\n` +
+        `Please add funds to your wallet and try again.`
+      )
+    }
+    
+    console.log('[checkGasBalance] ✅ Sufficient balance:', {
+      balance: formatUnits(balance, 18),
+      minRequired: formatUnits(minBalance, 18),
+    })
+  } catch (error: any) {
+    // If balance check fails, log but don't block transaction
+    // The wallet will reject the transaction if there's insufficient balance anyway
+    console.warn('[checkGasBalance] Balance check failed:', error)
+    if (error?.message?.includes('Insufficient balance')) {
+      throw error // Re-throw if it's our balance error
+    }
+    // Otherwise, continue - wallet will handle the check
+  }
 }
 
 async function getCurrentChainId(): Promise<number | null> {
@@ -829,13 +874,25 @@ export async function submitCleanup(
 ): Promise<{ cleanupId: bigint; transactionHash: `0x${string}` }> {
   // CRITICAL: Ensure wallet is connected FIRST - before ANY other logic
   // This prevents WalletConnect QR hang bug by ensuring connector is bound before chain switching
-  await ensureWalletConnected()
+  // Lock the wallet address to ensure we use the same address throughout the transaction
+  const lockedWalletAddress = await ensureWalletConnected()
   
-  // Double-check account after connection guard
+  // Double-check account after connection guard and verify address matches
   const account = getAccount(getWagmiConfig())
   if (account.status !== 'connected' || !account.address) {
     throw new Error('Wallet connection lost. Please reconnect and try again.')
   }
+  
+  // Verify the connected address matches the locked address
+  // This prevents issues if user switches wallets during transaction
+  if (account.address.toLowerCase() !== lockedWalletAddress.toLowerCase()) {
+    throw new Error(
+      'Wallet address changed during transaction. Please reconnect with the correct wallet and try again.'
+    )
+  }
+  
+  // Check gas balance before proceeding
+  await checkGasBalance(lockedWalletAddress)
   
   // Pre-flight validation
   const validation = await validatePreFlight({
@@ -1744,13 +1801,25 @@ export async function verifyCleanup(
 ): Promise<`0x${string}`> {
   // CRITICAL: Ensure wallet is connected FIRST - before ANY other logic
   // This prevents WalletConnect QR hang bug by ensuring connector is bound before chain switching
-  await ensureWalletConnected()
+  // Lock the wallet address to ensure we use the same address throughout the transaction
+  const lockedWalletAddress = await ensureWalletConnected()
   
-  // Double-check account after connection guard
+  // Double-check account after connection guard and verify address matches
   const account = getAccount(getWagmiConfig())
   if (account.status !== 'connected' || !account.address) {
     throw new Error('Wallet connection lost. Please reconnect and try again.')
   }
+  
+  // Verify the connected address matches the locked address
+  // This prevents issues if user switches wallets during transaction
+  if (account.address.toLowerCase() !== lockedWalletAddress.toLowerCase()) {
+    throw new Error(
+      'Wallet address changed during transaction. Please reconnect with the correct wallet and try again.'
+    )
+  }
+  
+  // Check gas balance before proceeding
+  await checkGasBalance(lockedWalletAddress)
   
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
@@ -1925,6 +1994,27 @@ export async function rejectCleanup(
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
   }
+
+  // CRITICAL: Ensure wallet is connected FIRST - before ANY other logic
+  // Lock the wallet address to ensure we use the same address throughout the transaction
+  const lockedWalletAddress = await ensureWalletConnected()
+  
+  // Double-check account after connection guard and verify address matches
+  const account = getAccount(getWagmiConfig())
+  if (account.status !== 'connected' || !account.address) {
+    throw new Error('Wallet connection lost. Please reconnect and try again.')
+  }
+  
+  // Verify the connected address matches the locked address
+  // This prevents issues if user switches wallets during transaction
+  if (account.address.toLowerCase() !== lockedWalletAddress.toLowerCase()) {
+    throw new Error(
+      'Wallet address changed during transaction. Please reconnect with the correct wallet and try again.'
+    )
+  }
+  
+  // Check gas balance before proceeding
+  await checkGasBalance(lockedWalletAddress)
 
   // Ensure wallet is on the required chain - this handles switching and validation
   await ensureWalletOnRequiredChain('rejection', providedChainId)
