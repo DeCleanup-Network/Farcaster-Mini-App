@@ -240,16 +240,6 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
                     hasPfp: !!transformedContext.user.pfp?.url,
                     pfpUrl: transformedContext.user.pfp?.url,
                   })
-                  
-                  // Update context immediately after Neynar fetch to ensure UI updates
-                  setContext({
-                    ...transformedContext,
-                    user: {
-                      ...transformedContext.user,
-                      pfp: transformedContext.user.pfp ? { ...transformedContext.user.pfp } : { url: '' },
-                      bio: transformedContext.user.bio ? { ...transformedContext.user.bio } : { text: '' },
-                    },
-                  })
                 } else {
                   console.warn('⚠️ Neynar API returned OK but no user data in response')
                 }
@@ -279,16 +269,6 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
                         fid: transformedContext.user.fid,
                         hasPfp: !!transformedContext.user.pfp?.url,
                         hasUsername: !!transformedContext.user.username,
-                      })
-                      
-                      // Update context after custody address fallback
-                      setContext({
-                        ...transformedContext,
-                        user: {
-                          ...transformedContext.user,
-                          pfp: transformedContext.user.pfp ? { ...transformedContext.user.pfp } : { url: '' },
-                          bio: transformedContext.user.bio ? { ...transformedContext.user.bio } : { text: '' },
-                        },
                       })
         }
                   } else {
@@ -322,16 +302,6 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
                       hasPfp: !!transformedContext.user.pfp?.url,
                       hasDisplayName: !!transformedContext.user.displayName,
                     })
-                    
-                    // Update context after Snapchain fetch
-                    setContext({
-                      ...transformedContext,
-                      user: {
-                        ...transformedContext.user,
-                        pfp: transformedContext.user.pfp ? { ...transformedContext.user.pfp } : { url: '' },
-                        bio: transformedContext.user.bio ? { ...transformedContext.user.bio } : { text: '' },
-                      },
-                    })
                   }
                 } else {
                   console.warn('⚠️ Snapchain API also failed:', snapchainResponse.status)
@@ -356,8 +326,8 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           })
           
           // Set context with a new object reference to ensure React detects changes
-          // Note: If async fetch (Neynar/Snapchain) completed, it already called setContext
-          // This ensures context is set even if async fetch didn't complete or was skipped
+          // This is set AFTER all async fetches (Neynar/Snapchain) have completed
+          // This ensures the final context includes all fetched user data
           const contextToSet = {
             ...transformedContext,
             user: transformedContext.user ? {
@@ -367,7 +337,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             } : undefined,
           }
           
-          console.log('🔧 Setting Farcaster context (final state):', {
+          console.log('🔧 Setting Farcaster context (final state after all fetches):', {
             hasUser: !!contextToSet.user,
             fid: contextToSet.user?.fid,
             username: contextToSet.user?.username,
@@ -376,8 +346,8 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
             pfpUrl: contextToSet.user?.pfp?.url,
           })
           
-          // Always set context to ensure React sees the update
-          // The async fetch above may have already set it, but this ensures final state
+          // Set context once after all async operations complete
+          // This ensures the profile page receives the fully populated context
           setContext(contextToSet)
           
               setIsInitialized(true)

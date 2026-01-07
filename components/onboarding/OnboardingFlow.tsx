@@ -156,19 +156,19 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const Icon = currentStepData.icon
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="relative mx-auto w-full max-w-md rounded-lg border-2 border-brand-green bg-gray-900 p-4 sm:p-6 shadow-2xl my-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-2 sm:p-4">
+      <div className="relative mx-auto w-full max-w-md max-h-[calc(100vh-1rem)] rounded-lg border-2 border-brand-green bg-gray-900 p-4 sm:p-6 shadow-2xl flex flex-col">
         {/* Close button */}
         <button
           onClick={handleSkip}
-          className="absolute right-4 top-4 rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+          className="absolute right-4 top-4 rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors z-10"
           aria-label="Skip onboarding"
         >
           <X className="h-5 w-5" />
         </button>
 
         {/* Step indicator */}
-        <div className="mb-6 flex items-center justify-center gap-2">
+        <div className="mb-4 flex items-center justify-center gap-2 flex-shrink-0">
           {steps.map((_, index) => (
             <div
               key={index}
@@ -184,7 +184,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         </div>
 
         {/* Content */}
-        <div className="mb-6 text-center max-h-[calc(100vh-12rem)] overflow-y-auto">
+        <div className="flex-1 text-center overflow-y-auto min-h-0">
           {/* Icon */}
           <div className="mb-4 flex justify-center">
             <div className="rounded-full bg-brand-green/20 p-4">
@@ -193,7 +193,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
 
           {/* Image */}
-          <div className="mb-4 aspect-video w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-800 relative max-h-[200px] sm:max-h-none">
+          <div className="mb-4 aspect-video w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-800 relative max-h-[180px] sm:max-h-[240px]">
             {imageLoading[currentStep] && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
                 <Loader2 className="h-8 w-8 animate-spin text-brand-green" />
@@ -263,7 +263,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-shrink-0 mt-4">
           {currentStep > 0 && (
             <Button
               onClick={() => setCurrentStep(currentStep - 1)}

@@ -1625,13 +1625,19 @@ function CleanupContent() {
                     <input
                       type="number"
                       value={manualLatInput}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      // Prevent scientific notation (e, E, +) but allow negative numbers
-                      if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
-                        setManualLatInput(value)
-                      }
-                    }}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        // Prevent scientific notation (e, E, +) but allow negative numbers
+                        if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
+                          setManualLatInput(value)
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        // Prevent e, E, and + keys from being entered
+                        if (e.key === 'e' || e.key === 'E' || e.key === '+') {
+                          e.preventDefault()
+                        }
+                      }}
                       placeholder="e.g. 37.7749"
                       className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
                       step="0.000001"
@@ -1644,13 +1650,19 @@ function CleanupContent() {
                     <input
                       type="number"
                       value={manualLngInput}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      // Prevent scientific notation (e, E, +) but allow negative numbers
-                      if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
-                        setManualLngInput(value)
-                      }
-                    }}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        // Prevent scientific notation (e, E, +) but allow negative numbers
+                        if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
+                          setManualLngInput(value)
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        // Prevent e, E, and + keys from being entered (but allow - for negative numbers)
+                        if (e.key === 'e' || e.key === 'E' || e.key === '+') {
+                          e.preventDefault()
+                        }
+                      }}
                       placeholder="e.g. -122.4194"
                       className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
                       step="0.000001"
@@ -1878,11 +1890,17 @@ function CleanupContent() {
                     setEnhancedData({ ...enhancedData, area: value })
                   }
                 }}
-                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                onKeyDown={(e) => {
+                  // Prevent e, E, and + keys from being entered
+                  if (e.key === 'e' || e.key === 'E' || e.key === '+') {
+                    e.preventDefault()
+                  }
+                }}
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="50"
-                  min="0"
-                  step="0.1"
-                />
+                min="0"
+                step="0.1"
+              />
                 <select
                   value={enhancedData.areaUnit}
                   onChange={(e) => setEnhancedData({ ...enhancedData, areaUnit: e.target.value as 'sqm' | 'sqft' })}
@@ -1910,11 +1928,17 @@ function CleanupContent() {
                     setEnhancedData({ ...enhancedData, weight: value })
                   }
                 }}
-                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                onKeyDown={(e) => {
+                  // Prevent e, E, and + keys from being entered
+                  if (e.key === 'e' || e.key === 'E' || e.key === '+') {
+                    e.preventDefault()
+                  }
+                }}
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="5"
-                  min="0"
-                  step="0.1"
-                />
+                min="0"
+                step="0.1"
+              />
                 <select
                   value={enhancedData.weightUnit}
                   onChange={(e) => setEnhancedData({ ...enhancedData, weightUnit: e.target.value as 'kg' | 'lbs' })}
@@ -1942,6 +1966,12 @@ function CleanupContent() {
                     setEnhancedData({ ...enhancedData, bags: value })
                   }
                 }}
+                onKeyDown={(e) => {
+                  // Prevent e, E, and + keys from being entered
+                  if (e.key === 'e' || e.key === 'E' || e.key === '+') {
+                    e.preventDefault()
+                  }
+                }}
                 className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="2"
                 min="0"
@@ -1964,6 +1994,12 @@ function CleanupContent() {
                       setEnhancedData({ ...enhancedData, hours: value })
                     }
                   }}
+                  onKeyDown={(e) => {
+                    // Prevent e, E, and + keys from being entered
+                    if (e.key === 'e' || e.key === 'E' || e.key === '+') {
+                      e.preventDefault()
+                    }
+                  }}
                   className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                   placeholder="1"
                   min="0"
@@ -1977,6 +2013,12 @@ function CleanupContent() {
                     // Prevent scientific notation (e, E, +) but allow negative numbers
                     if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
                       setEnhancedData({ ...enhancedData, minutes: value })
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    // Prevent e, E, and + keys from being entered
+                    if (e.key === 'e' || e.key === 'E' || e.key === '+') {
+                      e.preventDefault()
                     }
                   }}
                   className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
