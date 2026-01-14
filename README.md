@@ -1,8 +1,8 @@
-# DeCleanup Rewards - Farcaster Mini App
+# DeCleanup Rewards - Production Ready
 
-> **A mobile-first Farcaster Mini App that gamifies environmental cleanup through Impact Product NFTs, $bDCU token rewards, and on-chain engagement on Base.**
+> **A production-ready Farcaster Mini App that gamifies environmental cleanup through Impact Product NFTs, DCU points, and $bDCU token rewards on Base.**
 
-**🌐 [Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** | **🌍 [Web App](https://decleanup.net)** | **🏠 [Landing Page](https://decleanup.net)** | **📖 [System Architecture](SYSTEM_ARCHITECTURE.md)** | **🧪 [Local Testing Guide](LOCAL_TESTING.md)**
+**🌐 [Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** | **🌍 [Web App](https://decleanup.net)** | **📖 [Admin Guide](ADMIN_GUIDE.md)** | **🏗️ [Deployment Guide](DEPLOYMENT.md)** | **👨‍💻 [Developer Specs](DEVELOPER_SPECS.md)**
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
@@ -11,74 +11,87 @@
 
 ---
 
-## Why Farcaster & Base?
+## 🎯 Overview
 
-We're launching DeCleanup on **Farcaster** and transacting on **Base** to validate product-market fit where onchain communities already live—while keeping user costs low. The mini app is built on top of the official [Base Mini App template](https://docs.base.org/miniapp), so we inherit wallet handling, secure request signing, and Warpcast compatibility from day one.
+DeCleanup Rewards is a fully functional, production-ready Farcaster Mini App that incentivizes environmental cleanup through:
 
-### Why Farcaster?
-
-Farcaster gives us distribution, native wallet context, and a crypto-native audience who already understands the cleanup → NFT → points loop.
-
-### **Native Web3 Community**
-Farcaster users already understand wallets, NFTs, and token rewards, reducing onboarding friction and increasing engagement.
-
-### **Built-in Distribution**
-Mini apps live directly in Farcaster clients (Warpcast, etc.), enabling social discovery and viral sharing through casts.
-
-### **Rapid Iteration**
-Test core features with an engaged, tech-savvy audience and gather real feedback quickly through Farcaster's social features.
-
-### **Cost-Effective Launch**
-Reach Web3 users where they already are, leverage Farcaster's social graph for organic growth, and focus resources on building one platform well.
-
-### Why Base L2?
-
-- **Aligned incentives:** Base is actively investing in Mini Apps, providing co-marketing and infra support for consumer apps.
-- **Low fees, high throughput:** OP Stack architecture keeps photo-backed submissions affordable even for emerging markets.
-- **Security:** Coinbase-backed infrastructure inherits Ethereum security guarantees.
-- **Developer velocity:** Full-stack TypeScript with Wagmi/Viem lets us ship quickly; Base Sepolia mirrors mainnet for reliable testing.
+- **DCU Points System**: Users earn points for cleanups, streaks, referrals, impact forms, and verifications
+- **Token Rewards**: Points can be claimed for $bDCU tokens based on current market price
+- **Impact Product NFTs**: Dynamic NFTs that evolve as users progress through 10 levels
+- **Verifier System**: Users can stake tokens to become verifiers (51% of balance required)
+- **Admin Controls**: Comprehensive admin functions for managing verifiers, fees, multipliers, and treasury
 
 ---
 
-## Features
+## ✨ Features
 
-### **Core Cleanup**
-- **Submit Cleanup**: Upload before/after photos with automatic geotagging (max 10MB per image)
-- **Enhanced Impact Report**: Optional detailed metrics (+5 $bDCU bonus)
+### Core Functionality
+- **Cleanup Submissions**: Upload before/after photos with geotagging (max 10MB per image)
+- **Verification System**: Team and community verifiers can approve/reject cleanups
+- **Impact Products**: 10 progressive NFT levels (Newbie → Guardian)
+- **DCU Points**: Earn points for various actions (cleanup: 10 pts, streak: 1 pt, referral: 2 pts, etc.)
+- **Token Claims**: Convert DCU points to $bDCU tokens at any time (requires Level 10)
+- **Staking**: Stake tokens to become a verifier (requires 51% of balance and Level 10)
 
-### **Rewards & Gamification**
-- **Impact Products** (dynamic NFTs): 10 progressive levels (Newbie → Guardian) that evolve based on cleanup activity
-- **$bDCU Tokens**: Automatic token distribution for verified cleanups, enhanced reports, referrals, and verifier activity
-- **Level Claiming**: Claim Impact Product level after verification (10 $bDCU per level)
+### Admin Features
+- **Verifier Management**: Manually add/remove verifiers (bypasses staking requirement)
+- **Point Multipliers**: Adjust reward point values for all action types
+- **Price Management**: Update token price and target reward values
+- **Fee Management**: Configure submission and claim fees (optional)
+- **Emergency Controls**: Pause/unpause contracts, withdraw tokens
 
-### **Social & Community**
-- **Referral System**: Generate referral links, earn 3 $bDCU per verified referral (both parties)
-- **User Profile**: Track $bDCU balance, Impact Product level, referrals, and cleanup history
-- **Verifier Dashboard**: Verify cleanups and earn 1 $bDCU per verification
+---
 
-### **Engagement**
-- **Farcaster Integration**: Native wallet connection and user context
-- **Social Sharing**: Share cleanups and Impact Products on Farcaster and X
+## 🏗️ System Architecture
+
+### Smart Contracts
+
+| Contract | Purpose | Admin Functions |
+|----------|---------|----------------|
+| **PointsRewardDistributor** | Points tracking, token claims, staking | Update prices, multipliers, verifiers |
+| **VerificationContract** | Cleanup submissions, verification | Manage verifiers, fees, treasury |
+| **ImpactProductNFT** | Dynamic NFT levels | Update base URI, contract linkages |
+| **bDCU Token** | ERC20 reward token | Standard ERC20 functions |
+
+### Reward System
+
+**DCU Points Structure:**
+- **Cleanup (Level)**: 10 points = $0.50 USD equivalent
+- **Streak**: 1 point = $0.05 USD equivalent
+- **Referral**: 2 points = $0.10 USD equivalent (both parties)
+- **Impact Form**: 3 points = $0.15 USD equivalent
+- **Verifier**: 1 point = $0.05 USD equivalent
+
+**Claim Formula:**
+```
+usdValue = (points × targetRewardValueUSD) / LEVEL_POINTS
+tokens = (usdValue × 1e18 × 1e8) / currentTokenPriceUSD
+```
+
+**Staking Rules:**
+- Users must reach **level 10** to stake or claim
+- To become verifier: stake **>51% of available token balance**
+- Verifier status lost if unstaking reduces balance below 50% of original stake
+- Admin can manually add verifiers (bypasses staking requirement)
 
 ---
 
 ## 🚀 Quick Start
 
-This repo follows the Base Mini App template structure (manifest in `.well-known`, Farcaster SDK helpers, etc.). To run it locally:
-
 ### Prerequisites
 - Node.js 18+
 - A Farcaster account
-- A Base-compatible wallet (Coinbase Wallet, MetaMask, etc.)
-- (Optional) `base` CLI for manifest validation
+- A Base-compatible wallet
+- Base Sepolia ETH for testing
 
 ### Installation
 
 1. **Clone and install:**
 ```bash
-git clone https://github.com/DeCleanup-Network/decleanup-mini-app.git
-cd decleanup-mini-app
+git clone https://github.com/DeCleanup-Network/decleanup-mini-app-base.git
+cd decleanup-mini-app-base
 npm install
+cd contracts && npm install
 ```
 
 2. **Set up environment variables:**
@@ -86,109 +99,148 @@ npm install
 cp .env.example .env.local
 ```
 
-Edit `.env.local` with your configuration:
-- Contract addresses (Impact Product NFT, Verification Contract, bDCURewardDistributor, $bDCU Token)
+Edit `.env.local` with:
+- Contract addresses (see [DEPLOYMENT.md](DEPLOYMENT.md))
 - RPC URLs (Base Sepolia for testing, Base Mainnet for production)
-- **Pinata API keys** (server-side only: `PINATA_API_KEY` and `PINATA_SECRET_KEY` - NOT `NEXT_PUBLIC_*`)
+- **Pinata API keys** (server-side only: `PINATA_API_KEY` and `PINATA_SECRET_KEY`)
 - WalletConnect Project ID
 - Farcaster Neynar API key
 - Base App ID
 
-3. **Configure Base Mini App + Farcaster manifest:**
-   - Follow the [Base Mini App Setup Guide](docs/base-miniapp-setup.md)
-   - Generate `accountAssociation` via Base Build and paste into `.well-known/farcaster.json`
-   - Update `NEXT_PUBLIC_BASE_APP_ID`, `NEXT_PUBLIC_FARCASTER_NEYNAR_KEY`, contract addresses, etc. inside `.env.local`
-
-4. **Run and test locally:**
+3. **Run locally:**
 ```bash
 npm run dev
 ```
 
-Then open [http://localhost:3000](http://localhost:3000) and:
-
-1. Connect a Base-compatible wallet (MetaMask, Coinbase Wallet, Warpcast)
-2. Ensure the wallet is on **Base Sepolia** (`chainId 84532`)
-3. Submit a cleanup (photos + optional enhanced impact form)
-4. Use the verifier dashboard to approve it
-5. Claim the Impact Product NFT from `/profile`
-
-### Testing checklist
-
-- `npm run lint` – static analysis
-- `npm run dev` – interactive testing of cleanup + verifier flows
-- Hardhat scripts in `contracts/` – deploy, add verifiers, and verify contract wiring
-
-For testing on mobile devices without deploying, see [LOCAL_TESTING.md](LOCAL_TESTING.md).
-
----
-
-## Tech Stack
-
-- **Framework**: Next.js 14 (App Router) with TypeScript
-- **Blockchain**: Wagmi v2 + Viem on Base mainnet/Base Sepolia
-- **Farcaster**: `@farcaster/miniapp-sdk`
-- **Styling**: Tailwind CSS + shadcn/ui
-- **Storage**: IPFS for decentralized photo storage (via Pinata)
-
----
-
-## Smart Contracts
-
-Latest Base Sepolia deployment. These addresses are wired into `.env.local` and verified on Basescan:
-
-| Contract | Address | Explorer |
-| --- | --- | --- |
-| ImpactProductNFT | `0x0E5713877D0B3610B58ACB5c13bdA41b61F6a0c9` | [Basescan](https://sepolia.basescan.org/address/0x0E5713877D0B3610B58ACB5c13bdA41b61F6a0c9) |
-| VerificationContract | `0x08e9Ad176773ea7558e9C8453191d4361f8225f5` | [Basescan](https://sepolia.basescan.org/address/0x08e9Ad176773ea7558e9C8453191d4361f8225f5) |
-| bDCURewardDistributor | See deployment files | Automatic $bDCU token distribution |
-
-These contracts are production-ready; swap the env vars to Base mainnet once you redeploy.
-
-- **Impact Product NFT**: Dynamic NFT with 10 progressive levels
-- **Verification Contract**: Handles cleanup submissions and verification
-- **bDCURewardDistributor**: Automatically distributes $bDCU tokens for level claims, streaks, referrals, impact forms, and verifier rewards
-
-### Upgradeable Contracts
-
-All contracts are **upgradeable** using OpenZeppelin's UUPS pattern, allowing:
-- ✅ Bug fixes without redeployment
-- ✅ Feature additions (like DCU token integration)
-- ✅ Seamless migration from points to tokens
-- ✅ No data loss during upgrades
-
-### $bDCU Token Integration
-
-**Current Status**: Using $bDCU token system with automatic distribution  
-**Rewards**: Level claims (10 $bDCU), streaks (2 $bDCU), referrals (3 $bDCU), impact forms (5 $bDCU), verifier rewards (1 $bDCU)
+Open [http://localhost:3000](http://localhost:3000) and connect your wallet.
 
 ---
 
 ## 📚 Documentation
 
-- **[System Architecture](SYSTEM_ARCHITECTURE.md)** – Complete technical overview: contract/data flow, verifier roles, Farcaster integration, and architecture diagrams
-- **[Local Testing Guide](LOCAL_TESTING.md)** – Test on mobile devices without deploying using tunnels (ngrok, Cloudflare, localtunnel)
-- **[Base Mini App Setup](docs/base-miniapp-setup.md)** – Configure manifests, Base Build `accountAssociation`, and Warpcast options
-- **[User Guide](docs/user-guide.md)** – Complete user guide for cleanup submission, rewards, and leveling
+### For Administrators
+- **[ADMIN_GUIDE.md](ADMIN_GUIDE.md)** - Complete guide to managing the system
+  - Verifier management
+  - Fee configuration
+  - Point multiplier adjustments
+  - Emergency procedures
 
-## 🔗 Resources
+### For Developers
+- **[DEVELOPER_SPECS.md](DEVELOPER_SPECS.md)** - Complete technical specifications
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment and setup guide
+- **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)** - Technical architecture
+- **[LOCAL_TESTING.md](LOCAL_TESTING.md)** - Local testing guide
+- **[docs/](docs/)** - Additional technical documentation
 
-- **🌐 [Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** – Native Farcaster experience in Warpcast
-- **🌍 [Web App](https://decleanup.net)** – Browser-accessible version
-- **🏠 [Landing Page](https://decleanup.net)** – Project homepage
-- **[Farcaster Mini Apps Docs](https://docs.farcaster.xyz/developers/mini-apps)** – Official Farcaster documentation
-- **[Base Documentation](https://docs.base.org)** – Base network documentation
-- **[Base Mini App Guide](https://docs.base.org/miniapp)** – Base Mini App development guide
-
----
-
-## Contributing
-
-Contributions are welcome! Fork the repository, create a feature branch, and open a Pull Request.
+### For Users
+- **[docs/user-guide.md](docs/user-guide.md)** - User guide
+- **[TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)** - Terms of Service
 
 ---
 
-## Support
+## 🔧 Admin Management
 
-Join our Telegram: [t.me/DecentralizedCleanup](https://t.me/DecentralizedCleanup)
+### Quick Admin Commands
+
+**Check contract status:**
+```bash
+cd contracts
+npx hardhat run scripts/checkUserStatus.js --network baseSepolia <user_address>
+npx hardhat run scripts/checkDistributorBalance.js --network baseSepolia
+```
+
+**Manage verifiers:**
+```bash
+# Add verifier manually
+npx hardhat run scripts/addVerifierToPointsDistributor.js --network baseSepolia <address>
+
+# Check verifier status
+npx hardhat run scripts/checkUserStatus.js --network baseSepolia <address>
+```
+
+**Update prices:**
+```bash
+# Update token price (8 decimals, e.g., 77 = $0.00000077)
+TOKEN_PRICE=77 npx hardhat run scripts/updateTokenPrice.js --network baseSepolia
+
+# Update target reward value (cents, e.g., 50 = $0.50)
+TARGET_REWARD_VALUE=50 npx hardhat run scripts/updateTargetRewardValue.js --network baseSepolia
+```
+
+**Transfer tokens:**
+```bash
+# Transfer from deployer wallet to contract
+TRANSFER_AMOUNT=1000000 npx hardhat run scripts/transferFromDeployer.js --network baseSepolia
+```
+
+See [ADMIN_GUIDE.md](ADMIN_GUIDE.md) for complete admin documentation.
 
 ---
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 14 (App Router) with TypeScript
+- **Blockchain**: Wagmi v2 + Viem on Base
+- **Farcaster**: `@farcaster/miniapp-sdk`
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Storage**: IPFS (Pinata)
+- **Smart Contracts**: Solidity 0.8.20, Hardhat
+
+---
+
+## 📋 Contract Addresses
+
+### Base Sepolia (Testnet)
+- **PointsRewardDistributor**: `0xf0d87bFf397824D3CF9dcf7f400f8A7F78732F4f` ✅ **ACTIVE**
+- **VerificationContract**: `0x82968575f998f669b72C56E4BdC2e94E6546c55F`
+- **ImpactProductNFT**: `0x0E5713877D0B3610B58ACB5c13bdA41b61F6a0c9`
+- **bDCU Token**: `0x85162f919Bf8cd09B8046F8EAd2ecD434841e044`
+
+### Base Mainnet
+*See [DEPLOYMENT.md](DEPLOYMENT.md) for mainnet addresses*
+
+---
+
+## 🔐 Security
+
+- **Ownable Contracts**: All contracts use OpenZeppelin's Ownable pattern
+- **ReentrancyGuard**: Critical functions protected against reentrancy
+- **Pausable**: Emergency pause functionality available
+- **Access Control**: Verifier and admin roles properly managed
+- **Input Validation**: All user inputs validated
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a Pull Request
+
+---
+
+## 📞 Support
+
+- **Telegram**: [t.me/DecentralizedCleanup](https://t.me/DecentralizedCleanup)
+- **Farcaster**: [@decleanup](https://warpcast.com/decleanup)
+
+---
+
+## 📄 License
+
+See [LICENSE](LICENSE) file for details.
+
+---
+
+## 🎉 Status
+
+✅ **Production Ready** - All core features implemented and tested  
+✅ **Admin Controls** - Comprehensive admin functions available  
+✅ **Documentation** - Complete documentation for admins, developers, and users  
+✅ **Security** - Contracts secured with best practices
+
+---
+
+**Built with ❤️ for a cleaner planet**

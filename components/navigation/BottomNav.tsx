@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Camera, User, ShieldCheck } from 'lucide-react'
 import { useAccount } from 'wagmi'
-import { isVerifier } from '@/lib/contracts'
+import { isUserVerifier } from '@/lib/contracts'
 import { useState, useEffect } from 'react'
 
 // Keep this key in sync with verifier page
@@ -54,7 +54,7 @@ export function BottomNav() {
         }
 
         // 2) Fallback: on-chain check
-        const result = await isVerifier(address as `0x${string}`)
+        const result = await isUserVerifier(address as `0x${string}`)
         if (!cancelled) setIsVerifierWallet(result)
       } catch (error) {
         console.warn('Failed to check verifier status for bottom nav:', error)

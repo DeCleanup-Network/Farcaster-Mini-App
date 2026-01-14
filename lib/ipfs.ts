@@ -15,13 +15,14 @@ export interface IPFSUploadResult {
  * @param file File to upload
  * @returns IPFS hash (CID) and URL
  */
-export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
+export async function uploadToIPFS(file: File, retries: number = 2): Promise<IPFSUploadResult> {
   await logIPFSUploadAttempt(file.name, file.size)
   
-  try {
-    // Use API route to avoid CORS issues
-    const formData = new FormData()
-    formData.append('file', file)
+  const attemptUpload = async (attempt: number): Promise<IPFSUploadResult> => {
+    try {
+      // Use API route to avoid CORS issues
+      const formData = new FormData()
+      formData.append('file', file)
 
     // Add metadata
     const metadata = JSON.stringify({
@@ -47,30 +48,75 @@ export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
     
     let response: Response
     try {
+      console.log('Starting IPFS upload for file:', file.name, 'size:', file.size, 'bytes')
       response = await fetch('/api/ipfs/upload', {
         method: 'POST',
         body: formData,
         signal: controller.signal,
+        // Add headers to help with debugging
+        headers: {
+          // Don't set Content-Type - browser will set it with boundary for FormData
+        },
       })
       clearTimeout(timeoutId)
+      console.log('IPFS upload response status:', response.status, response.statusText)
     } catch (error: any) {
       clearTimeout(timeoutId)
+      console.error('IPFS upload fetch error:', error)
+      
       if (error.name === 'AbortError') {
         throw new Error('Upload timeout - file may be too large. Please try a smaller image (max 10MB) or check your internet connection.')
       }
-      throw error
+      
+      // More specific error messages for different failure types
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        throw new Error('Network error: Cannot reach upload server. Please check your internet connection and try again. If the problem persists, the server may be temporarily unavailable.')
+      }
+      
+      if (error.message?.includes('CORS')) {
+        throw new Error('CORS error: Upload blocked by browser security. Please try again or contact support.')
+      }
+      
+      // Re-throw with more context
+      throw new Error(`Upload failed: ${error.message || error.toString() || 'Unknown network error'}`)
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      console.error('IPFS upload error:', errorData)
+      let errorData: any = {}
+      try {
+        const text = await response.text()
+        errorData = text ? JSON.parse(text) : {}
+      } catch (parseError) {
+        console.error('Failed to parse error response:', parseError)
+        errorData = { error: response.statusText || 'Unknown error' }
+      }
       
-      // Handle timeout specifically
+      console.error('IPFS upload error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+      })
+      
+      // Handle specific status codes
       if (response.status === 408) {
         throw new Error('Upload timeout - file may be too large. Please try a smaller image (max 10MB per image) or check your internet connection.')
       }
       
-      throw new Error(`Failed to upload to IPFS: ${errorData.error || response.statusText || 'Network error'}`)
+      if (response.status === 400) {
+        throw new Error(errorData.error || 'Invalid file. Please check the file size (max 10MB) and format.')
+      }
+      
+      if (response.status === 500) {
+        throw new Error(errorData.error || 'Server error during upload. Please try again in a few moments.')
+      }
+      
+      if (response.status === 503) {
+        throw new Error('Upload service temporarily unavailable. Please try again in a few moments.')
+      }
+      
+      // Generic error with details from server
+      const errorMessage = errorData.error || errorData.details || response.statusText || 'Network error'
+      throw new Error(`Failed to upload to IPFS: ${errorMessage}`)
     }
 
     const data = await response.json()
@@ -81,24 +127,54 @@ export async function uploadToIPFS(file: File): Promise<IPFSUploadResult> {
       throw new Error('No IPFS hash returned from upload')
     }
 
-    await logIPFSUploadSuccess(file.name, ipfsHash)
+      await logIPFSUploadSuccess(file.name, ipfsHash)
 
-    return {
-      hash: ipfsHash,
-      url: ipfsUrl,
+      return {
+        hash: ipfsHash,
+        url: ipfsUrl,
+      }
+    } catch (error) {
+      // Retry logic for network errors
+      if (attempt < retries && error instanceof Error) {
+        const isRetryableError = 
+          error.message.includes('Network') || 
+          error.message.includes('Failed to fetch') || 
+          error.message.includes('NetworkError') ||
+          error.message.includes('timeout') ||
+          error.message.includes('temporarily unavailable')
+        
+        if (isRetryableError) {
+          console.log(`Retrying upload (attempt ${attempt + 1}/${retries})...`)
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))) // Exponential backoff
+          return attemptUpload(attempt + 1)
+        }
+      }
+      
+      // If no retries left or non-retryable error, throw
+      throw error
     }
+  }
+  
+  try {
+    return await attemptUpload(0)
   } catch (error) {
     console.error('IPFS upload error:', error)
     await logIPFSUploadError(file.name, error)
     
     if (error instanceof Error) {
-      // Provide more helpful error messages
-      if (error.message.includes('Network') || error.message.includes('Failed to fetch')) {
-        throw new Error('Network error: Please check your internet connection and try again.')
+      // If error message already contains specific details, preserve it
+      if (error.message && !error.message.includes('Network error: Please check')) {
+        throw error
       }
+      
+      // Provide more helpful error messages for generic network errors
+      if (error.message.includes('Network') || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        throw new Error('Network error: Cannot reach upload server. Please check your internet connection and try again. If the problem persists, the server may be temporarily unavailable.')
+      }
+      
       throw error
     }
-    throw new Error('Failed to upload to IPFS')
+    throw new Error('Failed to upload to IPFS: Unknown error occurred')
   }
 }
 

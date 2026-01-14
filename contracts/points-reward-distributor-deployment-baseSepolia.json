@@ -1,0 +1,17 @@
+{
+  "network": "baseSepolia",
+  "chainId": "84532",
+  "deployer": "0x7D85fCbB505D48E6176483733b62b51704e0bF95",
+  "timestamp": "2026-01-12T15:43:46.706Z",
+  "oldContract": "0x22f095B389fA5c4256f1a2F123BC0c9e4de109EE",
+  "contracts": {
+    "PointsRewardDistributor": {
+      "address": "0xf0d87bFf397824D3CF9dcf7f400f8A7F78732F4f",
+      "bDCUToken": "0x85162f919Bf8cd09B8046F8EAd2ecD434841e044",
+      "initialTokenPrice": "77",
+      "targetRewardValue": "50",
+      "impactProductNFT": null,
+      "verificationContract": "0x82968575f998f669b72C56E4BdC2e94E6546c55F"
+    }
+  }
+}

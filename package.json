@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS=--no-deprecation NEXT_TELEMETRY_DISABLED=1 next dev",
-    "dev:network": "NODE_OPTIONS=--no-deprecation NEXT_TELEMETRY_DISABLED=1 next dev -H 0.0.0.0",
+    "dev": "NODE_OPTIONS=--no-deprecation NEXT_TELEMETRY_DISABLED=1 next dev --webpack",
+    "dev:network": "NODE_OPTIONS=--no-deprecation NEXT_TELEMETRY_DISABLED=1 next dev --webpack -H 0.0.0.0",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",

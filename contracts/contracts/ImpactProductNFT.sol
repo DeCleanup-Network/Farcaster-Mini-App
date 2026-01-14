@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
  * @title ImpactProductNFT
  * @notice Dynamic NFT contract for Impact Products with 10 levels
  * @dev Each user can have one Impact Product NFT that evolves through 10 levels
  */
-contract ImpactProductNFT is ERC721URIStorage, Ownable, ReentrancyGuard {
-    // Maximum level (10)
+contract ImpactProductNFT is Initializable, ERC721URIStorageUpgradeable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, UUPSUpgradeable {
     uint8 public constant MAX_LEVEL = 10;
     
     // Mapping: tokenId => level (1-10)
@@ -46,24 +48,40 @@ contract ImpactProductNFT is ERC721URIStorage, Ownable, ReentrancyGuard {
     event VerifierUpdated(address indexed newVerifier);
     event VerificationContractUpdated(address indexed newVerificationContract);
     event RewardDistributorUpdated(address indexed newRewardDistributor);
+    event LevelDecreased(address indexed user, uint256 indexed tokenId, uint8 newLevel);
     
-    /**
-     * @notice Constructor
-     * @param _name Token name
-     * @param _symbol Token symbol
-     * @param _baseURI Base URI for IPFS metadata
-     * @param _verifier Initial verifier address
-     */
-    constructor(
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+    
+    function initialize(
         string memory _name,
         string memory _symbol,
         string memory _baseURI,
         address _verifier
-    ) ERC721(_name, _symbol) Ownable(msg.sender) {
+    ) public initializer {
+        __ERC721_init(_name, _symbol);
+        __ERC721URIStorage_init();
+        __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
+        __Pausable_init();
         baseURI = _baseURI;
         verifier = _verifier;
-        verificationContract = address(0); // Will be set after VerificationContract deployment
-        _tokenCounter = 1; // Start from tokenId 1
+        verificationContract = address(0);
+        _tokenCounter = 1;
+    }
+    
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    
+    uint256[50] private __gap;
+    
+    function pause() external onlyOwner {
+        _pause();
+    }
+    
+    function unpause() external onlyOwner {
+        _unpause();
     }
     
     /**
@@ -73,7 +91,7 @@ contract ImpactProductNFT is ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param level The level to claim (1-10)
      * @dev Can only be called by VerificationContract or owner
      */
-    function claimLevelForUser(address user, uint256 cleanupId, uint8 level) external nonReentrant {
+    function claimLevelForUser(address user, uint256 cleanupId, uint8 level) external whenNotPaused nonReentrant {
         require(msg.sender == verificationContract || msg.sender == owner(), "Not authorized");
         require(level >= 1 && level <= MAX_LEVEL, "Invalid level");
         require(user != address(0), "Invalid user address");
@@ -83,7 +101,7 @@ contract ImpactProductNFT is ERC721URIStorage, Ownable, ReentrancyGuard {
         if (tokenId == 0) {
             tokenId = _tokenCounter;
             _tokenCounter++;
-            _mint(user, tokenId);
+            _safeMint(user, tokenId);
             userTokenId[user] = tokenId;
             tokenLevel[tokenId] = level;
             userCurrentLevel[user] = level;
@@ -116,9 +134,20 @@ contract ImpactProductNFT is ERC721URIStorage, Ownable, ReentrancyGuard {
             emit LevelUpdated(user, tokenId, level);
         }
         
-        // Distribute reward (10 DCU) if reward distributor is set
+        // Distribute reward (10 DCU points) if reward distributor is set
+        // Try new points system first, fallback to old token system for backward compatibility
         if (rewardDistributor != address(0)) {
-            IRewardDistributor(rewardDistributor).distributeLevelReward(user);
+            // Try new points system
+            try IPointsRewardDistributor(rewardDistributor).awardLevelPoints(user) {
+                // Successfully awarded points
+            } catch {
+                // Fallback to old token system (for backward compatibility during migration)
+                try IRewardDistributor(rewardDistributor).distributeLevelReward(user) {
+                    // Successfully distributed tokens
+                } catch {
+                    // Both failed - log but don't revert (graceful degradation)
+                }
+            }
         }
     }
     
@@ -127,7 +156,7 @@ contract ImpactProductNFT is ERC721URIStorage, Ownable, ReentrancyGuard {
      * @param user User address
      * @param level New level (1-10)
      */
-    function updateLevel(address user, uint8 level) external {
+    function updateLevel(address user, uint8 level) external whenNotPaused {
         require(msg.sender == verifier || msg.sender == owner(), "Not authorized");
         require(level >= 1 && level <= MAX_LEVEL, "Invalid level");
         require(user != address(0), "Invalid address");
@@ -138,8 +167,32 @@ contract ImpactProductNFT is ERC721URIStorage, Ownable, ReentrancyGuard {
         tokenLevel[tokenId] = level;
         userCurrentLevel[user] = level;
         
-        // Update token URI
-        // Handle trailing slash in baseURI to avoid double slashes
+        string memory uriPrefix = baseURI;
+        if (bytes(baseURI).length > 0 && keccak256(bytes(baseURI)) != keccak256(bytes("ipfs://")) && !_endsWith(baseURI, "/")) {
+            uriPrefix = string(abi.encodePacked(baseURI, "/"));
+        }
+        string memory tokenURI = string(abi.encodePacked(uriPrefix, "level", _toString(level), ".json"));
+        _setTokenURI(tokenId, tokenURI);
+        
+        emit LevelUpdated(user, tokenId, level);
+    }
+    
+    /**
+     * @notice Decrease user level (owner only, for inappropriate behavior)
+     * @param user User address
+     * @param level New level (must be lower than current)
+     */
+    function decreaseLevel(address user, uint8 level) external onlyOwner {
+        require(level >= 1 && level <= MAX_LEVEL, "Invalid level");
+        require(user != address(0), "Invalid address");
+        
+        uint256 tokenId = userTokenId[user];
+        require(tokenId != 0, "User has no Impact Product");
+        require(level < userCurrentLevel[user], "New level must be lower than current level");
+        
+        tokenLevel[tokenId] = level;
+        userCurrentLevel[user] = level;
+        
         string memory uriPrefix = baseURI;
         if (bytes(baseURI).length > 0 && keccak256(bytes(baseURI)) != keccak256(bytes("ipfs://")) && !_endsWith(baseURI, "/")) {
             uriPrefix = string(abi.encodePacked(baseURI, "/"));
@@ -187,7 +240,7 @@ contract ImpactProductNFT is ERC721URIStorage, Ownable, ReentrancyGuard {
      * @notice Override tokenURI to use level-based URI
      */
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        require(_ownerOf(tokenId) != address(0), "Token does not exist");
+        require(ownerOf(tokenId) != address(0), "Token does not exist");
         uint8 level = tokenLevel[tokenId];
         // Handle trailing slash in baseURI to avoid double slashes
         string memory uriPrefix = baseURI;
@@ -288,5 +341,17 @@ interface IRewardDistributor {
     function distributeVerifierReward(address verifier, uint256 cleanupId) external;
     function setReferrer(address referee, address referrer) external; // Only in old RewardDistributor
     function hasReceivedReferralReward(address user) external view returns (bool); // Check if user already received referral reward
+}
+
+/**
+ * @notice Interface for Points Reward Distributor (new points-based system)
+ */
+interface IPointsRewardDistributor {
+    function awardLevelPoints(address user) external;
+    function awardStreakPoints(address user) external;
+    function awardReferralPoints(address referrer, address referee) external;
+    function awardImpactFormPoints(address user, uint256 cleanupId) external;
+    function awardVerifierPoints(address verifier, uint256 cleanupId) external;
+    function hasReceivedReferralReward(address user) external view returns (bool);
 }
 

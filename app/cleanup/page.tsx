@@ -19,6 +19,7 @@ import { resolveFID, isValidFIDFormat, getFIDFromUsername } from '@/lib/farcaste
 import { openUrl } from '@/lib/farcaster'
 import { TransactionModal, useTransactionModal } from '@/components/ui/transaction-modal'
 import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow'
+import { AddAppModal } from '@/components/onboarding/AddAppModal'
 import {
   REQUIRED_CHAIN_ID,
   REQUIRED_CHAIN_NAME,
@@ -87,6 +88,7 @@ function CleanupContent() {
   const [userLevel, setUserLevel] = useState<number | null>(null)
   const { modal, showSuccess, hideModal } = useTransactionModal()
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showAddAppModal, setShowAddAppModal] = useState(false)
   
   // Fix hydration error by only rendering after mount
   useEffect(() => {
@@ -109,6 +111,15 @@ function CleanupContent() {
     if (typeof window !== 'undefined') {
       // Mark onboarding as seen for this session only
       sessionStorage.setItem('decleanup_onboarding_seen_session', 'true')
+      
+      // Check if user has already seen the add app modal
+      const hasSeenAddAppModal = sessionStorage.getItem('decleanup_add_app_modal_seen')
+      if (!hasSeenAddAppModal && (isMiniApp || typeof (window as any).minikit !== 'undefined')) {
+        // Show add app modal after a short delay
+        setTimeout(() => {
+          setShowAddAppModal(true)
+        }, 500)
+      }
     }
   }
 
@@ -741,16 +752,58 @@ function CleanupContent() {
     try {
       // Upload photos to IPFS
       console.log('Uploading photos to IPFS...')
-      const [beforeHash, afterHash] = await Promise.all([
+      let beforeHash: { hash: string; url: string }
+      let afterHash: { hash: string; url: string }
+      
+      try {
+        [beforeHash, afterHash] = await Promise.all([
         uploadToIPFS(beforePhoto).catch((error) => {
           console.error('Error uploading before photo:', error)
-          throw new Error(`Failed to upload before photo: ${error.message}`)
+            const errorMsg = error?.message || String(error || 'Unknown error')
+            if (errorMsg.includes('timeout') || errorMsg.includes('Upload timeout')) {
+              throw new Error(`Before photo upload timed out. The image may be too large (max 10MB). Please try a smaller image or check your internet connection.`)
+            } else if (errorMsg.includes('Network') || errorMsg.includes('Failed to fetch')) {
+              throw new Error(`Network error uploading before photo. Please check your internet connection and try again.`)
+            } else {
+              throw new Error(`Failed to upload before photo: ${errorMsg}`)
+            }
         }),
         uploadToIPFS(afterPhoto).catch((error) => {
           console.error('Error uploading after photo:', error)
-          throw new Error(`Failed to upload after photo: ${error.message}`)
+            const errorMsg = error?.message || String(error || 'Unknown error')
+            if (errorMsg.includes('timeout') || errorMsg.includes('Upload timeout')) {
+              throw new Error(`After photo upload timed out. The image may be too large (max 10MB). Please try a smaller image or check your internet connection.`)
+            } else if (errorMsg.includes('Network') || errorMsg.includes('Failed to fetch')) {
+              throw new Error(`Network error uploading after photo. Please check your internet connection and try again.`)
+            } else {
+              throw new Error(`Failed to upload after photo: ${errorMsg}`)
+            }
         }),
       ])
+      } catch (uploadError: any) {
+        // If photo upload fails, show a clear error and stop submission
+        const uploadErrorMessage = uploadError?.message || String(uploadError || 'Unknown error')
+        console.error('Photo upload failed:', uploadErrorMessage)
+        
+        // Create a more helpful error message with troubleshooting steps
+        let errorTitle = 'Failed to submit cleanup:'
+        let errorDetails = uploadErrorMessage
+        
+        // Add troubleshooting checklist
+        const troubleshootingSteps = [
+          'Your wallet is connected',
+          `You're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID})`,
+          'You have enough ETH for gas',
+          'The contract address is correct',
+        ]
+        
+        // Show error modal with detailed message
+        const fullErrorMessage = `${errorDetails}\n\nPlease check:\n${troubleshootingSteps.map(step => `- ${step}`).join('\n')}`
+        
+        alert(`Failed to submit cleanup:\n\n${fullErrorMessage}`)
+        setIsSubmitting(false)
+        return
+      }
 
       console.log('Photos uploaded:', { beforeHash: beforeHash.hash, afterHash: afterHash.hash })
       console.log('Location:', { lat: location.lat, lng: location.lng })
@@ -988,23 +1041,44 @@ function CleanupContent() {
         const errorMessage = submitError?.message || submitError?.shortMessage || String(submitError) || 'Unknown error'
         const errorName = submitError?.name || ''
         const errorDetails = submitError?.details || ''
+        const errorCode = submitError?.code
 
-        // Check if it's truly a "chain not configured" error (not just a switch error)
+        // Check for specific error types
         const isChainNotConfigured =
           errorDetails?.includes('Chain not configured') ||
           errorMessage.includes('Chain not configured') ||
           errorMessage.includes('chain not configured') ||
           errorMessage.includes('Unrecognized chain') ||
-          submitError?.code === 4902 // MetaMask error code for chain not configured
+          errorCode === 4902 // MetaMask error code for chain not configured
 
-        // Check if it's a switch chain error (could be configured but switch failed)
         const isSwitchError =
           errorName === 'SwitchChainError' ||
           errorMessage.includes('switch chain') ||
           errorMessage.includes('SwitchChainError')
 
-        if (isChainNotConfigured) {
-          // Show detailed instructions for adding the network
+        const isGasError = 
+          errorMessage.includes('Insufficient balance') ||
+          errorMessage.includes('insufficient funds') ||
+          errorMessage.includes('gas') ||
+          errorCode === -32000 // RPC error for insufficient funds
+
+        const isUserRejected = 
+          errorMessage.includes('User rejected') ||
+          errorMessage.includes('user rejected') ||
+          errorCode === 4001
+
+        const isNetworkError =
+          errorMessage.includes('network') ||
+          errorMessage.includes('Network') ||
+          errorMessage.includes('fetch') ||
+          errorMessage.includes('timeout')
+
+        if (isUserRejected) {
+          alert(
+            `Transaction was rejected.\n\n` +
+            `You cancelled the transaction in your wallet. If you want to submit the cleanup, please approve the transaction when prompted.`
+          )
+        } else if (isChainNotConfigured) {
           alert(
             `❌ ${REQUIRED_CHAIN_NAME} is not configured in your wallet!\n\n` +
             `Please add ${REQUIRED_CHAIN_NAME} to your wallet:\n\n` +
@@ -1022,7 +1096,6 @@ function CleanupContent() {
             `${REQUIRED_CHAIN_IS_TESTNET ? `7. Then try submitting again.` : `6. Then try submitting again.`}`
           )
         } else if (isSwitchError) {
-          // Chain might be configured but switch failed - ask user to manually switch
           alert(
             `❌ Failed to switch to ${REQUIRED_CHAIN_NAME}!\n\n` +
             `Please manually switch to ${REQUIRED_CHAIN_NAME} in your wallet:\n\n` +
@@ -1038,14 +1111,35 @@ function CleanupContent() {
             `5. Once on ${REQUIRED_CHAIN_NAME}, try submitting again.\n\n` +
             `Current error: ${errorMessage}`
           )
+        } else if (isGasError) {
+          alert(
+            `❌ Gas fee issue detected!\n\n` +
+            `${errorMessage}\n\n` +
+            `Please check:\n` +
+            `- You have ETH in your wallet on ${REQUIRED_CHAIN_NAME}\n` +
+            `- Your wallet shows sufficient balance for gas fees\n` +
+            `- If you just added funds, wait a moment and try again\n\n` +
+            `${REQUIRED_CHAIN_IS_TESTNET ? `Get testnet ETH from: https://www.coinbase.com/faucets/base-ethereum-goerli-faucet` : ''}`
+          )
+        } else if (isNetworkError) {
+          alert(
+            `❌ Network error!\n\n` +
+            `${errorMessage}\n\n` +
+            `This might be a temporary network issue. Please:\n` +
+            `- Check your internet connection\n` +
+            `- Make sure you're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID})\n` +
+            `- Wait a moment and try again\n\n` +
+            `If the problem persists, the transaction may have still been submitted. Check your wallet's transaction history.`
+          )
         } else {
           alert(
             `Failed to submit cleanup:\n\n${errorMessage}\n\n` +
             `Please check:\n` +
             `- Your wallet is connected\n` +
             `- You're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID})\n` +
-            `- You have enough ETH for gas\n` +
-            `- The contract address is correct`
+            `- You have enough ETH for gas fees\n` +
+            `- Your internet connection is stable\n\n` +
+            `If the problem persists, try refreshing the page and submitting again.`
           )
         }
 
@@ -1059,22 +1153,42 @@ function CleanupContent() {
       const errorDetails = (error as any)?.details || ''
       const errorCode = (error as any)?.code
 
-      // Check if it's truly a "chain not configured" error (not just a switch error)
+      // Check for specific error types
       const isChainNotConfigured =
         errorDetails?.includes('Chain not configured') ||
         errorMessage.includes('Chain not configured') ||
         errorMessage.includes('chain not configured') ||
         errorMessage.includes('Unrecognized chain') ||
-        errorCode === 4902 // MetaMask error code for chain not configured
+        errorCode === 4902
 
-      // Check if it's a switch chain error (could be configured but switch failed)
       const isSwitchError =
         errorName === 'SwitchChainError' ||
         errorMessage.includes('switch chain') ||
         errorMessage.includes('SwitchChainError')
 
-      if (isChainNotConfigured) {
-        // Show detailed instructions for adding the network
+      const isGasError = 
+        errorMessage.includes('Insufficient balance') ||
+        errorMessage.includes('insufficient funds') ||
+        errorMessage.includes('gas') ||
+        errorCode === -32000
+
+      const isUserRejected = 
+        errorMessage.includes('User rejected') ||
+        errorMessage.includes('user rejected') ||
+        errorCode === 4001
+
+      const isNetworkError =
+        errorMessage.includes('network') ||
+        errorMessage.includes('Network') ||
+        errorMessage.includes('fetch') ||
+        errorMessage.includes('timeout')
+
+      if (isUserRejected) {
+        alert(
+          `Transaction was rejected.\n\n` +
+          `You cancelled the transaction in your wallet. If you want to submit the cleanup, please approve the transaction when prompted.`
+        )
+      } else if (isChainNotConfigured) {
         alert(
           `❌ ${REQUIRED_CHAIN_NAME} is not configured in your wallet!\n\n` +
           `Please add ${REQUIRED_CHAIN_NAME} to your wallet:\n\n` +
@@ -1092,7 +1206,6 @@ function CleanupContent() {
           `${REQUIRED_CHAIN_IS_TESTNET ? `7. Then try submitting again.` : `6. Then try submitting again.`}`
         )
       } else if (isSwitchError) {
-        // Chain might be configured but switch failed - ask user to manually switch
         alert(
           `❌ Failed to switch to ${REQUIRED_CHAIN_NAME}!\n\n` +
           `Please manually switch to ${REQUIRED_CHAIN_NAME} in your wallet:\n\n` +
@@ -1108,14 +1221,35 @@ function CleanupContent() {
           `5. Once on ${REQUIRED_CHAIN_NAME}, try submitting again.\n\n` +
           `Current error: ${errorMessage}`
         )
+      } else if (isGasError) {
+        alert(
+          `❌ Gas fee issue detected!\n\n` +
+          `${errorMessage}\n\n` +
+          `Please check:\n` +
+          `- You have ETH in your wallet on ${REQUIRED_CHAIN_NAME}\n` +
+          `- Your wallet shows sufficient balance for gas fees\n` +
+          `- If you just added funds, wait a moment and try again\n\n` +
+          `${REQUIRED_CHAIN_IS_TESTNET ? `Get testnet ETH from: https://www.coinbase.com/faucets/base-ethereum-goerli-faucet` : ''}`
+        )
+      } else if (isNetworkError) {
+        alert(
+          `❌ Network error!\n\n` +
+          `${errorMessage}\n\n` +
+          `This might be a temporary network issue. Please:\n` +
+          `- Check your internet connection\n` +
+          `- Make sure you're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID})\n` +
+          `- Wait a moment and try again\n\n` +
+          `If the problem persists, the transaction may have still been submitted. Check your wallet's transaction history.`
+        )
       } else {
         alert(
           `Failed to submit cleanup:\n\n${errorMessage}\n\n` +
           `Please check:\n` +
           `- Your wallet is connected\n` +
           `- You're on ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID})\n` +
-          `- You have enough ETH for gas\n` +
-          `- The contract address is correct`
+          `- You have enough ETH for gas fees\n` +
+          `- Your internet connection is stable\n\n` +
+          `If the problem persists, try refreshing the page and submitting again.`
         )
       }
     } finally {
@@ -1144,7 +1278,7 @@ function CleanupContent() {
                 🎉 You Were Invited!
               </h3>
               <p className="text-sm text-gray-300">
-                You've been referred to DeCleanup Rewards! Connect your wallet and submit your first cleanup to earn <strong className="text-white">3 $bDCU</strong> for both you and your referrer.
+                You've been referred to DeCleanup Rewards! Connect your wallet and submit your first cleanup to earn <strong className="text-white">3 DCU</strong> for both you and your referrer.
               </p>
             </div>
             <button
@@ -1218,7 +1352,7 @@ function CleanupContent() {
               🎉 You Were Invited!
             </h3>
             <p className="text-sm text-gray-300">
-              You've been referred to DeCleanup Rewards! When you submit your first cleanup and it gets verified, both you and your referrer will earn <strong className="text-white">3 $bDCU</strong> each.
+              You've been referred to DeCleanup Rewards! When you submit your first cleanup and it gets verified, both you and your referrer will earn <strong className="text-white">3 DCU</strong> each.
             </p>
             <p className="mt-2 text-xs text-gray-400">
               Submit a cleanup below to get started and claim your referral reward!
@@ -1624,9 +1758,9 @@ function CleanupContent() {
                     <label className="mb-1.5 block text-xs font-medium text-gray-400">
                       Latitude
                     </label>
-                    <input
-                      type="number"
-                      value={manualLatInput}
+                  <input
+                    type="number"
+                    value={manualLatInput}
                       onChange={(e) => {
                         const value = e.target.value
                         // Prevent scientific notation (e, E, +) but allow negative numbers
@@ -1642,16 +1776,16 @@ function CleanupContent() {
                       }}
                       placeholder="e.g. 37.7749"
                       className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
-                      step="0.000001"
-                    />
+                    step="0.000001"
+                  />
                   </div>
                   <div className="flex-1">
                     <label className="mb-1.5 block text-xs font-medium text-gray-400">
                       Longitude
                     </label>
-                    <input
-                      type="number"
-                      value={manualLngInput}
+                  <input
+                    type="number"
+                    value={manualLngInput}
                       onChange={(e) => {
                         const value = e.target.value
                         // Prevent scientific notation (e, E, +) but allow negative numbers
@@ -1667,19 +1801,19 @@ function CleanupContent() {
                       }}
                       placeholder="e.g. -122.4194"
                       className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-brand-green focus:outline-none focus:ring-1 focus:ring-brand-green"
-                      step="0.000001"
-                    />
-                  </div>
+                    step="0.000001"
+                  />
+                </div>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleManualLocationApply}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleManualLocationApply}
                     className="w-full bg-brand-green text-black hover:bg-[#4a9a26] sm:w-auto sm:min-w-[160px]"
-                  >
-                    Save Manual Location
-                  </Button>
+                >
+                  Save Manual Location
+                </Button>
                 </div>
               </div>
             )}
@@ -1847,10 +1981,10 @@ function CleanupContent() {
               Impact Report
             </h1>
             <p className="mb-2 text-sm font-medium text-brand-yellow">
-              +5 $bDCU Bonus
+              +5 DCU Bonus
             </p>
             <p className="text-sm text-gray-400">
-              Provide more details on your cleanup (optional, rewarded with 5 $bDCU).
+              Provide more details on your cleanup (optional, rewarded with 5 DCU).
             </p>
           </div>
 
@@ -1898,11 +2032,11 @@ function CleanupContent() {
                     e.preventDefault()
                   }
                 }}
-                className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="50"
-                min="0"
-                step="0.1"
-              />
+                  min="0"
+                  step="0.1"
+                />
                 <select
                   value={enhancedData.areaUnit}
                   onChange={(e) => setEnhancedData({ ...enhancedData, areaUnit: e.target.value as 'sqm' | 'sqft' })}
@@ -1936,11 +2070,11 @@ function CleanupContent() {
                     e.preventDefault()
                   }
                 }}
-                className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="5"
-                min="0"
-                step="0.1"
-              />
+                  min="0"
+                  step="0.1"
+                />
                 <select
                   value={enhancedData.weightUnit}
                   onChange={(e) => setEnhancedData({ ...enhancedData, weightUnit: e.target.value as 'kg' | 'lbs' })}
@@ -2388,6 +2522,18 @@ function CleanupContent() {
     <>
       {/* Onboarding Flow - shows for first-time users, including from referral links */}
       {showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
+      
+      {/* Add App Modal - shows after onboarding */}
+      <AddAppModal
+        isOpen={showAddAppModal}
+        onClose={() => {
+          setShowAddAppModal(false)
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('decleanup_add_app_modal_seen', 'true')
+          }
+        }}
+      />
+      
       <TransactionModal
         open={modal.open}
         onClose={hideModal}

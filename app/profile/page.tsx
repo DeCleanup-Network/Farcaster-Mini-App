@@ -23,13 +23,17 @@ import {
   ChevronUp,
   AlertCircle,
   X,
+  History,
 } from 'lucide-react'
 import { ImportTokenModal } from '@/components/wallet/ImportTokenModal'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   getDCUBalance,
+  getDCUPointsBalance,
   getStakedDCU,
+  getStakedBalance,
   getUserLevel,
   getUserTokenId,
   getTokenURI,
@@ -44,12 +48,21 @@ import {
   CONTRACT_ADDRESSES,
   checkReferralEligibility,
   VERIFICATION_ABI,
+  claimTokensFromPoints,
+  calculateClaimAmount,
+  stakeTokensForVerifier,
+  unstakeTokens,
+  isUserVerifier,
+  hasMinimumLevelForStaking,
+  getCurrentTokenPrice,
+  getTargetRewardValue,
 } from '@/lib/contracts'
 import { useBuilderCodeAttribution } from '@/lib/hooks/useBuilderCode'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { useChainId } from 'wagmi'
+import { formatUnits, parseUnits } from 'viem'
 import { generateReferralLink, formatReferralMessage } from '@/lib/farcaster'
 import { SuccessModal } from '@/components/ui/success-modal'
 import { useFeatureLock } from '@/lib/hooks/useFeatureLock'
@@ -195,8 +208,10 @@ function ProfileContent() {
   const featureLock = useFeatureLock()
   const { sendWithBuilderCode } = useBuilderCodeAttribution()
   const [profileData, setProfileData] = useState({
-    dcuBalance: 0,
-    stakedDCU: 0,
+    dcuBalance: 0, // Token balance in wallet
+    dcuPoints: 0, // DCU points balance
+    stakedDCU: 0, // Staked tokens (old system)
+    stakedBalance: BigInt(0), // Staked tokens (new system, in wei)
     level: 0,
     streak: 0,
     hasActiveStreak: false,
@@ -215,9 +230,21 @@ function ProfileContent() {
       referralRewards: 0,
       impactFormRewards: 0,
       verifierRewards: 0,
+      retroRewards: 0,
       total: 0,
     },
+    isVerifier: false,
+    hasMinimumLevel: false,
+    currentTokenPrice: 0,
+    targetRewardValue: 90,
   })
+  const [claimPoints, setClaimPoints] = useState<string>('')
+  const [claimableTokens, setClaimableTokens] = useState<bigint>(BigInt(0))
+  const [isClaimingPoints, setIsClaimingPoints] = useState(false)
+  const [showClaimConfirmModal, setShowClaimConfirmModal] = useState(false)
+  const [calculatedClaimAmount, setCalculatedClaimAmount] = useState<bigint>(BigInt(0))
+  const [isStaking, setIsStaking] = useState(false)
+  const [stakeAmount, setStakeAmount] = useState<string>('')
   const [cleanupStatus, setCleanupStatus] = useState<{
     cleanupId: bigint | null
     verified: boolean
@@ -353,31 +380,41 @@ function ProfileContent() {
 
         const dataPromise = Promise.all([
           getDCUBalance(userAddress),
+          getDCUPointsBalance(userAddress).catch(() => 0), // Try new points system, fallback to 0
           getStakedDCU(userAddress),
+          getStakedBalance(userAddress).catch(() => BigInt(0)), // Try new staking system
           getUserLevel(userAddress),
           getStreakCount(userAddress),
           hasActiveStreak(userAddress),
           getTotalRewardsDistributed(userAddress),
+          isUserVerifier(userAddress).catch(() => false),
+          hasMinimumLevelForStaking(userAddress).catch(() => false),
+          getCurrentTokenPrice().catch(() => 0),
+          getTargetRewardValue().catch(() => 90),
         ])
 
-        const [dcuBalance, stakedDCU, level, streak, activeStreak, totalRewardsDistributed] = await Promise.race([
-          dataPromise,
-          timeoutPromise,
-        ]) as Awaited<typeof dataPromise>
+        // Load main data and rewards breakdown in parallel
+        const [mainData, rewardsBreakdown] = await Promise.all([
+          Promise.race([
+            dataPromise,
+            timeoutPromise,
+          ]) as Promise<Awaited<typeof dataPromise>>,
+          getRewardsBreakdown(userAddress).catch((error) => {
+            console.error('Error fetching rewards breakdown:', error)
+            return {
+              levelRewards: 0,
+              cleanupCount: 0,
+              streakRewards: 0,
+              referralRewards: 0,
+              impactFormRewards: 0,
+              verifierRewards: 0,
+              retroRewards: 0,
+              total: 0,
+            }
+          }),
+        ])
 
-        // Get detailed breakdown from events (query actual rewards distributed)
-        const rewardsBreakdown = await getRewardsBreakdown(userAddress).catch((error) => {
-          console.error('Error fetching rewards breakdown:', error)
-          return {
-            levelRewards: 0,
-            cleanupCount: 0,
-            streakRewards: 0,
-            referralRewards: 0,
-            impactFormRewards: 0,
-            verifierRewards: 0,
-            total: 0,
-          }
-        })
+        const [dcuBalance, dcuPoints, stakedDCU, stakedBalance, level, streak, activeStreak, totalRewardsDistributed, isVerifier, hasMinimumLevel, currentTokenPrice, targetRewardValue] = mainData
 
         let tokenURI = ''
         let imageUrl = ''
@@ -416,16 +453,37 @@ function ProfileContent() {
                 'https://dweb.link/ipfs/',
               ]
               const gatewayList = gateways || defaultGateways
-              return `${gatewayList[0]}${path} `
+              return `${gatewayList[0]}${path}`.trim()
             }
 
-            const fetchWithFallback = async (ipfsUrl: string): Promise<Response> => {
+            const fetchWithFallback = async (ipfsUrl: string, timeout = 3000): Promise<Response> => {
               if (!ipfsUrl.startsWith('ipfs://')) {
                 return fetch(ipfsUrl)
               }
 
+              // Create timeout promise
+              const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('IPFS fetch timeout')), timeout)
+              )
+
+              // Try server-side proxy first (bypasses CORS, faster)
+              try {
+                const path = ipfsUrl.replace('ipfs://', '').replace(/\/+/g, '/')
+                const proxyUrl = `/api/ipfs/fetch?path=${encodeURIComponent(path)}`
+                const proxyResponse = await Promise.race([
+                  fetch(proxyUrl),
+                  timeoutPromise,
+                ]) as Promise<Response>
+                const response = await proxyResponse
+                if (response.ok) {
+                  return response
+                }
+              } catch (proxyError) {
+                // Silently fail and try direct gateways
+              }
+
+              // Fallback to direct gateways with timeout
               const gateways = [
-                process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/',
                 'https://ipfs.io/ipfs/',
                 'https://cloudflare-ipfs.com/ipfs/',
                 'https://dweb.link/ipfs/',
@@ -434,94 +492,142 @@ function ProfileContent() {
               let path = ipfsUrl.replace('ipfs://', '').replace(/\/+/g, '/')
               if (path.startsWith('/')) path = path.substring(1)
 
-              for (const gateway of gateways) {
+              // Try gateways in parallel with timeout
+              const gatewayPromises = gateways.map(async (gateway) => {
                 try {
-                  const url = `${gateway}${path} `
-                  const response = await fetch(url, {
-                    method: 'GET',
-                    headers: { Accept: 'application/json' },
-                    redirect: 'follow',
-                  })
-                  if (response.ok) {
-                    return response
+                  const url = `${gateway}${path}`.trim()
+                  const response = await Promise.race([
+                    fetch(url, {
+                      method: 'GET',
+                      headers: { Accept: 'application/json' },
+                      redirect: 'follow',
+                      mode: 'cors',
+                    }),
+                    timeoutPromise,
+                  ]) as Promise<Response>
+                  const result = await response
+                  if (result.ok) {
+                    return result
                   }
                 } catch (error) {
-                  console.warn(`Gateway ${gateway} failed: `, error)
+                  return null
                 }
+                return null
+              })
+
+              const results = await Promise.all(gatewayPromises)
+              const success = results.find(r => r !== null)
+              if (success) {
+                return success
               }
 
               throw new Error(`All IPFS gateways failed for: ${ipfsUrl} `)
             }
 
-            if (tokenURI) {
-              try {
-                const metadataResponse = await fetchWithFallback(tokenURI)
-                if (!metadataResponse.ok) {
-                  throw new Error(`Failed to fetch metadata: ${metadataResponse.status} ${metadataResponse.statusText} `)
+            // Load metadata with fast fallback - use constructed metadata immediately if IPFS is slow
+            if (tokenURI && level > 0) {
+              // Construct metadata immediately (fast path)
+              const imagesCID = process.env.NEXT_PUBLIC_IMPACT_IMAGES_CID || 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'
+              const levelConfig: Record<number, { name: string; impactValue: number; dcu: number; hasAnimation: boolean }> = {
+                1: { name: 'Newbie', impactValue: 1, dcu: 10, hasAnimation: false },
+                2: { name: 'Newbie', impactValue: 2, dcu: 20, hasAnimation: false },
+                3: { name: 'Pro', impactValue: 3, dcu: 30, hasAnimation: false },
+                4: { name: 'Pro', impactValue: 4, dcu: 40, hasAnimation: false },
+                5: { name: 'Pro', impactValue: 5, dcu: 50, hasAnimation: false },
+                6: { name: 'Hero', impactValue: 6, dcu: 60, hasAnimation: false },
+                7: { name: 'Hero', impactValue: 7, dcu: 70, hasAnimation: false },
+                8: { name: 'Hero', impactValue: 8, dcu: 80, hasAnimation: false },
+                9: { name: 'Hero', impactValue: 9, dcu: 90, hasAnimation: false },
+                10: { name: 'Guardian', impactValue: 10, dcu: 100, hasAnimation: true },
+              }
+              
+              const config = levelConfig[level]
+              if (config) {
+                // Set constructed metadata immediately (fast)
+                metadata = {
+                  name: `DeCleanup Impact Product • Level ${level}`,
+                  description: 'Tokenized proof of real-world cleanups, verified by DeCleanup Rewards.',
+                  external_url: 'https://decleanup.network',
+                  image: level === 10 
+                    ? `ipfs://${imagesCID}/IP10Placeholder.png`
+                    : `ipfs://${imagesCID}/IP${level}.png`,
+                  attributes: [
+                    { trait_type: 'Category', value: 'Cleanup NFT' },
+                    { trait_type: 'Type', value: 'Dynamic' },
+                    { trait_type: 'Impact', value: 'Environment' },
+                    { trait_type: 'Rarity', value: 'Unique' },
+                    { trait_type: 'Impact Value', value: config.impactValue.toString() },
+                    { trait_type: '$DCU', value: config.dcu.toString() },
+                    { trait_type: 'Level', value: config.name },
+                  ],
                 }
-
-                metadata = (await metadataResponse.json()) as ImpactMetadata
-                const stats = extractImpactStats(metadata)
-                impactValue = stats.impactValue
-                dcuReward = stats.dcuReward
-
-                if (metadata?.image) {
-                  let fixedImagePath = metadata.image
-                  const imagesCID =
-                    process.env.NEXT_PUBLIC_IMPACT_IMAGES_CID || 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'
-                  if (fixedImagePath.includes('/images/level')) {
-                    const levelMatch = fixedImagePath.match(/level(\d+)\.png/)
-                    if (levelMatch) {
-                      const levelNum = levelMatch[1]
-                      fixedImagePath =
-                        levelNum === '10'
-                          ? `ipfs://${imagesCID}/IP10Placeholder.png`
-                          : `ipfs://${imagesCID}/IP${levelNum}.png`
-                    }
-                  }
-                  imageUrl = convertIPFSToGateway(fixedImagePath)
+                
+                if (config.hasAnimation) {
+                  metadata.animation_url = `ipfs://${imagesCID}/IP10VIdeo.mp4`
                 }
-
-                if (metadata?.animation_url) {
-                  let fixedAnimationPath = metadata.animation_url
-                  if (fixedAnimationPath.includes('/video/level10')) {
-                    fixedAnimationPath = `ipfs://${process.env.NEXT_PUBLIC_IMPACT_IMAGES_CID || 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'}/IP10VIdeo.mp4`
-                  }
-                  animationUrl = convertIPFSToGateway(fixedAnimationPath)
-                }
-              } catch (metadataError) {
-                console.error('❌ Error fetching metadata:', metadataError)
-                const fallbackCID = process.env.NEXT_PUBLIC_IMPACT_METADATA_CID
-                if (fallbackCID && level > 0) {
-                  try {
-                    const fallbackUrl = `https://gateway.pinata.cloud/ipfs/${fallbackCID}/level${level}.json`
-                    const fallbackResponse = await fetch(fallbackUrl)
-                    if (fallbackResponse.ok) {
-                      metadata = (await fallbackResponse.json()) as ImpactMetadata
-                      const stats = extractImpactStats(metadata)
-                      impactValue = stats.impactValue
-                      dcuReward = stats.dcuReward
-                      if (metadata?.image) {
-                        imageUrl = convertIPFSToGateway(metadata.image)
-                      }
-                      if (metadata?.animation_url) {
-                        animationUrl = convertIPFSToGateway(metadata.animation_url)
-                      }
-                    }
-                  } catch (fallbackError) {
-                    console.error('❌ Fallback also failed:', fallbackError)
-                  }
+                
+                impactValue = config.impactValue.toString()
+                dcuReward = config.dcu.toString()
+                imageUrl = convertIPFSToGateway(metadata.image)
+                if (metadata.animation_url) {
+                  animationUrl = convertIPFSToGateway(metadata.animation_url)
                 }
               }
+
+              // Try to fetch from IPFS in background (non-blocking, updates if successful)
+              fetchWithFallback(tokenURI, 1500).then((metadataResponse) => {
+                if (metadataResponse.ok) {
+                  return metadataResponse.json().then((fetchedMetadata: ImpactMetadata) => {
+                    // Update with fetched metadata if successful
+                    const stats = extractImpactStats(fetchedMetadata)
+                    if (stats.impactValue) impactValue = stats.impactValue
+                    if (stats.dcuReward) dcuReward = stats.dcuReward
+                    
+                    if (fetchedMetadata?.image) {
+                      let fixedImagePath = fetchedMetadata.image
+                      if (fixedImagePath.includes('/images/level')) {
+                        const levelMatch = fixedImagePath.match(/level(\d+)\.png/)
+                        if (levelMatch) {
+                          const levelNum = levelMatch[1]
+                          fixedImagePath =
+                            levelNum === '10'
+                              ? `ipfs://${imagesCID}/IP10Placeholder.png`
+                              : `ipfs://${imagesCID}/IP${levelNum}.png`
+                        }
+                      }
+                      imageUrl = convertIPFSToGateway(fixedImagePath)
+                    }
+
+                    if (fetchedMetadata?.animation_url) {
+                      let fixedAnimationPath = fetchedMetadata.animation_url
+                      if (fixedAnimationPath.includes('/video/level10')) {
+                        fixedAnimationPath = `ipfs://${imagesCID}/IP10VIdeo.mp4`
+                      }
+                      animationUrl = convertIPFSToGateway(fixedAnimationPath)
+                    }
+                    
+                    // Update metadata if fetched version is better
+                    if (fetchedMetadata) {
+                      metadata = fetchedMetadata
+                    }
+                  }).catch(() => {
+                    // Silently fail - we already have constructed metadata
+                  })
+                }
+              }).catch(() => {
+                // Silently fail - we already have constructed metadata
+              })
             }
           } catch (error) {
             console.error('Error fetching token URI:', error)
           }
         }
 
-        setProfileData({
+        const newProfileData = {
           dcuBalance,
+          dcuPoints: dcuPoints || 0,
           stakedDCU,
+          stakedBalance: stakedBalance || BigInt(0),
           level,
           streak,
           hasActiveStreak: activeStreak,
@@ -534,7 +640,21 @@ function ProfileContent() {
           dcuReward,
           totalRewardsDistributed,
           rewardsBreakdown,
+          isVerifier: isVerifier || false,
+          hasMinimumLevel: hasMinimumLevel || false,
+          currentTokenPrice: currentTokenPrice || 0,
+          targetRewardValue: targetRewardValue || 90,
+        }
+        
+        console.log('📊 Profile data loaded:', {
+          dcuBalance,
+          dcuPoints: dcuPoints || 0,
+          hasMinimumLevel: hasMinimumLevel || false,
+          isVerifier: isVerifier || false,
+          level,
         })
+        
+        setProfileData(newProfileData)
       } catch (error) {
         console.error('Error fetching profile data:', error)
         setProfileData({
@@ -551,13 +671,14 @@ function ProfileContent() {
           impactValue: null,
           dcuReward: null,
           totalRewardsDistributed: 0,
-          rewardsBreakdown: {
+            rewardsBreakdown: {
             levelRewards: 0,
             cleanupCount: 0,
             streakRewards: 0,
             referralRewards: 0,
             impactFormRewards: 0,
             verifierRewards: 0,
+            retroRewards: 0,
             total: 0,
           },
         })
@@ -801,7 +922,7 @@ function ProfileContent() {
           <div className="flex-1">
             <h3 className="mb-1 text-sm font-bold uppercase text-brand-green">🎉 You Were Invited!</h3>
             <p className="text-sm text-gray-300">
-              You've been referred to DeCleanup Rewards! When you submit your first cleanup and it gets verified, both you and your referrer will earn <strong className="text-white">3 $bDCU</strong> each.
+              You've been referred to DeCleanup Rewards! When you submit your first cleanup and it gets verified, both you and your referrer will earn <strong className="text-white">3 DCU</strong> each.
             </p>
             <Link href={`/cleanup?ref=${referrerAddress}`}>
               <Button className="mt-3 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]">
@@ -903,10 +1024,13 @@ function ProfileContent() {
                   fill
                   className="object-cover"
                   sizes="48px"
+                  unoptimized
                   onError={(e) => {
                     // Fallback to default avatar
                     const img = e.currentTarget as HTMLImageElement
-                    img.src = 'https://farcaster.xyz/avatar.png'
+                    if (img.src !== 'https://farcaster.xyz/avatar.png') {
+                      img.src = 'https://farcaster.xyz/avatar.png'
+                    }
                   }}
                 />
               </div>
@@ -983,50 +1107,301 @@ function ProfileContent() {
           </div>
         )}
 
-        {/* Stats Grid - Total Balance and Total Rewards */}
-        <div className="mb-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-gray-800 bg-gray-900 p-6 relative">
-            <div className="mb-2 flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-brand-green" />
-              <h3 className="text-sm font-sans font-medium text-gray-400 normal-case">
-                Total $bDCU
-              </h3>
-              <ImportTokenModal type="token" onCopy={handleManualCopy} />
-            </div>
-            {/* Token logo in top right corner */}
-            <div className="absolute top-4 right-4">
-              <div className="relative h-12 w-12 rounded-full border-2 border-gray-700 bg-gray-800 p-1">
-                <TokenLogo />
-              </div>
-            </div>
-            <p className="text-3xl font-bold text-white">
-              {profileData.dcuBalance.toFixed(0)}
-            </p>
-            <p className="mt-1 text-xs text-gray-500">
-              All tokens in your wallet
-            </p>
-            {profileData.stakedDCU > 0 && (
-              <p className="mt-1 text-xs text-gray-500">
-                {profileData.stakedDCU.toFixed(0)} staked
-              </p>
-            )}
-          </div>
-
+        {/* Stats Grid - DCU Points */}
+        <div className="mb-6">
           <div className="rounded-lg border border-brand-green/30 bg-brand-green/5 p-6">
             <div className="mb-2 flex items-center gap-2">
               <Award className="h-5 w-5 text-brand-green" />
               <h3 className="text-sm font-sans font-medium text-gray-300 normal-case">
-                Total Rewards
+                DCU
               </h3>
             </div>
             <p className="text-3xl font-bold text-brand-green">
-              {profileData.totalRewardsDistributed > 0 ? profileData.totalRewardsDistributed.toFixed(0) : '0'}
+              {profileData.dcuPoints > 0 ? profileData.dcuPoints.toFixed(0) : '0'}
             </p>
             <p className="mt-1 text-xs text-gray-400">
-              From all app actions
+              DCU (multiplier) - The amount of DCU you have determines how many $bDCU tokens you'll receive when claiming
             </p>
           </div>
         </div>
+
+        {/* Points Claim Section */}
+        {profileData.dcuPoints > 0 && profileData.hasMinimumLevel && (
+          <div className="mb-6 rounded-lg border border-brand-yellow/30 bg-brand-yellow/5 p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-brand-yellow" />
+              <h3 className="text-lg font-bold uppercase tracking-wide text-white">
+                Claim Tokens
+              </h3>
+            </div>
+            <p className="mb-4 text-sm text-gray-300">
+              Convert your DCU to $bDCU tokens. You need to reach level 10 first. The amount of tokens you receive depends on the DCU you have.
+            </p>
+            
+            <div className="mb-4 space-y-3">
+              <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-4 text-center">
+                <p className="text-3xl font-bold text-white">
+                  {profileData.dcuPoints.toFixed(0)}x Multiplier
+                </p>
+              </div>
+            </div>
+
+            <Button
+              onClick={async () => {
+                if (!profileData.hasMinimumLevel) {
+                  alert('You need to reach level 10 before you can claim tokens')
+                  return
+                }
+                if (isClaimingPoints) return
+                
+                // Calculate claim amount and show confirmation modal
+                try {
+                  const tokens = await calculateClaimAmount(profileData.dcuPoints)
+                  setCalculatedClaimAmount(tokens)
+                  setShowClaimConfirmModal(true)
+                } catch (error: any) {
+                  console.error('Error calculating claim amount:', error)
+                  alert(`Failed to calculate claim amount: ${error?.message || String(error)}`)
+                }
+              }}
+              disabled={isClaimingPoints || !profileData.hasMinimumLevel || profileData.dcuPoints === 0}
+              className="w-full gap-2 bg-brand-yellow text-black hover:bg-[#e6e600] disabled:opacity-50"
+            >
+              <TrendingUp className="h-4 w-4" />
+              Claim $bDCU
+            </Button>
+          </div>
+        )}
+
+        {/* Staking Section */}
+        {profileData.hasMinimumLevel && (
+          <div className="mb-6 rounded-lg border border-brand-green/30 bg-brand-green/5 p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <Award className="h-5 w-5 text-brand-green" />
+              <h3 className="text-lg font-bold uppercase tracking-wide text-white">
+                Become a Verifier
+              </h3>
+            </div>
+            <p className="mb-4 text-sm text-gray-300">
+              Stake your $bDCU tokens to become a verifier and help review cleanup submissions. You need to reach level 10 first.
+            </p>
+            
+            {profileData.isVerifier ? (
+              <div className="mb-4 rounded-lg border border-brand-green bg-brand-green/10 p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="h-5 w-5 text-brand-green" />
+                  <p className="font-bold text-brand-green">You are a Verifier</p>
+                </div>
+                <p className="text-sm text-gray-300 mb-3">
+                  Staked: {formatUnits(profileData.stakedBalance, 18).replace(/\.?0+$/, '')} $bDCU
+                </p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-400">
+                      Unstake Amount
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={stakeAmount}
+                        onChange={(e) => setStakeAmount(e.target.value)}
+                        placeholder={`Max: ${formatUnits(profileData.stakedBalance, 18).replace(/\.?0+$/, '')}`}
+                        min={0}
+                        step="0.1"
+                        className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const amount = formatUnits(profileData.stakedBalance, 18).replace(/\.?0+$/, '')
+                          setStakeAmount(amount)
+                        }}
+                        className="text-xs whitespace-nowrap"
+                        disabled={profileData.stakedBalance === BigInt(0)}
+                      >
+                        Max
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Staked: {formatUnits(profileData.stakedBalance, 18).replace(/\.?0+$/, '')} $bDCU
+                    </p>
+                    <p className="mt-2 text-xs text-brand-yellow">
+                      ⚠️ Warning: Unstaking tokens will cause you to lose your verifier status if you unstake more than half of your staked tokens.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      if (!stakeAmount || parseFloat(stakeAmount) <= 0) {
+                        alert('Please enter a valid amount to unstake')
+                        return
+                      }
+                      if (isStaking) return
+                      
+                      try {
+                        setIsStaking(true)
+                        const amount = parseUnits(stakeAmount, 18)
+                        if (amount > profileData.stakedBalance) {
+                          alert('Amount exceeds staked balance')
+                          return
+                        }
+                        const hash = await unstakeTokens(amount, chainId)
+                        alert(`Unstake transaction submitted! Hash: ${hash}`)
+                        setStakeAmount('')
+                        // Reload profile data
+                        if (address) {
+                          await loadProfileData(address, { showSpinner: false })
+                        }
+                      } catch (error: any) {
+                        console.error('Error unstaking:', error)
+                        alert(`Failed to unstake: ${error?.message || String(error)}`)
+                      } finally {
+                        setIsStaking(false)
+                      }
+                    }}
+                    disabled={isStaking || !stakeAmount || parseFloat(stakeAmount) <= 0}
+                    variant="outline"
+                    className="w-full border-gray-700 text-white hover:bg-gray-800"
+                  >
+                    {isStaking ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Unstaking...
+                      </>
+                    ) : (
+                      'Unstake Tokens'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-4 space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-400">
+                    Stake Amount ($bDCU)
+                  </label>
+                  <input
+                    type="number"
+                    value={stakeAmount}
+                    onChange={(e) => setStakeAmount(e.target.value)}
+                    placeholder="Enter amount to stake"
+                    min={0}
+                    step="0.1"
+                    className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                  />
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const amount = (profileData.dcuBalance * 0.51).toFixed(2)
+                        setStakeAmount(amount)
+                      }}
+                      className="text-xs"
+                      disabled={profileData.dcuBalance === 0}
+                    >
+                      51%
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const amount = (profileData.dcuBalance * 0.75).toFixed(2)
+                        setStakeAmount(amount)
+                      }}
+                      className="text-xs"
+                      disabled={profileData.dcuBalance === 0}
+                    >
+                      75%
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setStakeAmount(profileData.dcuBalance.toFixed(2))
+                      }}
+                      className="text-xs"
+                      disabled={profileData.dcuBalance === 0}
+                    >
+                      100%
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Available: {profileData.dcuBalance.toFixed(2)} $bDCU
+                  </p>
+                  {!profileData.isVerifier && (
+                    <p className="mt-1 text-xs text-brand-yellow">
+                      ⚠️ You must stake at least 51% of your available tokens to become a verifier
+                    </p>
+                  )}
+                </div>
+                <Button
+                  onClick={async () => {
+                    if (!stakeAmount || parseFloat(stakeAmount) <= 0) {
+                      alert('Please enter a valid amount to stake')
+                      return
+                    }
+                    if (parseFloat(stakeAmount) > profileData.dcuBalance) {
+                      alert('Amount exceeds your balance')
+                      return
+                    }
+                    // If not already a verifier, must stake more than half
+                    if (!profileData.isVerifier && parseFloat(stakeAmount) <= profileData.dcuBalance / 2) {
+                      alert(`You must stake more than half of your available tokens (${((profileData.dcuBalance / 2) + 0.01).toFixed(2)} $bDCU minimum) to become a verifier`)
+                      return
+                    }
+                    if (isStaking) return
+                    
+                    try {
+                      setIsStaking(true)
+                      const amount = parseUnits(stakeAmount, 18)
+                      const hash = await stakeTokensForVerifier(amount, chainId)
+                      alert(`Stake transaction submitted! Hash: ${hash}`)
+                      setStakeAmount('')
+                      // Reload profile data
+                      if (address) {
+                        await loadProfileData(address, { showSpinner: false })
+                      }
+                    } catch (error: any) {
+                      console.error('Error staking:', error)
+                      alert(`Failed to stake: ${error?.message || String(error)}`)
+                    } finally {
+                      setIsStaking(false)
+                    }
+                  }}
+                  disabled={
+                    isStaking || 
+                    !stakeAmount || 
+                    parseFloat(stakeAmount) <= 0 || 
+                    parseFloat(stakeAmount) > profileData.dcuBalance ||
+                    (!profileData.isVerifier && parseFloat(stakeAmount) <= profileData.dcuBalance / 2)
+                  }
+                  className="w-full gap-2 bg-brand-green text-black hover:bg-[#4a9a26] disabled:opacity-50"
+                >
+                  {isStaking ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Staking...
+                    </>
+                  ) : (
+                    <>
+                      <Award className="h-4 w-4" />
+                      Stake Tokens to Become Verifier
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {profileData.level < 10 && (
+          <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800/50 p-4">
+            <p className="text-sm text-gray-400">
+              Reach level 10 to unlock staking and token claiming features.
+            </p>
+          </div>
+        )}
 
         {/* Reward Breakdown - Expandable */}
         <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900 p-6">
@@ -1055,12 +1430,12 @@ function ProfileContent() {
                   <div>
                     <span className="text-sm font-medium text-white">Cleanups - Claims of Impact Product</span>
                     <p className="text-xs text-gray-400">
-                      {profileData.rewardsBreakdown.cleanupCount} cleanup{profileData.rewardsBreakdown.cleanupCount !== 1 ? 's' : ''} = {profileData.rewardsBreakdown.cleanupCount} level claim{profileData.rewardsBreakdown.cleanupCount !== 1 ? 's' : ''}
+                      {profileData.rewardsBreakdown.cleanupCount} cleanup{profileData.rewardsBreakdown.cleanupCount !== 1 ? 's' : ''} = {profileData.rewardsBreakdown.cleanupCount * 10} DCU ({profileData.rewardsBreakdown.cleanupCount} × 10)
                     </p>
                   </div>
                 </div>
                 <span className="text-lg font-mono font-bold text-white">
-                  {profileData.rewardsBreakdown.levelRewards.toFixed(2)} $bDCU
+                  {profileData.rewardsBreakdown.cleanupCount * 10} DCU
                 </span>
               </div>
 
@@ -1069,11 +1444,11 @@ function ProfileContent() {
                   <Users className="h-5 w-5 text-brand-green" />
                   <div>
                     <span className="text-sm font-medium text-white">Referrals</span>
-                    <p className="text-xs text-gray-400">Rewards for referring new users</p>
+                    <p className="text-xs text-gray-400">Rewards for referring new users (3 DCU each)</p>
                   </div>
                 </div>
                 <span className="text-lg font-mono font-bold text-white">
-                  {profileData.rewardsBreakdown.referralRewards.toFixed(2)} $bDCU
+                  {Math.floor(profileData.rewardsBreakdown.referralRewards / 3) * 3} DCU
                 </span>
               </div>
 
@@ -1082,11 +1457,11 @@ function ProfileContent() {
                   <Flame className="h-5 w-5 text-brand-yellow" />
                   <div>
                     <span className="text-sm font-medium text-white">Streak</span>
-                    <p className="text-xs text-gray-400">Weekly streak maintenance rewards</p>
+                    <p className="text-xs text-gray-400">Weekly streak maintenance rewards (1 DCU each)</p>
                   </div>
                 </div>
                 <span className="text-lg font-mono font-bold text-white">
-                  {profileData.rewardsBreakdown.streakRewards.toFixed(2)} $bDCU
+                  {Math.floor(profileData.rewardsBreakdown.streakRewards / 1) * 1} DCU
                 </span>
               </div>
 
@@ -1095,11 +1470,11 @@ function ProfileContent() {
                   <FileText className="h-5 w-5 text-brand-green" />
                   <div>
                     <span className="text-sm font-medium text-white">Impact Reports</span>
-                    <p className="text-xs text-gray-400">Submission of impact reports</p>
+                    <p className="text-xs text-gray-400">Submission of impact reports (3 DCU each)</p>
                   </div>
                 </div>
                 <span className="text-lg font-mono font-bold text-white">
-                  {profileData.rewardsBreakdown.impactFormRewards.toFixed(2)} $bDCU
+                  {Math.floor(profileData.rewardsBreakdown.impactFormRewards / 3) * 3} DCU
                 </span>
               </div>
 
@@ -1108,13 +1483,29 @@ function ProfileContent() {
                   <CheckCircle className="h-5 w-5 text-brand-green" />
                   <div>
                     <span className="text-sm font-medium text-white">Verifier Rewards</span>
-                    <p className="text-xs text-gray-400">Rewards for verifying cleanups</p>
+                    <p className="text-xs text-gray-400">Rewards for verifying cleanups (1 DCU each)</p>
                   </div>
                 </div>
                 <span className="text-lg font-mono font-bold text-white">
-                  {profileData.rewardsBreakdown.verifierRewards.toFixed(2)} $bDCU
+                  {Math.floor(profileData.rewardsBreakdown.verifierRewards)} DCU
                 </span>
               </div>
+
+              {/* Retro Rewards */}
+              {profileData.rewardsBreakdown.retroRewards > 0 && (
+                <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/30 p-3">
+                  <div className="flex items-center gap-3">
+                    <History className="h-5 w-5 text-brand-yellow" />
+                    <div>
+                      <span className="text-sm font-medium text-white">Retro Rewards</span>
+                      <p className="text-xs text-gray-400">Retroactive rewards for past activity</p>
+                    </div>
+                  </div>
+                  <span className="text-lg font-mono font-bold text-white">
+                    {Math.floor(profileData.rewardsBreakdown.retroRewards)} DCU
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1568,6 +1959,122 @@ function ProfileContent() {
           </section>
         )}
 
+        {/* Claim Confirmation Modal */}
+        {showClaimConfirmModal && (
+          <Dialog open={showClaimConfirmModal} onOpenChange={setShowClaimConfirmModal}>
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-bold uppercase text-white">
+                  Confirm Claim
+                </DialogTitle>
+                <DialogDescription className="sr-only">
+                  Confirm converting your DCU to $bDCU tokens
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-4">
+                  <p className="text-sm text-gray-400 mb-2">You will receive:</p>
+                  <p className="text-lg font-bold text-white mb-1 break-words">
+                    {calculatedClaimAmount > BigInt(0) ? formatUnits(calculatedClaimAmount, 18).replace(/\.?0+$/, '') : 'Calculating...'} $bDCU
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    For {profileData.dcuPoints.toFixed(0)} DCU
+                  </p>
+                </div>
+                <p className="text-sm text-gray-300">
+                  This will convert all your DCU to $bDCU tokens based on the current market price.
+                </p>
+              </div>
+              <div className="flex gap-3 mt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowClaimConfirmModal(false)}
+                  className="flex-1 border-gray-700 text-white hover:bg-gray-800"
+                >
+                  Maybe Later
+                </Button>
+                <Button
+                  onClick={async () => {
+                    setShowClaimConfirmModal(false)
+                    if (isClaimingPoints) return
+                    
+                    try {
+                      setIsClaimingPoints(true)
+                      const hash = await claimTokensFromPoints(profileData.dcuPoints, chainId)
+                      
+                      // Show success modal immediately after transaction is submitted
+                      setSuccessModalData({
+                        title: 'Claim Submitted Successfully!',
+                        message: `Your claim for ${formatUnits(calculatedClaimAmount, 18).replace(/\.?0+$/, '')} $bDCU tokens (${profileData.dcuPoints.toFixed(0)} DCU) has been submitted. The transaction is being processed on-chain.`,
+                        transactionHash: hash,
+                      })
+                      setShowSuccessModal(true)
+                      
+                      // Try to wait for confirmation, but handle errors gracefully
+                      const { waitForTransactionReceipt } = await import('wagmi/actions')
+                      const { config } = await import('@/lib/wagmi')
+                      
+                      try {
+                        await waitForTransactionReceipt(config, { 
+                          hash, 
+                          timeout: 120000,
+                          retryCount: 5,
+                          retryDelay: 2000,
+                        })
+                        console.log('✅ Claim transaction confirmed!')
+                        
+                        // Update success message after confirmation
+                        setSuccessModalData({
+                          title: 'Tokens Claimed Successfully!',
+                          message: `You've successfully claimed ${formatUnits(calculatedClaimAmount, 18).replace(/\.?0+$/, '')} $bDCU tokens for ${profileData.dcuPoints.toFixed(0)} DCU.`,
+                          transactionHash: hash,
+                        })
+                      } catch (waitError: any) {
+                        // "Block not found" errors are often temporary - transaction might still succeed
+                        const errorMessage = String(waitError?.message || waitError || '')
+                        if (
+                          errorMessage.includes('block not found') ||
+                          errorMessage.includes('Requested resource not found') ||
+                          errorMessage.includes('ResourceNotFound')
+                        ) {
+                          console.warn('Transaction receipt check failed (block not found - may be temporary):', waitError)
+                          console.log('Transaction was submitted. It may still be processing.')
+                        } else {
+                          console.warn('Transaction confirmation wait failed, but continuing:', waitError)
+                        }
+                      }
+                      
+                      // Poll for balance update after a delay
+                      setTimeout(async () => {
+                        if (address) {
+                          await loadProfileData(address, { showSpinner: false })
+                        }
+                      }, 3000)
+                      
+                    } catch (error: any) {
+                      console.error('Error claiming tokens:', error)
+                      alert(`Failed to claim: ${error?.message || String(error)}`)
+                    } finally {
+                      setIsClaimingPoints(false)
+                    }
+                  }}
+                  disabled={isClaimingPoints}
+                  className="flex-1 gap-2 bg-brand-yellow text-black hover:bg-[#e6e600] disabled:opacity-50"
+                >
+                  {isClaimingPoints ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Claiming...
+                    </>
+                  ) : (
+                    'Confirm'
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {/* Success Modal */}
         {showSuccessModal && successModalData && (
           <SuccessModal
@@ -1575,6 +2082,10 @@ function ProfileContent() {
             onClose={() => {
               setShowSuccessModal(false)
               setSuccessModalData(null)
+              // Reload profile data when modal is closed
+              if (address) {
+                loadProfileData(address, { showSpinner: false })
+              }
             }}
             title={successModalData.title}
             message={successModalData.message}

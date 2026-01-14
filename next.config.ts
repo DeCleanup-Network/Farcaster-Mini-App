@@ -4,11 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   // Use webpack instead of Turbopack for better compatibility with RainbowKit/WalletConnect
   // Turbopack has issues with Node.js modules (pino/thread-stream) in client bundles
-  // Set workspace root to silence lockfile warning
-  // Explicitly set to project root (current working directory)
-  turbopack: {
-    root: process.cwd(),
-  },
+  // Note: Dev script uses --webpack flag to force webpack usage
   // Allow images from IPFS gateways (with fallbacks)
   // Note: We use unoptimized flag in Image components, so remotePatterns are less strict
   // Full URLs with ?filename= parameter will work with unoptimized flag
@@ -39,7 +35,7 @@ const nextConfig: NextConfig = {
     // Allow unoptimized images from any domain (for full URLs)
     unoptimized: false, // Keep optimization enabled, but unoptimized flag in component overrides
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
     if (!isServer) {
       // Exclude Node.js-only modules from client bundle
       config.resolve.fallback = {
@@ -64,6 +60,15 @@ const nextConfig: NextConfig = {
         '@react-native-async-storage/async-storage': false,
         'pino-pretty': false,
       };
+      
+      // Use IgnorePlugin to suppress warnings for optional React Native dependencies
+      // MetaMask SDK includes React Native code that tries to import these, but they're not needed in web
+      config.plugins = config.plugins || [];
+      config.plugins.push(
+        new webpack.IgnorePlugin({
+          resourceRegExp: /^@react-native-async-storage\/async-storage$/,
+        })
+      );
       
       // Ignore test files and other non-code files from problematic packages
       config.module = config.module || {};

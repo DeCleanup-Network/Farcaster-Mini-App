@@ -91,10 +91,12 @@ export async function validateChain(forceRefresh = false): Promise<ValidationRes
 
 /**
  * Validate Reward Distributor balance
- * Checks if the Reward Distributor has sufficient balance for rewards
+ * Checks if the PointsRewardDistributor has sufficient token balance for claims
  * 
- * Note: Tokens are funded from multisig directly to the Reward Distributor contract.
- * The contract holds locked bDCU tokens and distributes them to users on-chain.
+ * Note: This should ONLY be called when user is actually claiming tokens (not when earning points).
+ * Users earn DCU points first, then claim tokens after reaching level 10.
+ * 
+ * Tokens are funded from multisig directly to the PointsRewardDistributor contract.
  */
 export async function validateRewardDistributorBalance(
   requiredAmount: bigint,
@@ -104,16 +106,15 @@ export async function validateRewardDistributorBalance(
   const warnings: string[] = []
 
   try {
-    if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
-      errors.push('Reward Distributor contract address not configured')
+    if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+      errors.push('PointsRewardDistributor contract address not configured')
       return { valid: false, errors, warnings }
     }
 
-    // Get balance of Reward Distributor contract directly
+    // Get balance of PointsRewardDistributor contract directly
     // Tokens are sent from multisig directly to this contract
-    // The contract internally tracks its token balance
     const balance = await readContract(getWagmiConfig(), {
-      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
       abi: REWARD_DISTRIBUTOR_ABI,
       functionName: 'getContractBalance',
     }) as bigint

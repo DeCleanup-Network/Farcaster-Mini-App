@@ -1628,14 +1628,14 @@ export default function VerifierPage() {
                 {verifierStats.isLoading ? (
                   <Loader2 className="h-6 w-6 animate-spin" />
                 ) : (
-                  `${verifierStats.verifierEarned} $bDCU`
+                  `${verifierStats.verifierEarned} DCU`
                 )}
               </div>
             </div>
           </div>
           <div className="mt-4 rounded-lg border border-green-500/20 bg-green-500/5 p-3">
             <p className="text-xs text-gray-400">
-              <strong className="text-green-300">Verifier Rewards:</strong> You receive <strong className="text-green-300">1 $bDCU</strong> for each cleanup you verify, whether you approve or reject it. 
+              <strong className="text-green-300">Verifier Rewards:</strong> You receive <strong className="text-green-300">1 DCU</strong> for each cleanup you verify, whether you approve or reject it. 
               This rewards your verification activity and helps maintain quality standards.
             </p>
           </div>

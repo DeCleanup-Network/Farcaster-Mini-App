@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./ImpactProductNFT.sol"; // This includes IRewardDistributor interface
 
 /**
@@ -10,7 +13,7 @@ import "./ImpactProductNFT.sol"; // This includes IRewardDistributor interface
  * @notice Handle cleanup verification and Impact Product claims
  * @dev Team-only verification for MVP, will add community verification later
  */
-contract VerificationContract is Ownable, ReentrancyGuard {
+contract VerificationContract is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, UUPSUpgradeable {
     // Cleanup submission structure
     struct CleanupSubmission {
         address user;
@@ -55,6 +58,9 @@ contract VerificationContract is Ownable, ReentrancyGuard {
     uint256 public claimFee;
     bool public claimFeeEnabled;
     
+    // Fee treasury address (if set, fees go here instead of owner)
+    address public feeTreasury;
+    
     // Events
     event CleanupSubmitted(uint256 indexed cleanupId, address indexed user, uint256 timestamp);
     event CleanupVerified(uint256 indexed cleanupId, address indexed user, uint8 level);
@@ -62,16 +68,16 @@ contract VerificationContract is Ownable, ReentrancyGuard {
     event ImpactProductClaimed(uint256 indexed cleanupId, address indexed user, uint8 level);
     event SubmissionFeeUpdated(uint256 newFee, bool enabled);
     event ClaimFeeUpdated(uint256 newFee, bool enabled);
+    event FeeTreasuryUpdated(address indexed newTreasury);
     event VerifierAdded(address indexed verifier);
     event VerifierRemoved(address indexed verifier);
     
-    /**
-     * @notice Constructor
-     * @param _initialVerifiers Array of initial verifier addresses
-     * @param _impactProductNFT Impact Product NFT contract address
-     * @param _rewardDistributor Reward Distributor contract address
-     */
-    constructor(
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+    
+    function initialize(
         address[] memory _initialVerifiers,
         address _impactProductNFT,
         address _rewardDistributor,
@@ -79,11 +85,14 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         bool _feeEnabled,
         uint256 _claimFee,
         bool _claimFeeEnabled
-    ) Ownable(msg.sender) {
+    ) public initializer {
         require(_impactProductNFT != address(0), "Invalid Impact Product NFT address");
         require(_rewardDistributor != address(0), "Invalid Reward Distributor address");
         
-        // Add initial verifiers to allowlist
+        __Ownable_init(msg.sender);
+        __ReentrancyGuard_init();
+        __Pausable_init();
+        
         for (uint256 i = 0; i < _initialVerifiers.length; i++) {
             require(_initialVerifiers[i] != address(0), "Invalid verifier address");
             verifiers[_initialVerifiers[i]] = true;
@@ -96,7 +105,17 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         feeEnabled = _feeEnabled;
         claimFee = _claimFee;
         claimFeeEnabled = _claimFeeEnabled;
-        cleanupCounter = 1; // Start from cleanupId 1
+        cleanupCounter = 1;
+    }
+    
+    uint256[50] private __gap;
+    
+    function pause() external onlyOwner {
+        _pause();
+    }
+    
+    function unpause() external onlyOwner {
+        _unpause();
     }
     
     /**
@@ -118,7 +137,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         address referrerAddress,
         bool hasImpactForm,
         string memory impactReportHash
-    ) external payable nonReentrant returns (uint256) {
+    ) external payable whenNotPaused nonReentrant returns (uint256) {
         require(bytes(beforePhotoHash).length > 0, "Before photo hash required");
         require(bytes(afterPhotoHash).length > 0, "After photo hash required");
         require(msg.sender != address(0), "Invalid address");
@@ -126,31 +145,35 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         // Check and collect submission fee if enabled
         if (feeEnabled && submissionFee > 0) {
             require(msg.value >= submissionFee, "Insufficient fee");
-            // Fee is automatically sent to contract, owner can withdraw
+            // Automatically withdraw to treasury if set
+            _withdrawFeesIfNeeded();
         }
         
         // IMPORTANT: Referral is only valid for the user's FIRST submission AND if they haven't received a referral reward yet
         // Check both conditions to prevent duplicate referral rewards
         address validReferrer = address(0);
         bool hasReceivedReferral = false;
-        try IRewardDistributor(rewardDistributor).hasReceivedReferralReward(msg.sender) returns (bool result) {
+        // Check if user has received referral reward (try new system first, fallback to old)
+        try IPointsRewardDistributor(rewardDistributor).hasReceivedReferralReward(msg.sender) returns (bool result) {
             hasReceivedReferral = result;
         } catch {
-            // If check fails (e.g., old contract), assume false and let distributeReferralReward handle it
+            try IRewardDistributor(rewardDistributor).hasReceivedReferralReward(msg.sender) returns (bool result) {
+                hasReceivedReferral = result;
+            } catch {
+                // If check fails, assume false and let awardReferralPoints handle it
             hasReceivedReferral = false;
+            }
         }
         
         // Only set referrer if:
-        // 1. User hasn't submitted before
-        // 2. User hasn't received a referral reward yet
-        // 3. Referrer address is valid and not self
-        if (!hasSubmittedCleanup[msg.sender] && !hasReceivedReferral && referrerAddress != address(0) && referrerAddress != msg.sender) {
-            // This is user's first submission, they haven't received referral reward, and they have a valid referrer
+        // 1. User hasn't received a referral reward yet
+        // 2. Referrer address is valid and not self
+        // Note: Rejected cleanups don't prevent referral rewards - only verified cleanups do
+        if (!hasReceivedReferral && referrerAddress != address(0) && referrerAddress != msg.sender) {
             validReferrer = referrerAddress;
         }
-        // If user has already submitted or received referral reward, validReferrer remains address(0) (no referral reward)
         
-        // Mark user as having submitted (prevents future referral rewards)
+        // Mark user as having submitted (for tracking, but doesn't prevent referral if rejected)
         hasSubmittedCleanup[msg.sender] = true;
         
         uint256 cleanupId = cleanupCounter;
@@ -189,7 +212,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
      * @param level Level to assign (1-10)
      * @dev User rewards are distributed when user claims, but verifier gets reward immediately
      */
-    function verifyCleanup(uint256 cleanupId, uint8 level) external {
+    function verifyCleanup(uint256 cleanupId, uint8 level) external whenNotPaused {
         require(verifiers[msg.sender] || msg.sender == owner(), "Not authorized");
         require(level >= 1 && level <= 10, "Invalid level");
         
@@ -201,9 +224,16 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         cleanup.verified = true;
         cleanup.level = level;
         
+        // Mark user as having a verified cleanup (prevents future referral rewards)
+        // This is set on verification, not submission, so rejected cleanups don't prevent referral rewards
+        hasSubmittedCleanup[cleanup.user] = true;
+        
         // Distribute verifier reward (1 $bDCU) - verifier gets reward immediately
         // User rewards are distributed when user claims their Impact Product
+        // Award verifier points (try new system first, fallback to old)
+        try IPointsRewardDistributor(rewardDistributor).awardVerifierPoints(msg.sender, cleanupId) {} catch {
         try IRewardDistributor(rewardDistributor).distributeVerifierReward(msg.sender, cleanupId) {} catch {}
+        }
         
         emit CleanupVerified(cleanupId, cleanup.user, level);
     }
@@ -213,7 +243,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
      * @param cleanupId Cleanup ID
      * @dev Verifier gets reward even for rejections (1 $bDCU)
      */
-    function rejectCleanup(uint256 cleanupId) external {
+    function rejectCleanup(uint256 cleanupId) external whenNotPaused {
         require(verifiers[msg.sender] || msg.sender == owner(), "Not authorized");
         
         CleanupSubmission storage cleanup = cleanups[cleanupId];
@@ -224,7 +254,10 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         cleanup.rejected = true;
         
         // Distribute verifier reward (1 $bDCU) - verifier gets reward for rejections too
+        // Award verifier points (try new system first, fallback to old)
+        try IPointsRewardDistributor(rewardDistributor).awardVerifierPoints(msg.sender, cleanupId) {} catch {
         try IRewardDistributor(rewardDistributor).distributeVerifierReward(msg.sender, cleanupId) {} catch {}
+        }
         
         emit CleanupRejected(cleanupId, cleanup.user);
     }
@@ -234,7 +267,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
      * @param cleanupId Cleanup ID
      * @dev All rewards (referral, streak, impact form) are distributed here, not on verification
      */
-    function claimImpactProduct(uint256 cleanupId) external payable nonReentrant {
+    function claimImpactProduct(uint256 cleanupId) external payable whenNotPaused nonReentrant {
         CleanupSubmission storage cleanup = cleanups[cleanupId];
         require(cleanup.user != address(0), "Cleanup does not exist");
         require(cleanup.user == msg.sender, "Not your cleanup");
@@ -244,7 +277,8 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         // Check and collect claim fee if enabled
         if (claimFeeEnabled && claimFee > 0) {
             require(msg.value >= claimFee, "Insufficient claim fee");
-            // Fee is automatically sent to contract, owner can withdraw
+            // Automatically withdraw to treasury if set
+            _withdrawFeesIfNeeded();
         }
         
         cleanup.claimed = true;
@@ -255,19 +289,24 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         // This ensures users only receive rewards after they claim their Impact Product
         // Note: If rewards were already distributed (e.g., from old contract), they will fail silently
         
-        // Distribute streak reward if applicable (may fail if already distributed, that's OK)
+        // Distribute rewards using points system (try new system first, fallback to old)
+        // Streak reward
+        try IPointsRewardDistributor(rewardDistributor).awardStreakPoints(user) {} catch {
         try IRewardDistributor(rewardDistributor).distributeStreakReward(user) {} catch {}
-        
-        // Distribute referral reward if applicable (only once per user)
-        // May fail if already claimed, that's OK - user already got the reward
-        if (cleanup.referrer != address(0)) {
-            try IRewardDistributor(rewardDistributor).distributeReferralReward(cleanup.referrer, user) {} catch {}
         }
         
-        // Distribute impact form reward if applicable
-        // May fail if already claimed (e.g., from old contract), that's OK
+        // Referral reward (only once per user)
+        if (cleanup.referrer != address(0)) {
+            try IPointsRewardDistributor(rewardDistributor).awardReferralPoints(cleanup.referrer, user) {} catch {
+            try IRewardDistributor(rewardDistributor).distributeReferralReward(cleanup.referrer, user) {} catch {}
+            }
+        }
+        
+        // Impact form reward
         if (cleanup.hasImpactForm) {
+            try IPointsRewardDistributor(rewardDistributor).awardImpactFormPoints(user, cleanupId) {} catch {
             try IRewardDistributor(rewardDistributor).distributeImpactFormReward(user, cleanupId) {} catch {}
+            }
         }
         
         // Claim Impact Product level for the user (this will also distribute 10 DCU level reward)
@@ -397,12 +436,52 @@ contract VerificationContract is Ownable, ReentrancyGuard {
     }
     
     /**
+     * @notice Set fee treasury address (only owner)
+     * @param _feeTreasury Address where fees should be sent (set to address(0) to send to owner)
+     */
+    function setFeeTreasury(address _feeTreasury) external onlyOwner {
+        feeTreasury = _feeTreasury;
+        emit FeeTreasuryUpdated(_feeTreasury);
+    }
+    
+    /**
      * @notice Withdraw collected fees (only owner)
+     * Fees go to feeTreasury if set, otherwise to owner
      */
     function withdrawFees() external onlyOwner {
         uint256 balance = address(this).balance;
         require(balance > 0, "No fees to withdraw");
-        payable(owner()).transfer(balance);
+        
+        address recipient = feeTreasury != address(0) ? feeTreasury : owner();
+        payable(recipient).transfer(balance);
+    }
+    
+    /**
+     * @notice Internal function to automatically withdraw fees to treasury if set
+     */
+    function _withdrawFeesIfNeeded() internal {
+        if (feeTreasury != address(0)) {
+            uint256 balance = address(this).balance;
+            if (balance > 0) {
+                payable(feeTreasury).transfer(balance);
+            }
+        }
+    }
+    
+    /**
+     * @notice Slash verifier (owner only)
+     * Removes verifier status from this contract
+     * Use this if a verifier incorrectly rejects good submissions
+     * Note: This only removes from VerificationContract verifier list
+     * To remove from PointsRewardDistributor, use that contract's removeVerifier function
+     * @param verifierAddress Address of verifier to slash
+     */
+    function slashVerifier(address verifierAddress) external onlyOwner {
+        require(verifierAddress != address(0), "Invalid address");
+        require(verifiers[verifierAddress], "Not a verifier");
+        
+        verifiers[verifierAddress] = false;
+        emit VerifierRemoved(verifierAddress);
     }
     
     /**
@@ -421,5 +500,7 @@ contract VerificationContract is Ownable, ReentrancyGuard {
         // New code should use isVerifier() to check verifier status
         return address(0);
     }
+    
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }
 

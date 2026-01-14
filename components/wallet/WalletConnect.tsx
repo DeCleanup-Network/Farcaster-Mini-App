@@ -492,8 +492,51 @@ export function WalletConnect() {
           // Connected - show account button
           return (
             <div className="flex items-center gap-2">
-              <div 
-                className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-2 py-1.5 sm:px-3 sm:py-2 cursor-pointer hover:border-brand-green transition-colors"
+              <div className="flex items-center gap-1 rounded-lg border border-gray-700 bg-gray-900 px-2 py-1.5 sm:px-3 sm:py-2">
+                <Wallet className="h-3 w-3 text-brand-green sm:h-4 sm:w-4" />
+                <span className="text-xs font-medium text-white sm:text-sm">
+                  {/* RainbowKit's account.displayName automatically includes ENS if available */}
+                  {account.displayName || `${account.address.slice(0, 6)}...${account.address.slice(-4)}`}
+                </span>
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation()
+                    try {
+                      await navigator.clipboard.writeText(account.address)
+                      // Show visual feedback
+                      const button = e.currentTarget
+                      const originalHTML = button.innerHTML
+                      button.innerHTML = '✓'
+                      button.classList.add('text-brand-green')
+                      setTimeout(() => {
+                        button.innerHTML = originalHTML
+                        button.classList.remove('text-brand-green')
+                      }, 2000)
+                    } catch (error) {
+                      console.error('Failed to copy address:', error)
+                      alert(`Address: ${account.address}`)
+                    }
+                  }}
+                  className="ml-1 text-gray-400 hover:text-brand-green transition-colors p-1"
+                  title="Copy address"
+                  type="button"
+                >
+                  <svg
+                    className="h-3 w-3 sm:h-4 sm:w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <button
                 onClick={() => {
                   // Use the render prop function from ConnectButton.Custom
                   // This is the most reliable way inside the ConnectButton context
@@ -501,14 +544,11 @@ export function WalletConnect() {
                     openAccountModal()
                   }
                 }}
-                title={`Click to view account details or disconnect. Full address: ${account.address}`}
+                className="text-xs text-gray-400 hover:text-white transition-colors px-2"
+                title="View account details"
               >
-                <Wallet className="h-3 w-3 text-brand-green sm:h-4 sm:w-4" />
-                <span className="text-xs font-medium text-white sm:text-sm">
-                  {/* RainbowKit's account.displayName automatically includes ENS if available */}
-                  {account.displayName || `${account.address.slice(0, 6)}...${account.address.slice(-4)}`}
-                </span>
-              </div>
+                <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
+              </button>
               <Button
                 variant="outline"
                 size="sm"

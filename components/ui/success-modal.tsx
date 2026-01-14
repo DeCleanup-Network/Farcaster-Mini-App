@@ -86,13 +86,13 @@ export function SuccessModal({
       }}
     >
       <div 
-        className="relative mx-4 w-full max-w-md rounded-lg border-2 border-brand-green bg-gray-900 p-6 shadow-2xl"
+        className="relative mx-4 w-full max-w-md max-h-[90vh] overflow-y-auto rounded-lg border-2 border-brand-green bg-gray-900 p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+          className="absolute right-4 top-4 rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors z-10"
           aria-label="Close"
         >
           <X className="h-5 w-5" />
@@ -106,19 +106,19 @@ export function SuccessModal({
         </div>
 
         {/* Title */}
-        <h2 className="mb-3 text-center text-2xl font-bold uppercase tracking-wide text-white">
+        <h2 className="mb-3 text-center text-xl font-bold uppercase tracking-wide text-white">
           {title}
         </h2>
 
         {/* Message */}
-        <p className="mb-6 text-center text-sm text-gray-300 leading-relaxed">
+        <p className="mb-6 text-center text-sm text-gray-300 leading-relaxed break-words">
           {message}
         </p>
 
         {/* Transaction hash */}
         {transactionHash && (
-          <div className="mb-4 rounded-lg border border-gray-700 bg-gray-800 p-3">
-            <p className="mb-1 text-xs text-gray-400">Transaction Hash:</p>
+          <div className="mb-4 rounded-lg border border-gray-700 bg-gray-800/50 p-3">
+            <p className="mb-1 text-xs font-medium text-gray-400 uppercase tracking-wide">Transaction Hash:</p>
             <p className="break-all font-mono text-xs text-white">
               {transactionHash}
             </p>
@@ -132,7 +132,7 @@ export function SuccessModal({
               href={explorerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-lg border-2 border-brand-green bg-brand-green/10 px-4 py-2 text-sm font-semibold text-brand-green hover:bg-brand-green/20 transition-colors"
+              className="flex items-center justify-center gap-2 rounded-lg border-2 border-brand-green bg-brand-green/10 px-4 py-3 text-sm font-semibold text-brand-green hover:bg-brand-green/20 transition-colors"
             >
               <ExternalLink className="h-4 w-4" />
               View on {explorerName}
@@ -167,7 +167,7 @@ export function SuccessModal({
           
           <Button
             onClick={onClose}
-            className="w-full border-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800"
+            className="w-full border-2 border-gray-700 bg-gray-800 text-white hover:bg-gray-700 transition-colors"
           >
             Close
           </Button>

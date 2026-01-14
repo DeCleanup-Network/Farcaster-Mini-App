@@ -1,106 +1,174 @@
-# Mainnet Deployment Notes
+# Mainnet Deployment Status
 
-## Token Distribution Model
+## 📊 Current Status: Points-Based Reward System
 
-### Funding Strategy
+### System Overview
 
-**Reward Allocation:**
-- **15% of total token supply is reserved for rewards**
-- These tokens are currently **locked by Clanker** (the token contract)
-- When unlocked, they will be sent to the multisig, which then funds the Reward Distributor contract
+The system uses a **points-based reward model** where:
+- Users earn **DCU Points** (not tokens directly)
+- Points are awarded for: cleanup submissions (10 = $0.50), streaks (1 = $0.05), referrals (2 = $0.10), impact forms (3 = $0.15), verifications (1 = $0.05)
+- Users can **claim tokens** at any time using their accumulated points
+- Claim amount = `(points × targetRewardValueUSD) / LEVEL_POINTS` converted to tokens based on market price
+- Target: $0.50 USD per cleanup reward (10 points)
+- Users must reach **Level 10** before they can claim tokens or stake
 
-**Token Flow:**
-1. **Clanker Lock**: 15% of tokens reserved for rewards are locked by Clanker (token contract)
-2. **Unlock/Release**: When unlocked, tokens are released from Clanker
-3. **Multisig**: Unlocked tokens are sent to the multisig wallet for management
-4. **Reward Distributor**: Multisig **manually** sends tokens to the Reward Distributor contract as needed (NOT automated)
-5. **Distribution**: Reward Distributor **automatically** distributes tokens to users on-chain when they claim Impact Products, maintain streaks, etc. (AUTOMATED)
+---
 
-**Key Distinction:**
-- **TO Reward Distributor**: Manual transfers from multisig (team must send tokens)
-- **FROM Reward Distributor**: Automated transfers to users (happens automatically when users claim rewards)
+## ✅ Completed Tasks
 
-**Reward Distribution:**
-- The Reward Distributor contract holds bDCU tokens and distributes them automatically when users:
-  - Claim Impact Product levels (10 $bDCU)
-  - Maintain streaks (2 $bDCU)
-  - Refer new users (3 $bDCU each)
-  - Submit impact forms (5 $bDCU)
-  - Verify cleanups (1 $bDCU per verification)
+### Contract Development
+- [x] PointsRewardDistributor contract created
+- [x] Points awarding functions implemented (awardLevelPoints, awardStreakPoints, etc.)
+- [x] Claim function implemented (claimTokens)
+- [x] Staking functions implemented (stakeTokens, unstakeTokens)
+- [x] Price management functions implemented (updateTokenPrice, updateTargetRewardValue)
+- [x] Level 10 requirement for claiming/staking implemented
+- [x] Contract linking functions implemented (setImpactProductNFT, setVerificationContract)
 
-**Important**: 15% of tokens are reserved for rewards but are currently locked by Clanker. The actual amount available for distribution depends on what has been unlocked and sent to the Reward Distributor contract.
+### Frontend Integration
+- [x] Points display on profile page
+- [x] Claim UI implemented
+- [x] Staking UI implemented
+- [x] Updated all reward displays from "$bDCU" to "DCU points"
+- [x] Points balance reading from contract
+- [x] Claim amount calculation
+- [x] Staking validation (51% minimum for new verifiers)
 
-### Contract Configuration
-- **Reward Distributor Contract**: Must be funded with bDCU tokens from multisig
-  - User balances are read from Reward Distributor's `totalDistributed(address)` mapping
-  - This shows the cumulative tokens distributed to each user (total rewards earned)
-- **bDCU Token Contract (Clanker)**: Optional for frontend
-  - **Mainnet Address**: [`0x30171b7014c02229497cde6745dd3ad821f12b07`](https://basescan.org/token/0x30171b7014c02229497cde6745dd3ad821f12b07)
-  - Contract Name: ClankerToken (DeCleanup Network - bDCU)
-  - Decimals: 18
-  - **15% of tokens are reserved for rewards and are currently locked by Clanker**
-  - **Reward Distributor Contract Usage**: The Reward Distributor contract was deployed with the token address in its constructor. It uses this address to call `token.transfer()` when automatically distributing rewards to users (Reward Distributor → Users transfers are automated).
-  - **Multisig → Reward Distributor**: Manual transfers from multisig to Reward Distributor (not automated, done by team)
-  - **Frontend Usage**: Only needed for the "Import Token" feature (to show users the token contract address for wallet import)
-  - **Balance Reading**: The frontend reads user balances from Reward Distributor's `totalDistributed` mapping, NOT from the token contract
-  - **Optional Environment Variable**: `NEXT_PUBLIC_BDCU_TOKEN_ADDRESS` is optional - only needed if you want to enable the Import Token feature
-  - **Token Flow**: Clanker (locked) → Unlock → Multisig (manual transfer) → Reward Distributor → Users (automated via contract)
+### Testing & Deployment (Testnet)
+- [x] Contracts deployed to Base Sepolia
+- [x] Contracts linked and configured
+- [x] Initial prices set
+- [x] Test points awarded
+- [x] Test claims executed
+- [x] Test staking executed
 
-### Environment Variables
+---
 
-#### Required for Mainnet:
+## 🔄 Next Steps (Mainnet Deployment)
+
+### Phase 1: Contract Deployment
+- [ ] Deploy ImpactProductNFT to Base Mainnet
+- [ ] Deploy VerificationContract to Base Mainnet
+- [ ] Deploy PointsRewardDistributor to Base Mainnet
+  - [ ] Use mainnet bDCU token address: `0x30171b7014c02229497cde6745dd3ad821f12b07`
+  - [ ] Set initial token price (8 decimals)
+- [ ] Verify all contracts on Basescan
+- [ ] Save contract addresses
+
+### Phase 2: Contract Configuration
+- [ ] Link contracts:
+  - [ ] Call `setImpactProductNFT(address)` on PointsRewardDistributor
+  - [ ] Call `setVerificationContract(address)` on PointsRewardDistributor
+- [ ] Set initial prices on PointsRewardDistributor:
+  - [ ] Call `updateTokenPrice(uint256)` with current market price (8 decimals)
+  - [ ] Call `updateTargetRewardValue(uint256)` with target value (40-60 cents, default 50)
+- [ ] Transfer ownership to multisig (if needed)
+- [ ] Set fee treasury address (if using separate Safe for fees)
+
+### Phase 3: Token Funding
+- [ ] Unlock tokens from Clanker (if locked)
+- [ ] Transfer tokens from multisig to PointsRewardDistributor contract
+- [ ] Verify contract balance on Basescan
+- [ ] Set up balance monitoring/alerts
+
+### Phase 4: Frontend Deployment
+- [ ] Update environment variables:
+  ```bash
+  NEXT_PUBLIC_CHAIN_ID=8453
+  NEXT_PUBLIC_RPC_URL=https://mainnet.base.org
+  NEXT_PUBLIC_BLOCK_EXPLORER_URL=https://basescan.org
+  NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS=0x...
+  NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS=0x...
+  NEXT_PUBLIC_POINTS_REWARD_DISTRIBUTOR_ADDRESS=0x...
+  NEXT_PUBLIC_BDCU_TOKEN_ADDRESS=0x30171b7014c02229497cde6745dd3ad821f12b07
+  ```
+- [ ] Deploy frontend to production (Vercel or other platform)
+- [ ] Verify all contract interactions work on mainnet
+
+### Phase 5: Testing & Validation
+- [ ] Test points awarding with a test transaction
+- [ ] Test claim function with test points
+- [ ] Test staking functionality
+- [ ] Verify price calculations are correct
+- [ ] Test all reward types (level, streak, referral, impact form, verifier)
+- [ ] Monitor contract balance and ensure sufficient funding
+
+### Phase 6: Ongoing Maintenance
+- [ ] Set up regular balance monitoring
+- [ ] Schedule regular token price updates
+- [ ] Set up fee withdrawal schedule (twice weekly)
+- [ ] Monitor points balances vs available tokens
+- [ ] Set up alerts for low contract balance
+
+---
+
+## 📋 Quick Reference
+
+### Contract Addresses (Mainnet)
+- **bDCU Token**: `0x30171b7014c02229497cde6745dd3ad821f12b07`
+- **ImpactProductNFT**: `0x...` (to be deployed)
+- **VerificationContract**: `0x...` (to be deployed)
+- **PointsRewardDistributor**: `0x...` (to be deployed)
+
+### Key Functions
+
+**PointsRewardDistributor:**
+- `awardLevelPoints(address user)` - Award 10 points for level claim
+- `awardStreakPoints(address user)` - Award 2 points for streak
+- `awardReferralPoints(address referrer, address referee)` - Award 3 points each
+- `awardImpactFormPoints(address user, uint256 cleanupId)` - Award 5 points
+- `awardVerifierPoints(address verifier, uint256 cleanupId)` - Award 1 point
+- `claimTokens(uint256 pointsToClaim)` - Convert points to tokens
+- `stakeTokens(uint256 amount)` - Stake tokens to become verifier
+- `updateTokenPrice(uint256 newPrice)` - Update token price (8 decimals)
+- `updateTargetRewardValue(uint256 newValue)` - Update target reward value (cents)
+
+**VerificationContract:**
+- `withdrawFees()` - Withdraw accumulated fees (goes to owner or feeTreasury)
+
+### Useful Scripts
+
 ```bash
-# Network Configuration
-NEXT_PUBLIC_CHAIN_ID=8453  # Base Mainnet
-NEXT_PUBLIC_RPC_URL=https://mainnet.base.org
-NEXT_PUBLIC_BLOCK_EXPLORER_URL=https://basescan.org
+# Check contract owners
+cd contracts
+npx hardhat run scripts/checkContractOwners.js --network baseMainnet
 
-# Contract Addresses
-NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS=0x...
-NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS=0x...
-NEXT_PUBLIC_BDCU_REWARD_DISTRIBUTOR_ADDRESS=0x...
+# Check fee treasury
+npx hardhat run scripts/checkFeeTreasury.js --network baseMainnet
 
-# Note: NEXT_PUBLIC_BDCU_TOKEN_ADDRESS is OPTIONAL
-# - User balances are read from Reward Distributor's totalDistributed mapping (not from token contract)
-# - The token contract address is only needed for the "Import Token" feature (to show users the address)
-# - The Reward Distributor contract was deployed with the token address and uses it to call transfer() when distributing rewards
-# - Multisig → Reward Distributor transfers are manual (not automated)
+# Check fees
+npx hardhat run scripts/checkFees.js --network baseMainnet
+
+# Withdraw fees
+npx hardhat run scripts/withdrawFees.js --network baseMainnet
+
+# Setup PointsRewardDistributor
+npx hardhat run scripts/setupPointsRewardDistributor.js --network baseMainnet
 ```
 
-#### Pre-Deployment Checklist
-1. ✅ Deploy all contracts to Base Mainnet
-2. ✅ Fund Reward Distributor contract from multisig with bDCU tokens
-3. ✅ Link Verification Contract to Reward Distributor (if not done during deployment)
-4. ✅ Verify contract addresses on Basescan
-5. ✅ Update environment variables in Vercel (or deployment platform)
-6. ✅ Test reward distribution with a test transaction
-7. ✅ Monitor contract balance and set up alerts for low balance
+---
 
-### Validation & Monitoring
+## 📝 Important Notes
 
-The app includes pre-flight validation that checks:
-- Wallet connection status
-- Correct network (Base Mainnet)
-- Reward Distributor balance (optional, can be disabled)
+### Token Flow
+1. **Clanker Lock**: 15% of tokens reserved for rewards are locked by Clanker
+2. **Unlock/Release**: When unlocked, tokens are released from Clanker
+3. **Multisig**: Unlocked tokens are sent to the multisig wallet
+4. **PointsRewardDistributor**: Multisig manually sends tokens to the contract
+5. **Points Awarding**: Points are automatically awarded when users perform actions
+6. **Token Claims**: Users manually claim tokens using their points
 
-To monitor the Reward Distributor balance:
-- Use `checkRewardDistributorFunded()` function
-- Check contract balance on Basescan
-- Set up alerts for low balance thresholds
+### Fee Management
+- Fees collected from submissions and claims are stored in VerificationContract
+- Fees can go to owner (default) or feeTreasury (if set)
+- Withdraw fees twice weekly using `withdrawFees()` script
+- See `FEE_MANAGEMENT.md` for detailed instructions
 
-### Important Notes
-
-1. **Token Contract Address**: The bDCU token contract address (`NEXT_PUBLIC_BDCU_TOKEN_ADDRESS`) is **optional** for the frontend. It's only needed for the "Import Token" feature. User balances are read directly from the Reward Distributor contract's `totalDistributed(address)` mapping. The Reward Distributor contract was deployed with the token address and uses it to call `token.transfer()` when automatically distributing rewards to users. Multisig → Reward Distributor transfers are manual (done by team), but Reward Distributor → Users transfers are automated (contract calls token.transfer()).
-
-2. **User Balance Reading**: The frontend reads user balances from `Reward Distributor.totalDistributed(userAddress)`, which shows the total rewards earned by each user. This is more accurate than reading from the token contract's `balanceOf()` since it shows cumulative rewards regardless of whether the user has spent/transferred tokens.
-
-3. **Multisig Funding**: Ensure the Reward Distributor contract is funded before users start claiming rewards. The contract will fail transactions if it doesn't have sufficient balance.
-
-4. **Balance Monitoring**: Regularly check the Reward Distributor contract balance using `getContractBalance()` and fund it from multisig as needed.
-
-5. **Contract Linking**: Ensure the Verification Contract is properly linked to the Reward Distributor contract. Use `checkVerificationContractLinked()` to verify.
+### Price Management
+- Token price should be updated regularly based on market conditions
+- Target reward value: $0.50 per cleanup (10 points)
+- Use `updateTokenPrice()` to maintain target value
 
 ---
 
 *Last updated: 2025*
-

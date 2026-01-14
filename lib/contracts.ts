@@ -403,8 +403,8 @@ async function ensureWalletConnected(): Promise<Address> {
 }
 
 // Check if wallet has sufficient balance for gas fees
-// Estimates a minimum of 0.001 ETH (or equivalent) for gas
-async function checkGasBalance(walletAddress: Address, minBalance: bigint = BigInt('1000000000000000')): Promise<void> {
+// Uses a lower minimum for testnet (0.0001 ETH) and higher for mainnet (0.001 ETH)
+async function checkGasBalance(walletAddress: Address, minBalance?: bigint): Promise<void> {
   try {
     const publicClient = getPublicClient(getWagmiConfig())
     if (!publicClient) {
@@ -412,12 +412,25 @@ async function checkGasBalance(walletAddress: Address, minBalance: bigint = BigI
       return
     }
     
+    // Verify we're checking balance on the correct chain
+    const currentChainId = await getCurrentChainId()
+    if (currentChainId !== null && currentChainId !== REQUIRED_CHAIN_ID) {
+      console.warn(`[checkGasBalance] Chain mismatch: checking on chain ${currentChainId}, but required is ${REQUIRED_CHAIN_ID}. Skipping balance check.`)
+      return // Don't check balance if we're on wrong chain - chain switch will handle it
+    }
+    
+    // Use lower minimum for testnet, higher for mainnet
+    const defaultMinBalance = REQUIRED_CHAIN_IS_TESTNET 
+      ? BigInt('100000000000000') // 0.0001 ETH for testnet
+      : BigInt('1000000000000000') // 0.001 ETH for mainnet
+    const requiredMinBalance = minBalance || defaultMinBalance
+    
     // Use publicClient.getBalance() method instead of importing getBalance from viem
     const balance = await publicClient.getBalance({ address: walletAddress })
     
-    if (balance < minBalance) {
+    if (balance < requiredMinBalance) {
       const balanceFormatted = formatUnits(balance, 18)
-      const minFormatted = formatUnits(minBalance, 18)
+      const minFormatted = formatUnits(requiredMinBalance, 18)
       throw new Error(
         `Insufficient balance for gas fees.\n` +
         `Your balance: ${balanceFormatted} ETH\n` +
@@ -428,16 +441,32 @@ async function checkGasBalance(walletAddress: Address, minBalance: bigint = BigI
     
     console.log('[checkGasBalance] ✅ Sufficient balance:', {
       balance: formatUnits(balance, 18),
-      minRequired: formatUnits(minBalance, 18),
+      minRequired: formatUnits(requiredMinBalance, 18),
+      chainId: currentChainId,
     })
   } catch (error: any) {
-    // If balance check fails, log but don't block transaction
+    // If balance check fails due to RPC/network issues, log but don't block transaction
     // The wallet will reject the transaction if there's insufficient balance anyway
-    console.warn('[checkGasBalance] Balance check failed:', error)
-    if (error?.message?.includes('Insufficient balance')) {
-      throw error // Re-throw if it's our balance error
+    const errorMessage = error?.message || String(error || '')
+    const isBalanceError = errorMessage.includes('Insufficient balance')
+    const isRpcError = errorMessage.includes('fetch') || 
+                      errorMessage.includes('network') || 
+                      errorMessage.includes('timeout') ||
+                      errorMessage.includes('ECONNREFUSED') ||
+                      errorMessage.includes('Failed to fetch')
+    
+    if (isBalanceError) {
+      // Only throw if it's a real balance issue
+      throw error
+    } else if (isRpcError) {
+      // RPC errors - don't block, wallet will handle it
+      console.warn('[checkGasBalance] RPC error during balance check, continuing anyway:', errorMessage)
+      return
+    } else {
+      // Other errors - log but don't block
+      console.warn('[checkGasBalance] Balance check failed (non-critical), continuing anyway:', errorMessage)
+      return
     }
-    // Otherwise, continue - wallet will handle the check
   }
 }
 
@@ -540,6 +569,9 @@ export const CONTRACT_ADDRESSES = {
   BDCU_REWARD_DISTRIBUTOR:
     (process.env.NEXT_PUBLIC_BDCU_REWARD_DISTRIBUTOR_ADDRESS ||
       process.env.NEXT_PUBLIC_BDCU_DISTRIBUTOR_ADDRESS ||
+      '') as Address,
+  POINTS_REWARD_DISTRIBUTOR:
+    (process.env.NEXT_PUBLIC_POINTS_REWARD_DISTRIBUTOR_ADDRESS ||
       '') as Address,
 }
 
@@ -753,15 +785,33 @@ export async function getPointsBalance(userAddress: Address): Promise<number> {
 }
 
 /**
- * Get user's $bDCU balance (alias for getPointsBalance)
- * Reads from Reward Distributor's totalDistributed mapping
+ * Get user's actual $bDCU token balance from their wallet
+ * Reads from the ERC20 token contract's balanceOf function
  * 
- * Note: This shows total rewards earned (cumulative), not current wallet balance.
- * Users receive tokens via Reward Distributor transfers, and this tracks the total
- * amount distributed to them.
+ * @param userAddress User's wallet address
+ * @returns Current token balance in wallet (in $bDCU tokens)
  */
 export async function getDCUBalance(userAddress: Address): Promise<number> {
-  return getPointsBalance(userAddress)
+  if (!CONTRACT_ADDRESSES.BDCU_TOKEN) {
+    console.warn('bDCU token address not configured')
+    return 0
+  }
+
+  try {
+    const balance = await readContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.BDCU_TOKEN,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [userAddress],
+    }) as bigint
+
+    // Convert from wei (18 decimals) to tokens
+    const { formatUnits } = await import('viem')
+    return parseFloat(formatUnits(balance, 18))
+  } catch (error) {
+    console.error('Error reading token balance:', error)
+    return 0
+  }
 }
 
 /**
@@ -1317,16 +1367,12 @@ export async function claimImpactProductFromVerification(
     throw new Error('Verification contract address not set')
   }
 
-  // Pre-flight validation (including reward balance check)
-  // Estimate required reward amount (level: 10, streak: 2, referral: 2, impact: 5 = max 19 tokens)
-  // We'll check for a conservative amount
-  const MAX_REWARD_AMOUNT = BigInt(19) * BigInt(10 ** 18) // 19 tokens in wei
-  
+  // Pre-flight validation (NO token balance check - we're only awarding DCU points, not tokens)
+  // Users earn DCU points first, then claim tokens separately after reaching level 10
   const validation = await validatePreFlight({
     checkWallet: true,
     checkChain: true,
-    checkRewardBalance: true,
-    requiredRewardAmount: MAX_REWARD_AMOUNT,
+    checkRewardBalance: false, // No token balance check - only awarding points
     rewardType: 'level',
   })
   
@@ -1634,137 +1680,21 @@ export async function getCleanupCounter(): Promise<bigint> {
 }
 
 /**
- * Check if an address is a verifier (uses allowlist)
+ * Check if an address is a verifier
+ * @deprecated Use isUserVerifier() instead - this function now calls the new PointsRewardDistributor contract
  */
 export async function isVerifier(address: Address): Promise<boolean> {
-  if (!CONTRACT_ADDRESSES.VERIFICATION) {
-    throw new Error('Verification contract address not set')
-  }
-
   if (!address) {
     return false
   }
 
-  // Debug: Log ABI to verify it includes isVerifier
-  console.log('isVerifier - Contract address:', CONTRACT_ADDRESSES.VERIFICATION)
-  console.log('isVerifier - Checking address:', address)
-  
-  // Check if ABI is properly parsed
-  const abiHasFunction = Array.isArray(VERIFICATION_ABI) && VERIFICATION_ABI.some((item: any) => {
-    if (typeof item === 'object' && item !== null) {
-      return item.type === 'function' && item.name === 'isVerifier'
-    }
-    return false
-  })
-  console.log('isVerifier - ABI type:', typeof VERIFICATION_ABI, 'isArray:', Array.isArray(VERIFICATION_ABI))
-  console.log('isVerifier - ABI includes isVerifier:', abiHasFunction)
-  if (Array.isArray(VERIFICATION_ABI)) {
-    console.log('isVerifier - ABI functions:', VERIFICATION_ABI.filter((item: any) => 
-      typeof item === 'object' && item?.type === 'function'
-    ).map((item: any) => item.name))
-  }
-
+  // Use the new PointsRewardDistributor contract for verifier status
+  // This maintains backward compatibility while using the new system
   try {
-    // First, try the standard approach
-    // Wrap in additional try-catch to handle RPC errors gracefully
-    let result: boolean
-    try {
-      result = await readContract(getWagmiConfig(), {
-        address: CONTRACT_ADDRESSES.VERIFICATION,
-        abi: VERIFICATION_ABI,
-        functionName: 'isVerifier',
-        args: [address],
-      }) as boolean
-    } catch (rpcError: any) {
-      // Handle RPC-specific errors
-      const rpcErrorMessage = getErrorMessage(rpcError)
-      console.error('isVerifier - RPC call error:', {
-        rpcError,
-        message: rpcErrorMessage,
-        type: typeof rpcError,
-      })
-      // Re-throw to be caught by outer catch
-      throw rpcError
-    }
-    console.log('isVerifier - Result:', result)
-    return result
-  } catch (error: any) {
-    // Safe error logging - use helper to extract error message
-    const errorMessage = getErrorMessage(error)
-    const errorName = error?.name || error?.error?.name || 'UnknownError'
-    const errorCode = error?.code || error?.error?.code
-    
-    console.error('isVerifier - Error caught:', {
-      error,
-      message: errorMessage,
-      name: errorName,
-      code: errorCode,
-      type: typeof error,
-      hasError: !!error,
-      hasErrorError: !!error?.error,
-    })
-    
-    // Check if this is the specific "is not a function" error from viem
-    const isViemFunctionError = 
-      errorMessage?.includes('is not a function') || 
-      errorMessage?.includes('does not have the function') ||
-      (errorMessage?.includes('isVerifier') && errorMessage?.includes('false'))
-    
-    // Check if the function doesn't exist (old contract) or viem parsing issue
-    if (isViemFunctionError || 
-        errorName === 'ContractFunctionExecutionError' ||
-        errorMessage?.includes('revert') ||
-        errorMessage?.includes('InternalError')) {
-      
-      // If it's a viem parsing error, try using encodeFunctionData as workaround
-      if (isViemFunctionError) {
-        console.warn('isVerifier - Viem ABI parsing issue detected. Trying alternative approach...')
-        try {
-          // Use encodeFunctionData to manually encode the call
-          const functionData = encodeFunctionData({
-            abi: VERIFICATION_ABI,
-            functionName: 'isVerifier',
-            args: [address],
-          })
-          
-          // This is a workaround - we'd need to use a different method to call
-          // For now, let's try the fallback to old verifier() function
-          console.log('isVerifier - Function data encoded successfully, but need alternative call method')
-        } catch (encodeError: any) {
-          console.error('isVerifier - Failed to encode function data:', encodeError?.message || encodeError)
-        }
-      }
-      
-      console.error('isVerifier function not found on contract or ABI parsing issue. The contract may be outdated or there is a viem parsing issue.', errorMessage)
-      
-      // Try the old deprecated verifier() function as fallback
-      try {
-        console.log('isVerifier - Trying fallback to verifier() function...')
-        const oldVerifier = await readContract(getWagmiConfig(), {
-          address: CONTRACT_ADDRESSES.VERIFICATION,
-          abi: VERIFICATION_ABI,
-          functionName: 'verifier',
-        })
-        console.log('isVerifier - Old verifier() result:', oldVerifier)
-        // If old verifier function returns a non-zero address, check if it matches
-        if (oldVerifier && oldVerifier !== '0x0000000000000000000000000000000000000000') {
-          const matches = (oldVerifier as string).toLowerCase() === address.toLowerCase()
-          console.log('isVerifier - Fallback check result:', matches)
-          return matches
-        }
-      } catch (fallbackError: any) {
-        const fallbackMessage = fallbackError?.message || fallbackError?.error?.message || String(fallbackError || 'Unknown error')
-        console.error('Fallback verifier() check also failed:', fallbackMessage)
-      }
-      
-      // Since the test script confirmed the function exists, this is likely a frontend issue
-      // Return false but log that it's likely a parsing issue
-      console.warn('isVerifier - Contract has function (confirmed by test), but frontend cannot call it. This may be a viem/wagmi parsing issue. Try clearing browser cache and restarting dev server.')
-      return false
-    }
-    console.error('Error checking verifier status:', errorMessage)
-    // Re-throw with safe error message
-    throw new Error(errorMessage)
+    return await isUserVerifier(address)
+  } catch (error) {
+    console.error('Error checking verifier status (via isUserVerifier):', error)
+    return false
   }
 }
 
@@ -2330,6 +2260,85 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
   verifierRewards: number
   total: number
 }> {
+  // Try new points system first
+  if (CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    try {
+      const { createPublicClient, http } = await import('viem')
+      const { baseSepolia, base } = await import('viem/chains')
+      
+      const chain = REQUIRED_CHAIN_ID === 84532 ? baseSepolia : base
+      const publicClient = createPublicClient({
+        chain,
+        transport: http(REQUIRED_RPC_URL),
+      })
+
+      const distributorAddress = CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR
+      
+      // Query PointsAwarded events
+      let fromBlock = BigInt(0)
+      try {
+        const currentBlock = await publicClient.getBlockNumber()
+        const blockRange = BigInt(50000)
+        fromBlock = currentBlock > blockRange ? currentBlock - blockRange : BigInt(0)
+      } catch (error) {
+        console.warn('Could not get current block number:', error)
+      }
+
+      const pointsLogs = await publicClient.getLogs({
+        address: distributorAddress,
+        event: parseAbiItem('event PointsAwarded(address indexed user, uint256 points, string rewardType)'),
+        args: { user: userAddress },
+        fromBlock,
+      }).catch(() => [])
+
+      // Group by reward type
+      let levelRewards = 0
+      let cleanupCount = 0
+      let streakRewards = 0
+      let referralRewards = 0
+      let impactFormRewards = 0
+      let verifierRewards = 0
+      let retroRewards = 0 // Manual awards / retro rewards
+
+      for (const log of pointsLogs) {
+        const points = Number(log.args.points || 0)
+        const rewardType = log.args.rewardType || ''
+
+        if (rewardType === 'level') {
+          levelRewards += points
+          cleanupCount++ // Each level reward = 1 cleanup
+        } else if (rewardType === 'streak') {
+          streakRewards += points
+        } else if (rewardType === 'referral') {
+          referralRewards += points
+        } else if (rewardType === 'impact_form') {
+          impactFormRewards += points
+        } else if (rewardType === 'verifier') {
+          verifierRewards += points
+        } else if (rewardType === 'manual' || rewardType === 'retro_rewards' || rewardType === 'retro') {
+          retroRewards += points
+        }
+      }
+
+      const total = levelRewards + streakRewards + referralRewards + impactFormRewards + verifierRewards + retroRewards
+
+      return {
+        levelRewards,
+        cleanupCount,
+        streakRewards,
+        referralRewards,
+        impactFormRewards,
+        verifierRewards,
+        retroRewards,
+        total,
+      }
+    } catch (error) {
+      console.warn('Error querying points system, falling back to old system:', error)
+      // Fall through to old system
+    }
+  }
+
+  // Fallback to old system
   if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
     return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, total: 0 }
   }
@@ -2768,6 +2777,459 @@ export async function checkRewardDistributorFunded(): Promise<{ funded: boolean;
   } catch (error) {
     console.error('Error checking reward distributor funding:', error)
     return { funded: false, balance: '0' }
+  }
+}
+
+// Points Reward Distributor ABI (new points-based system)
+export const POINTS_REWARD_DISTRIBUTOR_ABI = parseAbi([
+  'function bDCUToken() external view returns (address)',
+  'function getContractBalance() external view returns (uint256)',
+  'function getPointsBalance(address user) external view returns (uint256)',
+  'function getPointsClaimed(address user) external view returns (uint256)',
+  'function pointsBalance(address user) external view returns (uint256)',
+  'function pointsClaimed(address user) external view returns (uint256)',
+  'function claimTokens(uint256 pointsToClaim) external returns (uint256)',
+  'function calculateClaimAmount(uint256 points) external view returns (uint256)',
+  'function stakeTokens(uint256 amount) external',
+  'function unstakeTokens(uint256 amount) external',
+  'function stakedBalance(address user) external view returns (uint256)',
+  'function isVerifier(address user) external view returns (bool)',
+  'function getMinimumLevelForStaking() external pure returns (uint256)',
+  'function hasMinimumLevel(address user) external view returns (bool)',
+  'function currentTokenPriceUSD() external view returns (uint256)',
+  'function targetRewardValueUSD() external view returns (uint256)',
+  'function getStreakCount(address user) external view returns (uint256)',
+  'function hasActiveStreak(address user) external view returns (bool)',
+  'function hasReceivedReferralReward(address user) external view returns (bool)',
+  'function impactProductNFT() external view returns (address)',
+  'function verificationContract() external view returns (address)',
+  'event PointsAwarded(address indexed user, uint256 points, string rewardType)',
+  'event TokensClaimed(address indexed user, uint256 pointsUsed, uint256 tokensReceived)',
+  'event TokensStaked(address indexed user, uint256 amount)',
+  'event TokensUnstaked(address indexed user, uint256 amount)',
+  'event VerifierStatusChanged(address indexed user, bool isVerifier)',
+])
+
+/**
+ * Get user's DCU points balance
+ * @param userAddress User's wallet address
+ * @returns Points balance
+ */
+export async function getDCUPointsBalance(userAddress: Address): Promise<number> {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    console.warn('PointsRewardDistributor address not set, falling back to old system')
+    // Fallback to old system if new contract not deployed
+    return getPointsBalance(userAddress)
+  }
+
+  try {
+    const points = await readContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'getPointsBalance',
+      args: [userAddress],
+    }) as bigint
+
+    return Number(points)
+  } catch (error) {
+    console.error('Error reading points balance:', error)
+    return 0
+  }
+}
+
+/**
+ * Calculate how many tokens a user would receive for claiming points
+ * @param points Number of points to claim
+ * @returns Amount of tokens that would be received (in wei, 18 decimals)
+ */
+export async function calculateClaimAmount(points: number): Promise<bigint> {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    throw new Error('PointsRewardDistributor address not set')
+  }
+
+  try {
+    const tokens = await readContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'calculateClaimAmount',
+      args: [BigInt(points)],
+    }) as bigint
+
+    return tokens
+  } catch (error) {
+    console.error('Error calculating claim amount:', error)
+    throw error
+  }
+}
+
+/**
+ * Claim tokens using points
+ * @param pointsToClaim Number of points to use for claiming
+ * @param chainId Current chain ID
+ * @returns Transaction hash
+ */
+export async function claimTokensFromPoints(
+  pointsToClaim: number,
+  chainId: number
+): Promise<`0x${string}`> {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    throw new Error('PointsRewardDistributor address not set')
+  }
+
+  const account = getAccount(getWagmiConfig())
+  if (!account.isConnected || !account.address) {
+    throw new Error('Wallet not connected')
+  }
+
+  await ensureWalletOnRequiredChain(chainId)
+
+  const lockedWalletAddress = await ensureWalletConnected()
+  if (account.address.toLowerCase() !== lockedWalletAddress.toLowerCase()) {
+    throw new Error('Wallet address changed during transaction')
+  }
+
+  // Calculate how many tokens will be claimed to validate balance
+  try {
+    const tokensToReceive = await readContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'calculateClaimAmount',
+      args: [BigInt(pointsToClaim)],
+    }) as bigint
+
+    // Validate token balance before claiming
+    if (tokensToReceive > 0n) {
+      const validation = await validatePreFlight({
+        checkWallet: true,
+        checkChain: true,
+        checkRewardBalance: true,
+        requiredRewardAmount: tokensToReceive,
+        rewardType: 'level',
+      })
+
+      if (!validation.valid) {
+        const errorMessage = validation.errors.join('\n')
+        await logTransactionError('claimTokens', new Error(errorMessage), {
+          pointsToClaim,
+          tokensToReceive: tokensToReceive.toString(),
+          userAddress: account.address,
+        })
+        throw new Error(`Pre-flight validation failed:\n${errorMessage}`)
+      }
+
+      if (validation.warnings.length > 0) {
+        console.warn('[claimTokens] Validation warnings:', validation.warnings)
+      }
+    }
+  } catch (error: any) {
+    // If calculation fails, proceed anyway - contract will handle it
+    console.warn('[claimTokens] Could not pre-validate balance:', error?.message)
+  }
+
+  // Check gas balance
+  await checkGasBalance(account.address)
+
+  try {
+    const hash = await writeContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'claimTokens',
+      args: [BigInt(pointsToClaim)],
+      chainId: REQUIRED_CHAIN_ID,
+    })
+
+    logTransactionSuccess('claimTokens', hash, {
+      pointsToClaim,
+      userAddress: account.address,
+    })
+
+    return hash
+  } catch (error: any) {
+    logTransactionError('claimTokens', error, {
+      pointsToClaim,
+      userAddress: account.address,
+    })
+    throw error
+  }
+}
+
+/**
+ * Stake tokens to become a verifier
+ * @param amount Amount of tokens to stake (in wei, 18 decimals)
+ * @param chainId Current chain ID
+ * @returns Transaction hash
+ */
+export async function stakeTokensForVerifier(
+  amount: bigint,
+  chainId: number
+): Promise<`0x${string}`> {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    throw new Error('PointsRewardDistributor address not set')
+  }
+
+  const account = getAccount(getWagmiConfig())
+  if (!account.isConnected || !account.address) {
+    throw new Error('Wallet not connected')
+  }
+
+  await ensureWalletOnRequiredChain(chainId)
+
+  const lockedWalletAddress = await ensureWalletConnected()
+  if (account.address.toLowerCase() !== lockedWalletAddress.toLowerCase()) {
+    throw new Error('Wallet address changed during transaction')
+  }
+
+  // Check gas balance
+  await checkGasBalance(account.address)
+
+  // Check if user has approved the contract
+  const tokenAddress = await readContract(getWagmiConfig(), {
+    address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+    abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+    functionName: 'bDCUToken',
+  }) as Address
+
+  // Check allowance
+  const { parseAbiItem } = await import('viem')
+  const allowance = await readContract(getWagmiConfig(), {
+    address: tokenAddress,
+    abi: [parseAbiItem('function allowance(address owner, address spender) external view returns (uint256)')],
+    functionName: 'allowance',
+    args: [account.address, CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR],
+  }) as bigint
+
+  if (allowance < amount) {
+    // Need to approve first - approve max uint256 to avoid future approvals
+    const MAX_UINT256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
+    const approveHash = await writeContract(getWagmiConfig(), {
+      address: tokenAddress,
+      abi: [parseAbiItem('function approve(address spender, uint256 amount) external returns (bool)')],
+      functionName: 'approve',
+      args: [CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR, MAX_UINT256],
+      chainId: REQUIRED_CHAIN_ID,
+    })
+
+    await waitForTransactionReceipt(getWagmiConfig(), { hash: approveHash })
+  }
+
+  try {
+    const hash = await writeContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'stakeTokens',
+      args: [amount],
+      chainId: REQUIRED_CHAIN_ID,
+    })
+
+    logTransactionSuccess('stakeTokens', hash, {
+      amount: amount.toString(),
+      userAddress: account.address,
+    })
+
+    return hash
+  } catch (error: any) {
+    logTransactionError('stakeTokens', error, {
+      amount: amount.toString(),
+      userAddress: account.address,
+    })
+    throw error
+  }
+}
+
+/**
+ * Unstake tokens
+ * @param amount Amount of tokens to unstake (in wei, 18 decimals)
+ * @param chainId Current chain ID
+ * @returns Transaction hash
+ */
+export async function unstakeTokens(
+  amount: bigint,
+  chainId: number
+): Promise<`0x${string}`> {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    throw new Error('PointsRewardDistributor address not set')
+  }
+
+  const account = getAccount(getWagmiConfig())
+  if (!account.isConnected || !account.address) {
+    throw new Error('Wallet not connected')
+  }
+
+  await ensureWalletOnRequiredChain(chainId)
+
+  const lockedWalletAddress = await ensureWalletConnected()
+  if (account.address.toLowerCase() !== lockedWalletAddress.toLowerCase()) {
+    throw new Error('Wallet address changed during transaction')
+  }
+
+  // Check gas balance
+  await checkGasBalance(account.address)
+
+  try {
+    const hash = await writeContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'unstakeTokens',
+      args: [amount],
+      chainId: REQUIRED_CHAIN_ID,
+    })
+
+    logTransactionSuccess('unstakeTokens', hash, {
+      amount: amount.toString(),
+      userAddress: account.address,
+    })
+
+    return hash
+  } catch (error: any) {
+    logTransactionError('unstakeTokens', error, {
+      amount: amount.toString(),
+      userAddress: account.address,
+    })
+    throw error
+  }
+}
+
+/**
+ * Get user's staked balance
+ * @param userAddress User's wallet address
+ * @returns Staked balance (in wei, 18 decimals)
+ */
+export async function getStakedBalance(userAddress: Address): Promise<bigint> {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    return BigInt(0)
+  }
+
+  try {
+    const balance = await readContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'stakedBalance',
+      args: [userAddress],
+    }) as bigint
+
+    return balance
+  } catch (error) {
+    console.error('Error reading staked balance:', error)
+    return BigInt(0)
+  }
+}
+
+/**
+ * Check if user is a verifier (has staked minimum amount)
+ * @param userAddress User's wallet address
+ * @returns True if user is a verifier
+ */
+export async function isUserVerifier(userAddress: Address): Promise<boolean> {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    return false
+  }
+
+  try {
+    const isVerifier = await readContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'isVerifier',
+      args: [userAddress],
+    }) as boolean
+
+    return isVerifier
+  } catch (error) {
+    console.error('Error checking verifier status:', error)
+    return false
+  }
+}
+
+/**
+ * Get minimum level required for staking/claiming
+ * @returns Minimum level (10)
+ */
+export async function getMinimumLevelForStaking(): Promise<number> {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    return 10 // Default
+  }
+
+  try {
+    const level = await readContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'getMinimumLevelForStaking',
+    }) as bigint
+
+    return Number(level)
+  } catch (error) {
+    console.error('Error reading minimum level:', error)
+    return 10 // Default
+  }
+}
+
+/**
+ * Check if user has minimum level to stake/claim
+ * @param userAddress User's wallet address
+ * @returns True if user has reached level 10
+ */
+export async function hasMinimumLevelForStaking(userAddress: Address): Promise<boolean> {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    return false
+  }
+
+  try {
+    const hasLevel = await readContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'hasMinimumLevel',
+      args: [userAddress],
+    }) as boolean
+
+    return hasLevel
+  } catch (error) {
+    console.error('Error checking minimum level:', error)
+    return false
+  }
+}
+
+/**
+ * Get current token price in USD
+ * @returns Token price (8 decimals, e.g., 785000 = $0.00000785)
+ */
+export async function getCurrentTokenPrice(): Promise<number> {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    return 0
+  }
+
+  try {
+    const price = await readContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'currentTokenPriceUSD',
+    }) as bigint
+
+    return Number(price)
+  } catch (error) {
+    console.error('Error reading token price:', error)
+    return 0
+  }
+}
+
+/**
+ * Get target reward value in USD
+ * @returns Target reward value (in cents, e.g., 50 = $0.50 for 10 points)
+ */
+export async function getTargetRewardValue(): Promise<number> {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    return 50 // Default
+  }
+
+  try {
+    const value = await readContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+      functionName: 'targetRewardValueUSD',
+    }) as bigint
+
+    return Number(value)
+  } catch (error) {
+    console.error('Error reading target reward value:', error)
+    return 50 // Default
   }
 }
 

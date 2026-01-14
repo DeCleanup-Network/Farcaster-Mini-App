@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 // Configure runtime for longer execution time (Vercel serverless functions)
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 90 // Match the timeout in the upload function
 
 /**
  * API Route to proxy IPFS uploads to Pinata
@@ -123,6 +123,7 @@ export async function POST(request: NextRequest) {
     
     let response: Response
     try {
+      console.log('Uploading to Pinata, file size:', file.size, 'bytes')
       response = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
         method: 'POST',
         headers: {
@@ -133,22 +134,66 @@ export async function POST(request: NextRequest) {
         signal: controller.signal,
       })
       clearTimeout(timeoutId)
+      console.log('Pinata response status:', response.status, response.statusText)
     } catch (error: any) {
       clearTimeout(timeoutId)
+      console.error('Pinata fetch error:', error)
+      
       if (error.name === 'AbortError') {
         return NextResponse.json(
           { error: 'Upload timeout - file may be too large. Please try a smaller image or try again.' },
           { status: 408 }
         )
       }
-      throw error
+      
+      // More specific error handling
+      if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+        return NextResponse.json(
+          { error: 'Network error: Cannot reach Pinata API. Please check your internet connection and try again.' },
+          { status: 503 }
+        )
+      }
+      
+      return NextResponse.json(
+        { error: `Upload failed: ${error.message || error.toString() || 'Unknown network error'}` },
+        { status: 500 }
+      )
     }
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      console.error('Pinata upload error:', errorData)
+      let errorData: any = {}
+      try {
+        const text = await response.text()
+        errorData = text ? JSON.parse(text) : {}
+      } catch (parseError) {
+        console.error('Failed to parse Pinata error response:', parseError)
+        errorData = {}
+      }
+      
+      console.error('Pinata upload error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+      })
+      
+      // Handle specific Pinata error codes
+      if (response.status === 401 || response.status === 403) {
+        return NextResponse.json(
+          { error: 'Pinata API authentication failed. Please contact support.' },
+          { status: 500 }
+        )
+      }
+      
+      if (response.status === 429) {
+        return NextResponse.json(
+          { error: 'Upload rate limit exceeded. Please try again in a few moments.' },
+          { status: 503 }
+        )
+      }
+      
+      const errorMessage = errorData.error?.reason || errorData.error || response.statusText || 'Failed to upload to IPFS'
       return NextResponse.json(
-        { error: errorData.error?.reason || response.statusText || 'Failed to upload to IPFS' },
+        { error: errorMessage },
         { status: response.status || 500 }
       )
     }
@@ -172,8 +217,20 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('IPFS upload API error:', error)
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to upload to IPFS'
+    if (error?.message) {
+      errorMessage = error.message
+    } else if (error?.toString) {
+      errorMessage = error.toString()
+    }
+    
     return NextResponse.json(
-      { error: error?.message || 'Failed to upload to IPFS' },
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? error?.stack : undefined,
+      },
       { status: 500 }
     )
   }

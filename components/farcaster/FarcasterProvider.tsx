@@ -113,10 +113,27 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
           const rawUser = (availableContext as any).user
           const rawContext = availableContext as any
           
-          // If we have context but isMiniApp was false, update it
-          if (!env.isMiniApp && rawUser) {
-            console.log('⚠️ Context available but isMiniApp was false - updating isMiniApp to true')
-            setIsMiniApp(true)
+          // CRITICAL: Ensure ready() is called when we confirm we're in a Mini App
+          // This handles cases where:
+          // 1. Initial detection incorrectly reported isMiniApp = false
+          // 2. Initial ready() call at line 66 failed (SDK not ready yet)
+          // 3. We now have context confirming we're in a Mini App
+          if (rawUser) {
+            // If we have context but isMiniApp was false, update it
+            if (!env.isMiniApp) {
+              console.log('⚠️ Context available but isMiniApp was false - updating isMiniApp to true')
+              setIsMiniApp(true)
+            }
+            
+            // Always call ready() when we confirm we're in a Mini App with context
+            // This prevents infinite loading screens in Farcaster clients
+            // It's safe to call ready() multiple times - the SDK handles idempotency
+            try {
+              sdk.actions.ready()
+              console.log('✅ Farcaster SDK ready() called after confirming Mini App context')
+            } catch (readyError) {
+              console.warn('⚠️ Failed to call ready() after confirming Mini App context:', readyError)
+            }
           }
           
           // Log raw SDK context for debugging

@@ -10,6 +10,7 @@ import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import { useFarcasterAutoConnect } from '@/lib/hooks/useFarcasterAutoConnect'
 import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow'
+import { AddAppModal } from '@/components/onboarding/AddAppModal'
 import type { Connector } from 'wagmi'
 import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, X } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
@@ -29,7 +30,8 @@ export default function Home() {
   
   const [mounted, setMounted] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
-  const { context, isLoading } = useFarcaster()
+  const [showAddAppModal, setShowAddAppModal] = useState(false)
+  const { isMiniApp } = useFarcaster()
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
@@ -54,9 +56,6 @@ export default function Home() {
     message: string
     transactionHash?: string
   } | null>(null)
-  
-  // Use isMiniApp from FarcasterProvider context (proper detection)
-  const { isMiniApp } = useFarcaster()
   
   const farcasterConnector = connectors.find((c) => {
     const name = c.name.toLowerCase()
@@ -134,6 +133,15 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       // Mark onboarding as seen for this session only
       sessionStorage.setItem('decleanup_onboarding_seen_session', 'true')
+      
+      // Check if user has already seen the add app modal
+      const hasSeenAddAppModal = sessionStorage.getItem('decleanup_add_app_modal_seen')
+      if (!hasSeenAddAppModal && (isMiniApp || typeof (window as any).minikit !== 'undefined')) {
+        // Show add app modal after a short delay
+        setTimeout(() => {
+          setShowAddAppModal(true)
+        }, 500)
+      }
     }
   }
 
@@ -521,7 +529,7 @@ export default function Home() {
                   Invite Friends
                 </h3>
                 <p className="text-xs text-muted-foreground sm:text-sm">
-                  Earn 3 $bDCU when friends submit and verify their first cleanup
+                  Earn 3 DCU when friends submit and verify their first cleanup
                 </p>
               </div>
             </div>
@@ -580,7 +588,7 @@ export default function Home() {
 
               <div className="mt-4 rounded-lg bg-gray-800/50 p-3">
                 <p className="text-xs text-gray-400">
-                  <strong className="text-brand-green">How it works:</strong> When someone uses your referral link to submit their first cleanup and it gets verified, you both earn <strong className="text-foreground">3 $bDCU</strong>!
+                  <strong className="text-brand-green">How it works:</strong> When someone uses your referral link to submit their first cleanup and it gets verified, you both earn <strong className="text-foreground">3 DCU</strong>!
                 </p>
               </div>
             </div>
@@ -615,39 +623,21 @@ export default function Home() {
           />
         )}
 
-        {/* User Info - Show Farcaster username/logo in Base App, ENS on web */}
-        {isMiniApp && context?.user && (
-          <section className="mx-auto mt-8 max-w-md rounded-lg border border-gray-800 bg-gray-900 p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              {context.user.pfp?.url && (
-                <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border-2 border-gray-700">
-                  <Image
-                    src={context.user.pfp.url}
-                    alt={context.user.displayName || context.user.username || 'User'}
-                    fill
-                    className="object-cover"
-                    sizes="48px"
-                    unoptimized
-                  />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <h3 className="mb-1 text-base font-bold uppercase tracking-wide text-foreground sm:text-lg truncate">
-              Welcome, {context.user.displayName || context.user.username}!
-            </h3>
-                {context.user.username && (
-                  <p className="text-xs text-gray-400 sm:text-sm truncate">
-                    @{context.user.username}
-            </p>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
       </main>
 
       {/* Onboarding Flow */}
       {showOnboarding && <OnboardingFlow onComplete={handleOnboardingComplete} />}
+
+      {/* Add App Modal - shows after onboarding */}
+      <AddAppModal
+        isOpen={showAddAppModal}
+        onClose={() => {
+          setShowAddAppModal(false)
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('decleanup_add_app_modal_seen', 'true')
+          }
+        }}
+      />
     </div>
   )
 }
