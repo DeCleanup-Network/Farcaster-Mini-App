@@ -29,16 +29,20 @@ DeCleanup Rewards is a fully functional, production-ready Farcaster Mini App tha
 - **Cleanup Submissions**: Upload before/after photos with geotagging (max 10MB per image)
 - **Verification System**: Team and community verifiers can approve/reject cleanups
 - **Impact Products**: 10 progressive NFT levels (Newbie → Guardian)
-- **DCU Points**: Earn points for various actions (cleanup: 10 pts, streak: 1 pt, referral: 2 pts, etc.)
-- **Token Claims**: Convert DCU points to $bDCU tokens at any time (requires Level 10)
-- **Staking**: Stake tokens to become a verifier (requires 51% of balance and Level 10)
+- **DCU Points**: Earn points for various actions (cleanup: 10 pts, streak: 1 pt, referral: 3 pts, etc.)
+- **Token Claims**: Convert DCU points to $bDCU tokens (requires Level 10 and minimum 100 points)
+- **Staking**: Stake tokens to become a verifier (requires ≥51% of balance and Level 10)
+- **Add App Modal**: Prompts users to add app to Farcaster or pin to Base after onboarding
 
 ### Admin Features
 - **Verifier Management**: Manually add/remove verifiers (bypasses staking requirement)
+- **Verifier Slashing**: Remove verifier status even with staked tokens (for misconduct)
 - **Point Multipliers**: Adjust reward point values for all action types
 - **Price Management**: Update token price and target reward values
-- **Fee Management**: Configure submission and claim fees (optional)
+- **Fee Management**: Configure submission and claim fees (optional, auto-withdraws to treasury)
+- **Level Management**: Decrease user levels for inappropriate behavior
 - **Emergency Controls**: Pause/unpause contracts, withdraw tokens
+- **Contract Upgrades**: Upgrade contracts using UUPS pattern (preserves user data)
 
 ---
 
@@ -46,21 +50,24 @@ DeCleanup Rewards is a fully functional, production-ready Farcaster Mini App tha
 
 ### Smart Contracts
 
-| Contract | Purpose | Admin Functions |
-|----------|---------|----------------|
-| **PointsRewardDistributor** | Points tracking, token claims, staking | Update prices, multipliers, verifiers |
-| **VerificationContract** | Cleanup submissions, verification | Manage verifiers, fees, treasury |
-| **ImpactProductNFT** | Dynamic NFT levels | Update base URI, contract linkages |
-| **bDCU Token** | ERC20 reward token | Standard ERC20 functions |
+| Contract | Purpose | Admin Functions | Upgradeable |
+|----------|---------|----------------|-------------|
+| **PointsRewardDistributor** | Points tracking, token claims, staking | Update prices, multipliers, verifiers, slash | ✅ UUPS |
+| **VerificationContract** | Cleanup submissions, verification | Manage verifiers, fees, treasury, slash | ✅ UUPS |
+| **ImpactProductNFT** | Dynamic NFT levels | Update base URI, decrease levels | ✅ UUPS |
+| **bDCU Token** | ERC20 reward token | Standard ERC20 functions | ❌ Standard |
 
 ### Reward System
 
 **DCU Points Structure:**
-- **Cleanup (Level)**: 10 points = $0.50 USD equivalent
-- **Streak**: 1 point = $0.05 USD equivalent
-- **Referral**: 2 points = $0.10 USD equivalent (both parties)
-- **Impact Form**: 3 points = $0.15 USD equivalent
-- **Verifier**: 1 point = $0.05 USD equivalent
+- **Cleanup (Level)**: 10 points
+- **Streak**: 1 point
+- **Referral**: 3 points (both parties)
+- **Impact Form**: 3 points
+- **Verifier**: 1 point
+- **Manual/Retroactive**: Variable (admin-awarded)
+
+**Note:** Points are converted to $bDCU tokens at claim time based on current token price and multipliers. The USD equivalent varies with market conditions.
 
 **Claim Formula:**
 ```
@@ -68,11 +75,16 @@ usdValue = (points × targetRewardValueUSD) / LEVEL_POINTS
 tokens = (usdValue × 1e18 × 1e8) / currentTokenPriceUSD
 ```
 
+**Minimum Requirements:**
+- Minimum 100 DCU points required to claim tokens
+- User must reach Level 10 to claim tokens
+
 **Staking Rules:**
-- Users must reach **level 10** to stake or claim
-- To become verifier: stake **>51% of available token balance**
-- Verifier status lost if unstaking reduces balance below 50% of original stake
-- Admin can manually add verifiers (bypasses staking requirement)
+- Users must reach **level 10** to stake or claim tokens
+- To become verifier: stake **≥51% of available token balance** at time of staking
+- Verifier status lost if unstaking reduces balance below 50% of original stake (unless manually added)
+- Admin can manually add verifiers (bypasses staking requirement and persists after unstaking)
+- Minimum 100 DCU points required to claim tokens
 
 ---
 
@@ -190,11 +202,20 @@ See [ADMIN_GUIDE.md](ADMIN_GUIDE.md) for complete admin documentation.
 
 ## 📋 Contract Addresses
 
-### Base Sepolia (Testnet)
-- **PointsRewardDistributor**: `0xf0d87bFf397824D3CF9dcf7f400f8A7F78732F4f` ✅ **ACTIVE**
-- **VerificationContract**: `0x82968575f998f669b72C56E4BdC2e94E6546c55F`
-- **ImpactProductNFT**: `0x0E5713877D0B3610B58ACB5c13bdA41b61F6a0c9`
+### Base Sepolia (Testnet) - Upgradeable Contracts (UUPS)
+
+**Proxy Addresses** (use these in frontend):
+- **PointsRewardDistributor**: `0x3adf82A2e4998938B87C885d1D11011851cBeCc4` ✅ **ACTIVE**
+- **VerificationContract**: `0x390bDa64D1523075E74673ed957B9Ed67a3D34aD` ✅ **ACTIVE**
+- **ImpactProductNFT**: `0x45417FFD32986DA5Ba232cb3FdFB9b21aE6D3539` ✅ **ACTIVE**
 - **bDCU Token**: `0x85162f919Bf8cd09B8046F8EAd2ecD434841e044`
+
+**Implementation Addresses** (for upgrades only):
+- **PointsRewardDistributor Impl**: `0x8f29111f7BA8D2D5345Ea683822cd0E37C6a15B6`
+- **VerificationContract Impl**: `0x74dc3CE94069027520C060FA2e94479a446c84B7`
+- **ImpactProductNFT Impl**: `0xdA614b090d26dd2e68cC1A8c5601D8f38eA6E96A`
+
+**Note:** All contracts use UUPS (Universal Upgradeable Proxy Standard) pattern for future upgrades.
 
 ### Base Mainnet
 *See [DEPLOYMENT.md](DEPLOYMENT.md) for mainnet addresses*

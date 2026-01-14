@@ -47,9 +47,25 @@
 
 ## Smart Contract Specifications
 
+### Upgradeable Contracts
+
+All main contracts use the **UUPS (Universal Upgradeable Proxy Standard)** pattern:
+- **Proxy Addresses**: User-facing contract addresses (use these in frontend)
+- **Implementation Addresses**: Logic contract addresses (used for upgrades)
+- Contracts are upgradeable by owner to fix bugs, add features, and improve functionality
+- User data, balances, and state are preserved across upgrades
+- All contracts are pausable for emergency situations
+
+**Upgrade Process:**
+1. Deploy new implementation contract
+2. Call `upgradeTo(newImplementation)` on proxy (owner only)
+3. Verify upgrade on block explorer
+
 ### PointsRewardDistributor
 
-**Address (Testnet)**: `0xf0d87bFf397824D3CF9dcf7f400f8A7F78732F4f`
+**Address (Testnet)**: `0x3adf82A2e4998938B87C885d1D11011851cBeCc4` (UUPS Proxy)  
+**Implementation**: `0x8f29111f7BA8D2D5345Ea683822cd0E37C6a15B6`  
+**Pattern**: UUPS (Universal Upgradeable Proxy Standard) - Upgradeable contract
 
 #### Core Functions
 
@@ -69,34 +85,48 @@ function claimTokens(uint256 pointsToClaim) external returns (uint256 tokensRece
 function calculateClaimAmount(uint256 points) external view returns (uint256 tokens)
 ```
 
+**Requirements:**
+- Minimum 100 DCU points required to claim
+- User must reach Level 10 to claim tokens
+- Contract must have sufficient token balance
+
 **Staking:**
 ```solidity
 function stakeTokens(uint256 amount) external
 function unstakeTokens(uint256 amount) external
 ```
 
+**Requirements:**
+- User must reach Level 10 to stake
+- Must stake at least 51% of available token balance to become verifier
+- Verifier status lost if unstaking reduces balance below 50% of original stake (unless manually added)
+- Manually added verifiers retain status even after unstaking
+
 **Admin Functions:**
 ```solidity
 function updateTokenPrice(uint256 newPrice) external onlyOwner
 function updateTargetRewardValue(uint256 newValue) external onlyOwner
 function updatePointMultipliers(...) external onlyOwner
-function addVerifier(address verifierAddress) external onlyOwner
+function addVerifier(address verifierAddress) external onlyOwner  // Manual verifier (bypasses staking)
 function removeVerifier(address verifierAddress) external onlyOwner
+function slashVerifier(address verifierAddress) external onlyOwner  // Remove verifier even with staked tokens
 function pause() external onlyOwner
 function unpause() external onlyOwner
 function withdrawTokens(uint256 amount) external onlyOwner
+function upgradeTo(address newImplementation) external onlyOwner  // UUPS upgrade
 ```
 
 #### State Variables
 
 - `LEVEL_POINTS`: 10 (adjustable)
 - `STREAK_POINTS`: 1 (adjustable)
-- `REFERRAL_POINTS`: 2 (adjustable)
+- `REFERRAL_POINTS`: 3 (adjustable)
 - `IMPACT_FORM_POINTS`: 3 (adjustable)
 - `VERIFIER_POINTS`: 1 (adjustable)
-- `targetRewardValueUSD`: 50 cents (40-60 range)
-- `currentTokenPriceUSD`: 8 decimals (e.g., 77 = $0.00000077)
+- `targetRewardValueUSD`: 50 cents (40-60 range, adjustable)
+- `currentTokenPriceUSD`: 8 decimals (e.g., 77 = $0.00000077, adjustable)
 - `MINIMUM_LEVEL_FOR_STAKING`: 10 (constant)
+- `MINIMUM_POINTS_TO_CLAIM`: 100 (constant - minimum DCU points required to claim tokens)
 
 #### Events
 
@@ -113,7 +143,9 @@ event PointsMultiplierUpdated(string multiplierType, uint256 newValue)
 
 ### VerificationContract
 
-**Address (Testnet)**: `0x82968575f998f669b72C56E4BdC2e94E6546c55F`
+**Address (Testnet)**: `0x390bDa64D1523075E74673ed957B9Ed67a3D34aD` (UUPS Proxy)  
+**Implementation**: `0x74dc3CE94069027520C060FA2e94479a446c84B7`  
+**Pattern**: UUPS (Universal Upgradeable Proxy Standard) - Upgradeable contract
 
 #### Core Functions
 
@@ -133,11 +165,22 @@ function rejectCleanup(uint256 cleanupId) external
 ```solidity
 function addVerifier(address _verifier) external onlyOwner
 function removeVerifier(address _verifier) external onlyOwner
+function slashVerifier(address _verifier) external onlyOwner  // Remove verifier for misconduct
 function setSubmissionFee(uint256 _fee, bool _enabled) external onlyOwner
 function setClaimFee(uint256 _fee, bool _enabled) external onlyOwner
 function setFeeTreasury(address _feeTreasury) external onlyOwner
-function withdrawFees() external onlyOwner
+function pause() external onlyOwner
+function unpause() external onlyOwner
+function upgradeTo(address newImplementation) external onlyOwner  // UUPS upgrade
 ```
+
+**Note:** Fees are automatically withdrawn to the fee treasury when collected (no manual withdrawal needed).
+
+**Referral Logic:**
+- Referral rewards are awarded to both referrer and referee (3 points each)
+- Referee can receive referral reward even if previous cleanup was rejected
+- `hasSubmittedCleanup` is only set to `true` upon successful verification
+- This allows users to be eligible for referral rewards on subsequent submissions
 
 #### Fee Configuration
 
@@ -147,7 +190,9 @@ function withdrawFees() external onlyOwner
 
 ### ImpactProductNFT
 
-**Address (Testnet)**: `0x0E5713877D0B3610B58ACB5c13bdA41b61F6a0c9`
+**Address (Testnet)**: `0x45417FFD32986DA5Ba232cb3FdFB9b21aE6D3539` (UUPS Proxy)  
+**Implementation**: `0xdA614b090d26dd2e68cC1A8c5601D8f38eA6E96A`  
+**Pattern**: UUPS (Universal Upgradeable Proxy Standard) - Upgradeable contract
 
 #### Core Functions
 
@@ -156,6 +201,17 @@ function claimLevelForUser(address user, uint256 cleanupId, uint8 level) externa
 function userCurrentLevel(address user) external view returns (uint8)
 function getUserTokenId(address user) external view returns (uint256)
 function tokenURI(uint256 tokenId) external view returns (string)
+function getTokenURIForLevel(uint8 level) external view returns (string)
+function decreaseLevel(address user, uint8 newLevel) external onlyOwner  // Reduce user level for misconduct
+```
+
+**Admin Functions:**
+```solidity
+function setBaseURI(string memory _baseURI) external onlyOwner
+function setVerificationContract(address _verificationContract) external onlyOwner
+function pause() external onlyOwner
+function unpause() external onlyOwner
+function upgradeTo(address newImplementation) external onlyOwner  // UUPS upgrade
 ```
 
 ---
@@ -166,7 +222,7 @@ function tokenURI(uint256 tokenId) external view returns (string)
 
 ```
 app/
-├── page.tsx              # Home page
+├── page.tsx              # Home page (with onboarding and Add App modal)
 ├── cleanup/
 │   └── page.tsx         # Cleanup submission
 ├── profile/
@@ -175,13 +231,17 @@ app/
 │   └── page.tsx         # Verifier dashboard
 └── api/
     ├── ipfs/
-    │   └── upload/route.ts  # IPFS upload proxy
+    │   ├── upload/route.ts  # IPFS upload proxy
+    │   └── fetch/route.ts   # IPFS fetch proxy (bypasses CORS)
     └── neynar/...
 
 components/
 ├── wallet/              # Wallet connection
 ├── farcaster/          # Farcaster integration
 ├── navigation/         # Navigation components
+├── onboarding/
+│   ├── OnboardingFlow.tsx  # Onboarding guide
+│   └── AddAppModal.tsx     # Add to Farcaster/Base app modal
 └── ui/                 # shadcn/ui components
 
 lib/
@@ -224,9 +284,27 @@ lib/
 **Response:**
 ```json
 {
-  "ipfsHash": "Qm...",
-  "gatewayUrl": "https://gateway.pinata.cloud/ipfs/Qm..."
+  "hash": "Qm...",
+  "url": "https://gateway.pinata.cloud/ipfs/Qm..."
 }
+```
+
+### IPFS Fetch Endpoint
+
+**GET** `/api/ipfs/fetch?path=<ipfs_path>`
+
+**Purpose:** Server-side proxy to fetch IPFS content (bypasses CORS)
+
+**Request:**
+- Query parameter: `path` - IPFS path (e.g., `bafybe.../level1.json`)
+
+**Response:**
+- JSON content from IPFS
+- CORS headers included for client access
+
+**Example:**
+```
+GET /api/ipfs/fetch?path=bafybeifgncb7zgjydfuhr26anittgtib5hda2dlvhdabzpdb6xa2s26luu/level1.json
 ```
 
 ### Contract Read Operations
@@ -340,10 +418,37 @@ interface RewardBreakdown {
 5. Hash stored onchain in cleanup submission
 
 **Gateway Fallbacks:**
-- `gateway.pinata.cloud`
+- Server-side proxy (`/api/ipfs/fetch`) - bypasses CORS, tried first
 - `ipfs.io`
 - `cloudflare-ipfs.com`
 - `dweb.link`
+- `gateway.pinata.cloud`
+
+**Metadata Loading Strategy:**
+- Constructed metadata used immediately (fast path)
+- IPFS fetch attempted in background (non-blocking)
+- Falls back to constructed metadata if IPFS fails or times out (2 second timeout)
+- Ensures UI always loads quickly even if IPFS gateways are slow
+
+### Onboarding and Add App Modal
+
+**OnboardingFlow Component:**
+- 4-step guide showing app features
+- Appears on first visit (session-based)
+- Can be skipped or completed
+
+**AddAppModal Component:**
+- Appears after onboarding completes
+- Detects Farcaster Mini App or Base App environment
+- Offers to add app to Farcaster apps or pin to Base app
+- Uses SDK methods when available, graceful fallback otherwise
+- Shows once per session
+
+**Metadata Loading Strategy:**
+- Constructed metadata used immediately (fast path)
+- IPFS fetch attempted in background (non-blocking)
+- Falls back to constructed metadata if IPFS fails or times out (2 second timeout)
+- Ensures UI always loads quickly even if IPFS gateways are slow
 
 ---
 

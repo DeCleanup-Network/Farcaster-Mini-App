@@ -473,10 +473,9 @@ function ProfileContent() {
                 const proxyResponse = await Promise.race([
                   fetch(proxyUrl),
                   timeoutPromise,
-                ]) as Promise<Response>
-                const response = await proxyResponse
-                if (response.ok) {
-                  return response
+                ])
+                if (proxyResponse.ok) {
+                  return proxyResponse
                 }
               } catch (proxyError) {
                 // Silently fail and try direct gateways
@@ -504,10 +503,9 @@ function ProfileContent() {
                       mode: 'cors',
                     }),
                     timeoutPromise,
-                  ]) as Promise<Response>
-                  const result = await response
-                  if (result.ok) {
-                    return result
+                  ])
+                  if (response.ok) {
+                    return response
                   }
                 } catch (error) {
                   return null
@@ -568,7 +566,9 @@ function ProfileContent() {
                 
                 impactValue = config.impactValue.toString()
                 dcuReward = config.dcu.toString()
-                imageUrl = convertIPFSToGateway(metadata.image)
+                if (metadata.image) {
+                  imageUrl = convertIPFSToGateway(metadata.image)
+                }
                 if (metadata.animation_url) {
                   animationUrl = convertIPFSToGateway(metadata.animation_url)
                 }
@@ -659,7 +659,9 @@ function ProfileContent() {
         console.error('Error fetching profile data:', error)
         setProfileData({
           dcuBalance: 0,
+          dcuPoints: 0,
           stakedDCU: 0,
+          stakedBalance: BigInt(0),
           level: 0,
           streak: 0,
           hasActiveStreak: false,
@@ -671,7 +673,7 @@ function ProfileContent() {
           impactValue: null,
           dcuReward: null,
           totalRewardsDistributed: 0,
-            rewardsBreakdown: {
+          rewardsBreakdown: {
             levelRewards: 0,
             cleanupCount: 0,
             streakRewards: 0,
@@ -681,6 +683,10 @@ function ProfileContent() {
             retroRewards: 0,
             total: 0,
           },
+          isVerifier: false,
+          hasMinimumLevel: false,
+          currentTokenPrice: 0,
+          targetRewardValue: 90,
         })
       } finally {
         if (showSpinner) {

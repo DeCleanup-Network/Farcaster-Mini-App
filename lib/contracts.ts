@@ -2258,6 +2258,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
   referralRewards: number
   impactFormRewards: number
   verifierRewards: number
+  retroRewards: number
   total: number
 }> {
   // Try new points system first
@@ -2340,7 +2341,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
 
   // Fallback to old system
   if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
-    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, total: 0 }
+    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, retroRewards: 0, total: 0 }
   }
 
   try {
@@ -2700,6 +2701,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       referralRewards,
       impactFormRewards,
       verifierRewards,
+      retroRewards: 0, // Old system doesn't have retro rewards
       total,
     }
   } catch (error: any) {
@@ -2709,7 +2711,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
       code: error?.code,
       name: error?.name,
     })
-    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, total: 0 }
+    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, retroRewards: 0, total: 0 }
   }
 }
 
@@ -2881,7 +2883,7 @@ export async function claimTokensFromPoints(
     throw new Error('Wallet not connected')
   }
 
-  await ensureWalletOnRequiredChain(chainId)
+  await ensureWalletOnRequiredChain('transaction', chainId)
 
   const lockedWalletAddress = await ensureWalletConnected()
   if (account.address.toLowerCase() !== lockedWalletAddress.toLowerCase()) {
@@ -2898,7 +2900,7 @@ export async function claimTokensFromPoints(
     }) as bigint
 
     // Validate token balance before claiming
-    if (tokensToReceive > 0n) {
+    if (tokensToReceive > BigInt(0)) {
       const validation = await validatePreFlight({
         checkWallet: true,
         checkChain: true,
@@ -2972,7 +2974,7 @@ export async function stakeTokensForVerifier(
     throw new Error('Wallet not connected')
   }
 
-  await ensureWalletOnRequiredChain(chainId)
+  await ensureWalletOnRequiredChain('transaction', chainId)
 
   const lockedWalletAddress = await ensureWalletConnected()
   if (account.address.toLowerCase() !== lockedWalletAddress.toLowerCase()) {
@@ -3055,7 +3057,7 @@ export async function unstakeTokens(
     throw new Error('Wallet not connected')
   }
 
-  await ensureWalletOnRequiredChain(chainId)
+  await ensureWalletOnRequiredChain('transaction', chainId)
 
   const lockedWalletAddress = await ensureWalletConnected()
   if (account.address.toLowerCase() !== lockedWalletAddress.toLowerCase()) {

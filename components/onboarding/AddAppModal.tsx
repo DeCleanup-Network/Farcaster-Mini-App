@@ -34,8 +34,6 @@ export function AddAppModal({ isOpen, onClose }: AddAppModalProps) {
       try {
         if (sdk.actions?.openUrl) {
           await sdk.actions.openUrl('farcaster://apps')
-        } else if (sdk.openUrl) {
-          await sdk.openUrl('farcaster://apps')
         }
       } catch (urlError) {
         // URL scheme might not be supported, try alternative

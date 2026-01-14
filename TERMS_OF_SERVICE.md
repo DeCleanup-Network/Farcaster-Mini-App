@@ -2,6 +2,8 @@
 
 **Last Updated:** January 2025
 
+**Note:** Our smart contracts are upgradeable using the UUPS (Universal Upgradeable Proxy Standard) pattern. This allows us to fix bugs, add features, and improve the system while maintaining user data and balances. All upgrades are subject to proper governance and security measures.
+
 ## 1. Introduction
 
 Welcome to DeCleanup Rewards ("we," "us," or "our"). These Terms of Service ("Terms") govern your access to and use of the DeCleanup Rewards application and services (collectively, the "Services"), which enable users to document environmental cleanups, earn DCU points, claim $bDCU tokens, and participate in onchain verification and rewards.
@@ -60,27 +62,30 @@ When you submit cleanup documentation through our Services:
 DeCleanup Rewards uses a points-based reward system:
 
 - **DCU Points** are earned for various actions:
-  - Cleanup submission (verified): 10 points = $0.50 USD equivalent
-  - Streak maintenance: 1 point = $0.05 USD equivalent
-  - Referral (both parties): 2 points = $0.10 USD equivalent each
-  - Impact form submission: 3 points = $0.15 USD equivalent
-  - Verification activity: 1 point = $0.05 USD equivalent
+  - Cleanup submission (verified): 10 points
+  - Streak maintenance: 1 point
+  - Referral (both parties): 3 points each
+  - Impact form submission: 3 points
+  - Verification activity: 1 point
+  - Manual/retroactive rewards: Variable (admin-awarded)
 
 - Points are tracked onchain and cannot be transferred between users
-- Points can be claimed for $bDCU tokens at any time (subject to minimum level requirement)
+- Points can be claimed for $bDCU tokens after reaching Level 10 (minimum 100 DCU points required)
+- The actual USD value of points is determined at claim time based on current token price and multipliers
 - Points values and multipliers may be adjusted by administrators
 
 ### $bDCU Token Claims
 
 - To claim tokens, you must:
-  - Have accumulated DCU points
+  - Have accumulated at least 100 DCU points (minimum claim amount)
   - Reach Impact Product Level 10 (minimum requirement)
   - Have sufficient contract balance available for claims
 
 - Claim amount is calculated based on:
-  - Your accumulated DCU points
-  - Current market price of $bDCU tokens
-  - Target reward value (currently $0.50 per cleanup)
+  - Your accumulated DCU points (minimum 100 points)
+  - Current market price of $bDCU tokens (8 decimals)
+  - Target reward value (configurable, typically $0.50 per cleanup equivalent)
+  - Point multipliers (may vary by action type)
 
 - Token claims are irreversible onchain transactions
 - Claim amounts may vary based on token price fluctuations
@@ -103,16 +108,16 @@ Impact Products are non-fungible tokens (NFTs) that represent verified environme
 
 - To become a verifier through staking, you must:
   - Reach Impact Product Level 10
-  - Stake more than 51% of your available $bDCU token balance
-  - Maintain staked balance above 50% of original stake to retain verifier status
+  - Stake at least 51% of your available $bDCU token balance at the time of staking
+  - Maintain staked balance above 50% of original stake to retain verifier status (unless manually added by admin)
 
 ### Verifier Status
 
 - Verifiers can review and approve/reject cleanup submissions
-- Verifiers earn DCU points (1 point = $0.05 USD equivalent) for each verification
-- Verifier status may be granted manually by administrators (bypasses staking requirement)
-- Verifier status may be revoked for fraudulent or manipulative behavior
-- Staked tokens are locked until unstaked (unstaking may result in loss of verifier status)
+- Verifiers earn DCU points (1 point) for each verification
+- Verifier status may be granted manually by administrators (bypasses staking requirement and persists even after unstaking)
+- Verifier status may be revoked for fraudulent or manipulative behavior (via slashing mechanism)
+- Staked tokens are locked until unstaked (unstaking may result in loss of verifier status if not manually added)
 
 ## 8. Verification Process
 
