@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { safeJsonParse } from '@/lib/input-validation'
+import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from '@/lib/rate-limit'
 
 /**
  * Neynar API endpoint for looking up Farcaster user by FID
@@ -8,6 +10,24 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function GET(request: NextRequest) {
   try {
+    // SECURITY: Rate limiting
+    const identifier = getRateLimitIdentifier(request)
+    const rateLimit = checkRateLimit(identifier, RATE_LIMITS.NEYNAR_API)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'Rate limit exceeded. Please try again later.',
+          retryAfter: rateLimit.retryAfter,
+        },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfter),
+          },
+        }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const fid = searchParams.get('fid')
 
@@ -52,7 +72,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const userData = await response.json()
+    const text = await response.text()
+    // SECURITY: Validate JSON depth from external API response
+    const userData = safeJsonParse(text, 10, {
+      endpoint: '/api/neynar/user-by-fid',
+      request,
+    })
     return NextResponse.json(userData)
   } catch (error: any) {
     console.error('Error in user-by-fid endpoint:', error)

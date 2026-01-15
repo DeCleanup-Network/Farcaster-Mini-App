@@ -447,7 +447,7 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
 
   // Load Quick Auth token from sessionStorage on mount (if available)
   useEffect(() => {
-    if (typeof window !== 'undefined' && !quickAuthToken) {
+    if (typeof window !== 'undefined') {
       try {
         const storedToken = sessionStorage.getItem('farcasterQuickAuthToken')
         if (storedToken) {
@@ -459,7 +459,8 @@ export function FarcasterProvider({ children }: { children: ReactNode }) {
         console.debug('Could not load token from sessionStorage:', storageError)
       }
     }
-  }, [quickAuthToken])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run on mount - don't include quickAuthToken in deps to avoid unnecessary re-renders
 
   return (
     <FarcasterContext.Provider value={{ context, isInitialized, isLoading, isMiniApp, quickAuthToken }}>

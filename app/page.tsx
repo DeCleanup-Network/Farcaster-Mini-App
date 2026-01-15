@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { SuccessModal } from '@/components/ui/success-modal'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
@@ -23,6 +24,7 @@ const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
 const getExplorerTxUrl = (hash: `0x${string}`) => `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${hash}`
 
 export default function Home() {
+  const router = useRouter()
   // Ensure ready() is called early on this landing page
   useFarcasterReady()
   // Auto-connect Farcaster wallet and account when in Mini App
@@ -612,6 +614,10 @@ export default function Home() {
             onClose={() => {
               setShowSuccessModal(false)
               setSuccessModalData(null)
+              // Redirect to profile page after claiming Impact Product
+              if (successModalData.title.includes('Impact Product') || successModalData.title.includes('Minted')) {
+                router.push('/profile')
+              }
             }}
             title={successModalData.title}
             message={successModalData.message}

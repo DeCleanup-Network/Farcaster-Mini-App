@@ -482,7 +482,10 @@ function ProfileContent() {
               }
 
               // Fallback to direct gateways with timeout
+              // Include configured gateway first if available
+              const configuredGateway = process.env.NEXT_PUBLIC_IPFS_GATEWAY
               const gateways = [
+                ...(configuredGateway ? [configuredGateway] : []),
                 'https://ipfs.io/ipfs/',
                 'https://cloudflare-ipfs.com/ipfs/',
                 'https://dweb.link/ipfs/',
@@ -1667,6 +1670,7 @@ function ProfileContent() {
                         // Poll for status update
                         let pollCount = 0
                         const maxPolls = 10
+                        let modalWasShown = false // Track if modal was shown to avoid stale closure
                         const pollInterval = setInterval(async () => {
                           pollCount++
                           try {
@@ -1690,6 +1694,7 @@ function ProfileContent() {
                                   level: status.level,
                                 })
                                 setShowSuccessModal(true)
+                                modalWasShown = true // Mark that modal was shown
                                 // Don't auto-reload - let user share and close modal manually
                                 // User can refresh manually if needed
                               } else {
@@ -1709,9 +1714,9 @@ function ProfileContent() {
                         // Fallback: stop polling after max time (but don't auto-reload if modal is showing)
                         setTimeout(() => {
                           clearInterval(pollInterval)
-                          // Only reload if modal is not showing (user hasn't claimed yet)
-                          if (!showSuccessModal) {
-                          window.location.reload()
+                          // Only reload if modal was not shown (check the variable, not stale state)
+                          if (!modalWasShown) {
+                            window.location.reload()
                           }
                         }, 20000) // Max 20 seconds
                       } catch (error: any) {

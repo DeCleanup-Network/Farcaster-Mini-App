@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { safeJsonParse } from '@/lib/input-validation'
+import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from '@/lib/rate-limit'
+import { isIPBlocked, recordSecurityFailure, getClientIP } from '@/lib/security-monitoring'
 
 // Configure runtime for longer execution time (Vercel serverless functions)
 export const runtime = 'nodejs'
@@ -10,6 +13,33 @@ export const maxDuration = 90 // Match the timeout in the upload function
  */
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Check if IP is blocked
+    const clientIP = getClientIP(request)
+    if (clientIP && isIPBlocked(clientIP)) {
+      return NextResponse.json(
+        { error: 'Too many security violations. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
+    // SECURITY: Rate limiting
+    const identifier = getRateLimitIdentifier(request)
+    const rateLimit = checkRateLimit(identifier, RATE_LIMITS.IPFS_UPLOAD)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'Rate limit exceeded. Please try again later.',
+          retryAfter: rateLimit.retryAfter,
+        },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfter),
+          },
+        }
+      )
+    }
+
     // SECURITY: API keys MUST be server-side only
     // NEXT_PUBLIC_* variables are exposed to client-side JavaScript bundle
     const pinataApiKey = process.env.PINATA_API_KEY
@@ -76,9 +106,17 @@ export async function POST(request: NextRequest) {
 
     if (metadataStr) {
       try {
-        const metadata = JSON.parse(metadataStr)
+        // SECURITY: Validate JSON depth to prevent DoS attacks
+        const metadata = safeJsonParse(metadataStr, 10, { 
+          endpoint: '/api/ipfs/upload',
+          request,
+        })
         pinataFormData.append('pinataMetadata', JSON.stringify(metadata))
-      } catch {
+      } catch (error: any) {
+        console.warn('Invalid or too deeply nested metadata:', error.message)
+        if (clientIP && error.message.includes('exceeds maximum depth')) {
+          recordSecurityFailure(clientIP)
+        }
         const defaultMetadata = {
           name: file.name,
           keyvalues: {
@@ -101,9 +139,17 @@ export async function POST(request: NextRequest) {
 
     if (optionsStr) {
       try {
-        const options = JSON.parse(optionsStr)
+        // SECURITY: Validate JSON depth to prevent DoS attacks
+        const options = safeJsonParse(optionsStr, 5, {
+          endpoint: '/api/ipfs/upload',
+          request,
+        })
         pinataFormData.append('pinataOptions', JSON.stringify(options))
-      } catch {
+      } catch (error: any) {
+        console.warn('Invalid or too deeply nested options:', error.message)
+        if (clientIP && error.message.includes('exceeds maximum depth')) {
+          recordSecurityFailure(clientIP)
+        }
         const defaultOptions = {
           cidVersion: 1,
           wrapWithDirectory: false,
@@ -164,7 +210,13 @@ export async function POST(request: NextRequest) {
       let errorData: any = {}
       try {
         const text = await response.text()
-        errorData = text ? JSON.parse(text) : {}
+        if (text) {
+          // SECURITY: Validate JSON depth even for error responses
+          errorData = safeJsonParse(text, 5, {
+            endpoint: '/api/ipfs/upload',
+            request,
+          })
+        }
       } catch (parseError) {
         console.error('Failed to parse Pinata error response:', parseError)
         errorData = {}
@@ -198,7 +250,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const data = await response.json()
+    const text = await response.text()
+    // SECURITY: Validate JSON depth from external API response
+    const data = safeJsonParse(text, 5, {
+      endpoint: '/api/ipfs/upload',
+      request,
+    })
     const ipfsHash = data.IpfsHash || data.hash || data.cid
 
     if (!ipfsHash) {

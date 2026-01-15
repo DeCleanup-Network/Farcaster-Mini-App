@@ -2216,14 +2216,42 @@ export async function getVerifierTokenEarnings(verifierAddress: Address): Promis
 }
 
 /**
- * Get total rewards distributed to a user from bDCURewardDistributor
- * This shows the cumulative rewards tracked by the contract (may differ from actual balance)
+ * Get total rewards distributed to a user
+ * Tries new points system first, falls back to old token system
  * @param userAddress User's wallet address
- * @returns Total rewards distributed according to contract (in $bDCU tokens)
+ * @returns Total rewards distributed (DCU points from new system, or $bDCU tokens from old system)
  */
 export async function getTotalRewardsDistributed(userAddress: Address): Promise<number> {
+  // Try new points system first
+  if (CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    try {
+      const pointsBalance = await readContract(getWagmiConfig(), {
+        address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+        abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+        functionName: 'pointsBalance',
+        args: [userAddress],
+      })
+      
+      const points = Number(pointsBalance)
+      const pointsClaimed = await readContract(getWagmiConfig(), {
+        address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+        abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+        functionName: 'pointsClaimed',
+        args: [userAddress],
+      })
+      
+      const totalPoints = points + Number(pointsClaimed)
+      console.log(`Total DCU points distributed to ${userAddress}: ${totalPoints} DCU points (${points} available, ${Number(pointsClaimed)} claimed)`)
+      return totalPoints
+    } catch (error: any) {
+      console.warn('Error reading from PointsRewardDistributor, falling back to old system:', error?.message)
+      // Fall through to old system
+    }
+  }
+
+  // Fallback to old token system
   if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
-    console.warn('getTotalRewardsDistributed: BDCU_REWARD_DISTRIBUTOR address not set')
+    console.warn('getTotalRewardsDistributed: Neither POINTS_REWARD_DISTRIBUTOR nor BDCU_REWARD_DISTRIBUTOR address set')
     return 0
   }
 
@@ -2238,7 +2266,7 @@ export async function getTotalRewardsDistributed(userAddress: Address): Promise<
     // Convert from wei (18 decimals) to tokens
     const { formatUnits } = await import('viem')
     const formatted = parseFloat(formatUnits(totalDistributed as bigint, 18))
-    console.log(`Total rewards distributed to ${userAddress}: ${formatted} $bDCU`)
+    console.log(`Total rewards distributed to ${userAddress}: ${formatted} $bDCU (from old contract)`)
     return formatted
   } catch (error: any) {
     console.error('Error fetching total rewards distributed:', error)
@@ -2654,7 +2682,9 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
         const calculatedFromTotal = totalDistributed - streakRewards - referralRewards - impactFormRewards
         if (calculatedFromTotal > 0) {
           calculatedLevelRewards = calculatedFromTotal
-          console.log(`⚠️ Level rewards not found in events, but calculated from totalDistributed: ${calculatedLevelRewards} $bDCU`)
+          // Note: getTotalRewardsDistributed returns DCU points from new system, or $bDCU tokens from old system
+          const rewardUnit = CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR ? 'DCU points' : '$bDCU'
+          console.log(`⚠️ Level rewards not found in events, but calculated from totalDistributed: ${calculatedLevelRewards} ${rewardUnit}`)
           console.log(`   Total distributed: ${totalDistributed}, Other rewards: ${streakRewards + referralRewards + impactFormRewards}`)
         }
       } catch (error) {
@@ -2689,7 +2719,7 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
 
     // Use calculated level rewards if we had to calculate them
     const finalLevelRewards = calculatedLevelRewards
-    // Estimate cleanup count from level rewards (10 $bDCU per cleanup)
+    // Estimate cleanup count from level rewards (10 DCU points per cleanup)
     const estimatedCleanupCount = calculatedLevelRewards > 0 && cleanupCount === 0 
       ? Math.floor(calculatedLevelRewards / 10) 
       : cleanupCount
@@ -2932,14 +2962,28 @@ export async function claimTokensFromPoints(
   await checkGasBalance(account.address)
 
   try {
-    const hash = await writeContract(getWagmiConfig(), {
+    // Get the chain object explicitly to ensure proper chain resolution
+    const targetChain = getRequiredChain()
+    if (!targetChain) {
+      const errorMsg = `${REQUIRED_CHAIN_NAME} chain is not configured in this app. Please switch to ${REQUIRED_CHAIN_NAME} manually.\n\n${getNetworkSetupMessage()}`
+      console.error('[claimTokens]', errorMsg)
+      throw new Error(errorMsg)
+    }
+
+    console.log('[claimTokens] Calling writeContract with chain:', targetChain.id, targetChain.name)
+    console.log('[claimTokens] Contract address:', CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR)
+    console.log('[claimTokens] Function: claimTokens, args:', [pointsToClaim.toString()])
+    console.log('[claimTokens] Account status:', account.status, 'Connector:', account.connector?.name || account.connector?.id)
+
+    const hash = await writeContract(getWagmiConfig() as any, {
       address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
       abi: POINTS_REWARD_DISTRIBUTOR_ABI,
       functionName: 'claimTokens',
       args: [BigInt(pointsToClaim)],
-      chainId: REQUIRED_CHAIN_ID,
+      chain: targetChain, // Pass chain object explicitly instead of just chainId
     })
 
+    console.log('[claimTokens] ✅ Transaction hash received:', hash)
     logTransactionSuccess('claimTokens', hash, {
       pointsToClaim,
       userAddress: account.address,
@@ -2947,6 +2991,22 @@ export async function claimTokensFromPoints(
 
     return hash
   } catch (error: any) {
+    const errorMessage = getErrorMessage(error)
+    console.error('[claimTokens] Transaction failed:', errorMessage)
+
+    // Check for chain mismatch errors
+    if (
+      errorMessage.includes('ChainMismatchError') ||
+      errorMessage.includes('chain mismatch') ||
+      errorMessage.includes('does not match the target chain')
+    ) {
+      const currentChainId = await getCurrentChainId()
+      throw new Error(
+        `Wrong network detected. Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}).\n\n` +
+        `Current network: ${currentChainId || 'unknown'}\n${getNetworkSetupMessage()}`
+      )
+    }
+
     logTransactionError('claimTokens', error, {
       pointsToClaim,
       userAddress: account.address,

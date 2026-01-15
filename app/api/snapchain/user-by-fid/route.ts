@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { safeJsonParse } from '@/lib/input-validation'
+import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from '@/lib/rate-limit'
 
 /**
  * Snapchain API endpoint for looking up Farcaster user data by FID
@@ -22,6 +24,24 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function GET(request: NextRequest) {
   try {
+    // SECURITY: Rate limiting
+    const identifier = getRateLimitIdentifier(request)
+    const rateLimit = checkRateLimit(identifier, RATE_LIMITS.GENERAL)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'Rate limit exceeded. Please try again later.',
+          retryAfter: rateLimit.retryAfter,
+        },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfter),
+          },
+        }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const fid = searchParams.get('fid')
     const userDataType = searchParams.get('user_data_type') // Optional: 1=PFP, 2=Display, 3=Bio, 6=Username
@@ -67,7 +87,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const data = await response.json()
+    const text = await response.text()
+    // SECURITY: Validate JSON depth from external API response
+    const data = safeJsonParse(text, 15, {
+      endpoint: '/api/snapchain/user-by-fid',
+      request,
+    })
     
     // Transform Snapchain response to our expected format
     // Snapchain can return:

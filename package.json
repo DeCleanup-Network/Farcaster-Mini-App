@@ -2,6 +2,9 @@
   "name": "decleanup-mini-app",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.20.0 <25.0.0"
+  },
   "scripts": {
     "dev": "NODE_OPTIONS=--no-deprecation NEXT_TELEMETRY_DISABLED=1 next dev --webpack",
     "dev:network": "NODE_OPTIONS=--no-deprecation NEXT_TELEMETRY_DISABLED=1 next dev --webpack -H 0.0.0.0",
@@ -12,6 +15,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage --maxWorkers=2 --passWithNoTests",
+    "test:validation": "node scripts/test-input-validation.js",
     "generate:metadata": "node scripts/generateImpactMetadata.js"
   },
   "dependencies": {

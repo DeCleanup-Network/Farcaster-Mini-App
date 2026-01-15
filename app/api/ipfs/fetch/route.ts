@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { safeJsonParse } from '@/lib/input-validation'
+import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from '@/lib/rate-limit'
+import { isIPBlocked, getClientIP } from '@/lib/security-monitoring'
 
 /**
  * API Route to proxy IPFS fetches
@@ -6,6 +9,33 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 export async function GET(request: NextRequest) {
   try {
+    // SECURITY: Check if IP is blocked
+    const clientIP = getClientIP(request)
+    if (clientIP && isIPBlocked(clientIP)) {
+      return NextResponse.json(
+        { error: 'Too many security violations. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
+    // SECURITY: Rate limiting
+    const identifier = getRateLimitIdentifier(request)
+    const rateLimit = checkRateLimit(identifier, RATE_LIMITS.IPFS_FETCH)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'Rate limit exceeded. Please try again later.',
+          retryAfter: rateLimit.retryAfter,
+        },
+        { 
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfter),
+          },
+        }
+      )
+    }
+
     const searchParams = request.nextUrl.searchParams
     const ipfsPath = searchParams.get('path')
 
@@ -42,7 +72,12 @@ export async function GET(request: NextRequest) {
         })
 
         if (response.ok) {
-          const data = await response.json()
+          const text = await response.text()
+          // SECURITY: Validate JSON depth to prevent DoS attacks from malicious IPFS content
+          const data = safeJsonParse(text, 20, {
+            endpoint: '/api/ipfs/fetch',
+            request,
+          })
           return NextResponse.json(data, {
             headers: {
               'Access-Control-Allow-Origin': '*',

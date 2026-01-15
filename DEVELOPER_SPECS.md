@@ -233,7 +233,9 @@ app/
     ├── ipfs/
     │   ├── upload/route.ts  # IPFS upload proxy
     │   └── fetch/route.ts   # IPFS fetch proxy (bypasses CORS)
-    └── neynar/...
+    └── neynar/
+        ├── user-by-fid/route.ts  # Get user by FID
+        └── user-by-custody-address/route.ts  # Get user by custody address
 
 components/
 ├── wallet/              # Wallet connection
