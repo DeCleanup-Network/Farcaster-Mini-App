@@ -612,11 +612,16 @@ export default function Home() {
           <SuccessModal
             isOpen={showSuccessModal}
             onClose={() => {
+              // Store title before clearing state to check for redirect
+              const shouldRedirect = successModalData.title.includes('Impact Product') || successModalData.title.includes('Minted')
               setShowSuccessModal(false)
               setSuccessModalData(null)
               // Redirect to profile page after claiming Impact Product
-              if (successModalData.title.includes('Impact Product') || successModalData.title.includes('Minted')) {
-                router.push('/profile')
+              if (shouldRedirect) {
+                // Use setTimeout to ensure state updates complete before navigation
+                setTimeout(() => {
+                  router.push('/profile')
+                }, 100)
               }
             }}
             title={successModalData.title}

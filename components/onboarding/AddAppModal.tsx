@@ -25,28 +25,27 @@ export function AddAppModal({ isOpen, onClose }: AddAppModalProps) {
   }, [])
 
   const handleAddToFarcaster = async () => {
-    try {
-      // Try importing the Farcaster SDK
-      const { sdk } = await import('@farcaster/miniapp-sdk')
-      
-      // Try to use SDK actions to open app management
-      // Note: The exact method may vary - this is a best-effort attempt
-      try {
-        if (sdk.actions?.openUrl) {
-          await sdk.actions.openUrl('farcaster://apps')
-        }
-      } catch (urlError) {
-        // URL scheme might not be supported, try alternative
-        console.log('Could not open Farcaster apps URL')
-      }
-      
-      // Mark as attempted (user may need to add manually from Farcaster settings)
-      setFarcasterAdded(true)
-    } catch (error) {
-      console.warn('Could not trigger Farcaster add app:', error)
-      // Mark as done anyway - user can add manually
-      setFarcasterAdded(true)
-    }
+    // There's no reliable way to programmatically add apps to Farcaster
+    // Instead, show clear instructions to the user
+    const instructions = `To add DeCleanup Rewards to your Farcaster apps:
+
+1. Tap the menu (☰) in the top-left of Farcaster
+2. Go to Settings
+3. Tap "Apps"
+4. Find "DeCleanup Rewards" in the list
+5. Tap "Add" or toggle it on
+
+Alternatively, you can access the app anytime by:
+• Using the app link from your profile
+• Opening any cast or link that includes the app
+
+The app will be available in your apps list for quick access!`
+
+    // Show instructions in an alert
+    alert(instructions)
+    
+    // Mark as attempted
+    setFarcasterAdded(true)
   }
 
   const handlePinToBase = async () => {
