@@ -220,7 +220,7 @@ export default function VerifierPage() {
               disabled={isSwitchingNetwork}
               className="bg-brand-green text-black hover:bg-brand-green/90"
             >
-              {isSwitchingNetwork ? 'Switching...' : `Switch to ${REQUIRED_CHAIN_NAME}`}
+              {isSwitchingNetwork ? 'Switching…' : `Switch to ${REQUIRED_CHAIN_NAME}`}
             </Button>
             <Button
               size="sm"
@@ -229,7 +229,7 @@ export default function VerifierPage() {
               disabled={isAddingNetwork}
               className="bg-black/30 text-white hover:bg-black/60"
             >
-              {isAddingNetwork ? 'Adding...' : 'Add network'}
+              {isAddingNetwork ? 'Adding…' : 'Add network'}
             </Button>
             <Button
               size="sm"
@@ -975,7 +975,14 @@ export default function VerifierPage() {
   }
 
   function formatDate(timestamp: bigint): string {
-    return new Date(Number(timestamp) * 1000).toLocaleString()
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(new Date(Number(timestamp) * 1000))
   }
 
   function formatCoordinates(lat: number, lng: number): string {
@@ -1135,7 +1142,7 @@ export default function VerifierPage() {
               Hide Details
             </Button>
           </div>
-          <p className="mt-2 text-gray-300">Loading details...</p>
+          <p className="mt-2 text-gray-300">Loading details…</p>
         </div>
       )
     }
@@ -1338,7 +1345,7 @@ export default function VerifierPage() {
               {isSigning ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing...
+                  Signing…
                 </>
               ) : (
                 <>
@@ -1472,7 +1479,7 @@ export default function VerifierPage() {
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading...
+                  Loading…
                 </>
               ) : (
                 <>
@@ -1492,9 +1499,13 @@ export default function VerifierPage() {
           <div className="flex gap-2">
             <input
               type="text"
+              name="search-wallet"
+              autoComplete="off"
+              inputMode="text"
               placeholder="Enter wallet address (e.g., ...2493)"
               value={searchWallet}
               onChange={(e) => setSearchWallet(e.target.value)}
+              spellCheck={false}
               className="flex-1 rounded-lg border border-gray-700 bg-black px-4 py-2 text-sm text-white placeholder-gray-500 focus:border-brand-green focus:outline-none"
             />
             <Button
@@ -1526,7 +1537,7 @@ export default function VerifierPage() {
               {searching ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Searching...
+                  Searching…
                 </>
               ) : (
                 'Search'
@@ -1568,7 +1579,7 @@ export default function VerifierPage() {
               <div className="mt-2 rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-2 text-center">
                 <div className="flex items-center justify-center gap-2 text-xs text-yellow-400">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Waiting for verification... (check {pollingStatus.count}/90)</span>
+                  <span>Waiting for verification… (check {pollingStatus.count}/90)</span>
                 </div>
               </div>
             )}
@@ -1605,7 +1616,7 @@ export default function VerifierPage() {
               className="text-gray-400 hover:text-white"
               title="Refresh stats"
             >
-              <RefreshCw className={`h-4 w-4 ${verifierStats.isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${verifierStats.isLoading ? 'motion-safe:animate-spin' : ''}`} />
             </Button>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -1709,6 +1720,8 @@ export default function VerifierPage() {
                             <img
                               src={getIPFSUrl(cleanup.beforePhotoHash)!}
                               alt="Before"
+                              width={256}
+                              height={128}
                               className="h-32 w-full object-cover"
                               crossOrigin="anonymous"
                               loading="lazy"
@@ -1779,6 +1792,8 @@ export default function VerifierPage() {
                             <img
                               src={getIPFSUrl(cleanup.afterPhotoHash)!}
                               alt="After"
+                              width={256}
+                              height={128}
                               className="h-32 w-full object-cover"
                               crossOrigin="anonymous"
                               loading="lazy"
@@ -1847,7 +1862,7 @@ export default function VerifierPage() {
                         {rejecting ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Rejecting...
+                            Rejecting…
                           </>
                         ) : (
                           <>
@@ -1864,7 +1879,7 @@ export default function VerifierPage() {
                         {verifying ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Verifying...
+                            Verifying…
                           </>
                         ) : (
                           <>
@@ -1992,6 +2007,8 @@ export default function VerifierPage() {
                             <img
                               src={getIPFSUrl(cleanup.beforePhotoHash)!}
                               alt="Before"
+                              width={256}
+                              height={128}
                               className="h-32 w-full object-cover"
                               crossOrigin="anonymous"
                               loading="lazy"
@@ -2032,6 +2049,8 @@ export default function VerifierPage() {
                             <img
                               src={getIPFSUrl(cleanup.afterPhotoHash)!}
                               alt="After"
+                              width={256}
+                              height={128}
                               className="h-32 w-full object-cover"
                               crossOrigin="anonymous"
                               loading="lazy"

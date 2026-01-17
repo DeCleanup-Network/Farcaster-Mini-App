@@ -469,7 +469,7 @@ export function WalletConnect() {
                   className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm disabled:opacity-50"
                 >
                   <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span>{isPending ? 'Connecting...' : 'Connect Wallet'}</span>
+                  <span>{isPending ? 'Connecting…' : 'Connect Wallet'}</span>
                 </Button>
               </div>
             )

@@ -1302,7 +1302,7 @@ function CleanupContent() {
               <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
             </div>
             <div className="flex-1">
-              <p className="text-sm text-gray-400">Checking referral eligibility...</p>
+              <p className="text-sm text-gray-400">Checking referral eligibility…</p>
             </div>
           </div>
         </div>
@@ -1429,7 +1429,7 @@ function CleanupContent() {
               disabled={isConnecting}
               className="mb-4 w-full gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
             >
-              {isConnecting ? 'Connecting...' : `Connect ${primaryConnector.name}`}
+              {isConnecting ? 'Connecting…' : `Connect ${primaryConnector.name}`}
             </Button>
           )}
           
@@ -1475,7 +1475,7 @@ function CleanupContent() {
                 size="sm"
                 className="bg-brand-green text-black hover:bg-brand-green/90"
               >
-                {isSwitchingChain ? 'Switching...' : `Switch to ${REQUIRED_CHAIN_NAME}`}
+                {isSwitchingChain ? 'Switching…' : `Switch to ${REQUIRED_CHAIN_NAME}`}
               </Button>
             </div>
           </div>
@@ -1558,7 +1558,7 @@ function CleanupContent() {
                     disabled={clearingPending}
                     className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-300 underline disabled:opacity-50"
                   >
-                    {clearingPending ? 'Clearing...' : 'Clear & Resubmit (if glitched)'}
+                    {clearingPending ? 'Clearing…' : 'Clear & Resubmit (if glitched)'}
                   </button>
                   <button
                     onClick={() => {
@@ -1712,7 +1712,7 @@ function CleanupContent() {
             {isGettingLocation ? (
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Getting location...
+                Getting location…
               </div>
             ) : location ? (
               <div className="flex items-center gap-2 text-sm text-brand-green">
@@ -1827,7 +1827,7 @@ function CleanupContent() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Processing...
+                    Processing…
                   </>
                 ) : (
                   <>
@@ -1996,6 +1996,8 @@ function CleanupContent() {
                 Location Type *
               </label>
               <select
+                name="location-type"
+                autoComplete="off"
                 value={enhancedData.locationType}
                 onChange={(e) => setEnhancedData({ ...enhancedData, locationType: e.target.value })}
                 className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
@@ -2018,6 +2020,9 @@ function CleanupContent() {
               <div className="flex gap-2">
               <input
                 type="number"
+                name="area"
+                autoComplete="off"
+                inputMode="decimal"
                 value={enhancedData.area}
                 onChange={(e) => {
                   const value = e.target.value
@@ -2032,12 +2037,15 @@ function CleanupContent() {
                     e.preventDefault()
                   }
                 }}
-                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                spellCheck={false}
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="50"
-                  min="0"
-                  step="0.1"
-                />
+                min="0"
+                step="0.1"
+              />
                 <select
+                  name="area-unit"
+                  autoComplete="off"
                   value={enhancedData.areaUnit}
                   onChange={(e) => setEnhancedData({ ...enhancedData, areaUnit: e.target.value as 'sqm' | 'sqft' })}
                   className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
@@ -2056,6 +2064,9 @@ function CleanupContent() {
               <div className="flex gap-2">
               <input
                 type="number"
+                name="weight"
+                autoComplete="off"
+                inputMode="decimal"
                 value={enhancedData.weight}
                 onChange={(e) => {
                   const value = e.target.value
@@ -2070,12 +2081,15 @@ function CleanupContent() {
                     e.preventDefault()
                   }
                 }}
-                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
+                spellCheck={false}
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="5"
-                  min="0"
-                  step="0.1"
-                />
+                min="0"
+                step="0.1"
+              />
                 <select
+                  name="weight-unit"
+                  autoComplete="off"
                   value={enhancedData.weightUnit}
                   onChange={(e) => setEnhancedData({ ...enhancedData, weightUnit: e.target.value as 'kg' | 'lbs' })}
                   className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
@@ -2094,6 +2108,9 @@ function CleanupContent() {
               </label>
               <input
                 type="number"
+                name="bags"
+                autoComplete="off"
+                inputMode="numeric"
                 value={enhancedData.bags}
                 onChange={(e) => {
                   const value = e.target.value
@@ -2108,6 +2125,7 @@ function CleanupContent() {
                     e.preventDefault()
                   }
                 }}
+                spellCheck={false}
                 className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="2"
                 min="0"
@@ -2122,6 +2140,9 @@ function CleanupContent() {
               <div className="flex gap-2">
                 <input
                   type="number"
+                  name="hours"
+                  autoComplete="off"
+                  inputMode="numeric"
                   value={enhancedData.hours}
                   onChange={(e) => {
                     const value = e.target.value
@@ -2136,6 +2157,7 @@ function CleanupContent() {
                       e.preventDefault()
                     }
                   }}
+                  spellCheck={false}
                   className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                   placeholder="1"
                   min="0"
@@ -2143,6 +2165,9 @@ function CleanupContent() {
                 <span className="flex items-center text-gray-400">hrs</span>
                 <input
                   type="number"
+                  name="minutes"
+                  autoComplete="off"
+                  inputMode="numeric"
                   value={enhancedData.minutes}
                   onChange={(e) => {
                     const value = e.target.value
@@ -2157,6 +2182,7 @@ function CleanupContent() {
                       e.preventDefault()
                     }
                   }}
+                  spellCheck={false}
                   className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                   placeholder="30"
                   min="0"
@@ -2176,6 +2202,7 @@ function CleanupContent() {
                   <label key={type} className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 p-2 hover:bg-gray-800 cursor-pointer">
                     <input
                       type="checkbox"
+                      name={`waste-type-${type}`}
                       checked={enhancedData.wasteTypes.includes(type)}
                       onChange={(e) => {
                         if (e.target.checked) {
@@ -2218,6 +2245,9 @@ function CleanupContent() {
                         <div className="flex-1 relative">
                     <input
                       type="text"
+                      name={`contributor-${idx}`}
+                      autoComplete="off"
+                      inputMode="text"
                       value={contributor}
                       onChange={(e) => {
                         const newContributors = [...enhancedData.contributors]
@@ -2397,6 +2427,8 @@ function CleanupContent() {
                 Rights Assignment
               </label>
               <select
+                name="rights-assignment"
+                autoComplete="off"
                 value={enhancedData.rightsAssignment}
                 onChange={(e) => setEnhancedData({ ...enhancedData, rightsAssignment: e.target.value as any })}
                 className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
@@ -2432,11 +2464,14 @@ function CleanupContent() {
                 ))}
               </div>
               <textarea
+                name="environmental-challenges"
+                autoComplete="off"
                 value={enhancedData.environmentalChallenges}
                 onChange={(e) => setEnhancedData({ ...enhancedData, environmentalChallenges: e.target.value })}
                 className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="What issues did you observe?"
                 rows={3}
+                spellCheck={true}
               />
             </div>
 
@@ -2462,11 +2497,14 @@ function CleanupContent() {
                 ))}
               </div>
               <textarea
+                name="prevention-ideas"
+                autoComplete="off"
                 value={enhancedData.preventionIdeas}
                 onChange={(e) => setEnhancedData({ ...enhancedData, preventionIdeas: e.target.value })}
                 className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                 placeholder="How can we prevent this?"
                 rows={3}
+                spellCheck={true}
               />
             </div>
 
@@ -2476,11 +2514,14 @@ function CleanupContent() {
                 Additional Notes (Optional)
               </label>
               <textarea
+                name="additional-notes"
+                autoComplete="off"
                 value={enhancedData.additionalNotes}
                 onChange={(e) => setEnhancedData({ ...enhancedData, additionalNotes: e.target.value })}
                 className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                placeholder="Any additional information..."
+                placeholder="Any additional information…"
                 rows={2}
+                spellCheck={true}
               />
             </div>
           </div>
@@ -2502,7 +2543,7 @@ function CleanupContent() {
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Submitting...
+                  Submitting…
                 </>
               ) : (
                 <>

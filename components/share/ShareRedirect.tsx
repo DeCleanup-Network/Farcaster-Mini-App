@@ -41,8 +41,8 @@ export function ShareRedirect({ redirectUrl }: ShareRedirectProps) {
       {/* Explicit meta tags for crawlers that might not read Next.js metadata */}
       <div className="flex min-h-screen items-center justify-center bg-black">
         <div className="text-center">
-          <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-brand-green" />
-          <p className="text-white">Redirecting to DeCleanup Rewards...</p>
+          <Loader2 className="mx-auto mb-4 h-8 w-8 motion-safe:animate-spin text-brand-green" />
+          <p className="text-white">Redirecting to DeCleanup Rewards…</p>
         </div>
       </div>
     </>

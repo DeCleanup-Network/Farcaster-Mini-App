@@ -240,7 +240,7 @@ export default function Home() {
                 className="flex-shrink-0 text-muted-foreground hover:text-foreground"
                 aria-label="Dismiss"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -504,7 +504,7 @@ export default function Home() {
                   {isClaiming ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>Minting Impact Product...</span>
+                      <span>Minting Impact Product…</span>
                     </>
                   ) : (
                     <>

@@ -79,14 +79,14 @@ export function SuccessModal({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm overscroll-contain"
       onClick={(e) => {
         // Prevent closing on backdrop click - user must click close button
         e.stopPropagation()
       }}
     >
       <div 
-        className="relative mx-4 w-full max-w-md max-h-[90vh] overflow-y-auto rounded-lg border-2 border-brand-green bg-gray-900 p-6 shadow-2xl"
+        className="relative mx-4 w-full max-w-md max-h-[90vh] overflow-y-auto rounded-lg border-2 border-brand-green bg-gray-900 p-6 shadow-2xl overscroll-contain"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
@@ -95,7 +95,7 @@ export function SuccessModal({
           className="absolute right-4 top-4 rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors z-10"
           aria-label="Close"
         >
-          <X className="h-5 w-5" />
+          <X className="h-5 w-5" aria-hidden="true" />
         </button>
 
         {/* Success icon */}
@@ -134,7 +134,7 @@ export function SuccessModal({
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 rounded-lg border-2 border-brand-green bg-brand-green/10 px-4 py-3 text-sm font-semibold text-brand-green hover:bg-brand-green/20 transition-colors"
             >
-              <ExternalLink className="h-4 w-4" />
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
               View on {explorerName}
             </a>
           )}
@@ -152,12 +152,12 @@ export function SuccessModal({
                 >
                   {sharing ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Sharing...</span>
+                      <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
+                      <span>Sharing…</span>
                     </>
                   ) : (
                     <>
-                      <Share2 className="h-4 w-4" />
+                      <Share2 className="h-4 w-4" aria-hidden="true" />
                     Share Achievement
                     </>
                   )}

@@ -59,7 +59,7 @@ export function TransactionModal({
       case 'warning':
         return <AlertCircle className="h-6 w-6 text-yellow-400" />
       case 'loading':
-        return <Loader2 className="h-6 w-6 animate-spin text-brand-green" />
+        return <Loader2 className="h-6 w-6 motion-safe:animate-spin text-brand-green" />
       default:
         return <AlertCircle className="h-6 w-6 text-gray-400" />
     }
@@ -91,7 +91,7 @@ export function TransactionModal({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className={cn('border-gray-800 bg-gray-900/95 backdrop-blur-sm text-white max-h-[90vh] overflow-y-auto', getBorderColor())}>
+      <DialogContent className={cn('border-gray-800 bg-gray-900/95 backdrop-blur-sm text-white max-h-[90vh] overflow-y-auto overscroll-contain', getBorderColor())}>
         <DialogHeader>
           <div className="flex items-center gap-3">
             {getIcon()}
@@ -111,8 +111,9 @@ export function TransactionModal({
                       <button
                         onClick={handleCopyHash}
                         className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-300"
+                        aria-label={copied ? 'Copied to clipboard' : 'Copy transaction hash'}
                       >
-                        <Copy className="h-3 w-3" />
+                        <Copy className="h-3 w-3" aria-hidden="true" />
                         {copied ? 'Copied!' : 'Copy'}
                       </button>
                     </div>
@@ -127,7 +128,7 @@ export function TransactionModal({
                         className="inline-flex items-center gap-1 text-xs text-brand-green hover:text-[#4a9a26]"
                       >
                         View on {blockExplorerName}
-                        <ExternalLink className="h-3 w-3" />
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
                       </a>
                     )}
                   </div>
@@ -146,7 +147,7 @@ export function TransactionModal({
               }}
               className="w-full border-gray-700 bg-gray-800 text-white hover:bg-gray-700 sm:w-auto"
             >
-              <ExternalLink className="mr-2 h-4 w-4" />
+              <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
               View Transaction
             </Button>
           )}

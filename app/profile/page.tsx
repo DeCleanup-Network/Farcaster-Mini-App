@@ -461,8 +461,9 @@ function ProfileContent() {
                 return fetch(ipfsUrl)
               }
 
-              // Create timeout promise
-              const timeoutPromise = new Promise<never>((_, reject) =>
+              // Helper function to create a new timeout promise for each race
+              // Once a promise rejects, it stays rejected, so we need a fresh one for each Promise.race()
+              const createTimeoutPromise = () => new Promise<never>((_, reject) =>
                 setTimeout(() => reject(new Error('IPFS fetch timeout')), timeout)
               )
 
@@ -472,7 +473,7 @@ function ProfileContent() {
                 const proxyUrl = `/api/ipfs/fetch?path=${encodeURIComponent(path)}`
                 const proxyResponse = await Promise.race([
                   fetch(proxyUrl),
-                  timeoutPromise,
+                  createTimeoutPromise(), // Create new timeout promise for this race
                 ])
                 if (proxyResponse.ok) {
                   return proxyResponse
@@ -495,6 +496,7 @@ function ProfileContent() {
               if (path.startsWith('/')) path = path.substring(1)
 
               // Try gateways in parallel with timeout
+              // Each Promise.race() needs its own timeout promise
               const gatewayPromises = gateways.map(async (gateway) => {
                 try {
                   const url = `${gateway}${path}`.trim()
@@ -505,7 +507,7 @@ function ProfileContent() {
                       redirect: 'follow',
                       mode: 'cors',
                     }),
-                    timeoutPromise,
+                    createTimeoutPromise(), // Create new timeout promise for each gateway race
                   ])
                   if (response.ok) {
                     return response
@@ -888,7 +890,7 @@ function ProfileContent() {
               <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
             </div>
             <div className="flex-1">
-              <h3 className="mb-1 text-sm font-bold uppercase text-gray-300">Checking Referral Eligibility...</h3>
+              <h3 className="mb-1 text-sm font-bold uppercase text-gray-300">Checking Referral Eligibility…</h3>
               <p className="text-sm text-gray-400">Verifying if you're eligible for a referral reward.</p>
             </div>
           </div>
@@ -914,7 +916,7 @@ function ProfileContent() {
               className="flex-shrink-0 text-gray-400 hover:text-white"
               aria-label="Dismiss"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -1014,8 +1016,9 @@ function ProfileContent() {
             disabled={isRefreshing}
             className="text-gray-400 hover:text-white"
             title="Refresh profile data"
+            aria-label="Refresh profile data"
           >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'motion-safe:animate-spin' : ''}`} aria-hidden="true" />
           </Button>
         </div>
 
@@ -1083,15 +1086,17 @@ function ProfileContent() {
                       }}
                       className="flex-shrink-0 text-gray-400 hover:text-white"
                       title="Copy wallet address"
+                      aria-label="Copy wallet address"
                     >
                       {copyingField === 'wallet' ? (
-                        <CheckCircle className="h-4 w-4 text-brand-green" />
+                        <CheckCircle className="h-4 w-4 text-brand-green" aria-hidden="true" />
                       ) : (
                         <svg
                           className="h-4 w-4"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
+                          aria-hidden="true"
                         >
                           <path
                             strokeLinecap="round"
@@ -1212,11 +1217,15 @@ function ProfileContent() {
                     <div className="flex gap-2">
                       <input
                         type="number"
+                        name="unstake-amount"
+                        autoComplete="off"
+                        inputMode="decimal"
                         value={stakeAmount}
                         onChange={(e) => setStakeAmount(e.target.value)}
                         placeholder={`Max: ${formatUnits(profileData.stakedBalance, 18).replace(/\.?0+$/, '')}`}
                         min={0}
                         step="0.1"
+                        spellCheck={false}
                         className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                       />
                       <Button
@@ -1275,7 +1284,7 @@ function ProfileContent() {
                     {isStaking ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Unstaking...
+                        Unstaking…
                       </>
                     ) : (
                       'Unstake Tokens'
@@ -1291,11 +1300,15 @@ function ProfileContent() {
                   </label>
                   <input
                     type="number"
+                    name="stake-amount"
+                    autoComplete="off"
+                    inputMode="decimal"
                     value={stakeAmount}
                     onChange={(e) => setStakeAmount(e.target.value)}
                     placeholder="Enter amount to stake"
                     min={0}
                     step="0.1"
+                    spellCheck={false}
                     className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
                   />
                   <div className="mt-2 flex gap-2">
@@ -1390,7 +1403,7 @@ function ProfileContent() {
                   {isStaking ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Staking...
+                      Staking…
                     </>
                   ) : (
                     <>
@@ -1416,7 +1429,15 @@ function ProfileContent() {
         <div className="mb-6 rounded-lg border border-gray-800 bg-gray-900 p-6">
           <button
             onClick={() => setBreakdownExpanded(!breakdownExpanded)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                setBreakdownExpanded(!breakdownExpanded)
+              }
+            }}
             className="flex w-full items-center justify-between hover:bg-gray-800/50 rounded-lg p-2 -m-2 transition-colors"
+            aria-expanded={breakdownExpanded}
+            aria-label={breakdownExpanded ? 'Collapse reward breakdown' : 'Expand reward breakdown'}
           >
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-brand-green" />
@@ -1554,7 +1575,7 @@ function ProfileContent() {
                     : 'text-brand-yellow'
                   }`}>
                   {cleanupStatus.loading
-                    ? 'Checking...'
+                    ? 'Checking…'
                     : cleanupStatus.verified && cleanupStatus.claimed
                       ? 'Verified & Claimed'
                       : cleanupStatus.verified && !cleanupStatus.claimed
@@ -1756,7 +1777,7 @@ function ProfileContent() {
                     {isClaiming ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Hang on, your Impact Product is being minted...</span>
+                        <span>Hang on, your Impact Product is being minted…</span>
                       </>
                     ) : (
                       <>
@@ -1804,7 +1825,10 @@ function ProfileContent() {
                     <img
                       src={profileData.animationUrl}
                       alt={`Level ${profileData.level} Impact Product`}
+                      width={400}
+                      height={400}
                       className="h-full w-full object-contain"
+                      loading="lazy"
                       onError={(e) => {
                         // Fallback to video if GIF fails
                         if (profileData.imageUrl) {
@@ -1826,6 +1850,8 @@ function ProfileContent() {
                       loop
                       muted
                       playsInline
+                      width={400}
+                      height={400}
                       className="h-full w-full object-contain"
                       onError={(e) => {
                         // Fallback to image if video fails
@@ -1842,7 +1868,10 @@ function ProfileContent() {
                   <img
                     src={profileData.imageUrl}
                     alt={`Level ${profileData.level} Impact Product`}
+                    width={400}
+                    height={400}
                     className="h-full w-full object-contain"
+                    loading="lazy"
                     onError={(e) => {
                       const img = e.currentTarget as HTMLImageElement
 
@@ -1986,7 +2015,7 @@ function ProfileContent() {
                 <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-4">
                   <p className="text-sm text-gray-400 mb-2">You will receive:</p>
                   <p className="text-lg font-bold text-white mb-1 break-words">
-                    {calculatedClaimAmount > BigInt(0) ? formatUnits(calculatedClaimAmount, 18).replace(/\.?0+$/, '') : 'Calculating...'} $bDCU
+                    {calculatedClaimAmount > BigInt(0) ? formatUnits(calculatedClaimAmount, 18).replace(/\.?0+$/, '') : 'Calculating…'} $bDCU
                   </p>
                   <p className="text-xs text-gray-500 mt-2">
                     For {profileData.dcuPoints.toFixed(0)} DCU
@@ -2075,7 +2104,7 @@ function ProfileContent() {
                   {isClaimingPoints ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Claiming...
+                      Claiming…
                     </>
                   ) : (
                     'Confirm'

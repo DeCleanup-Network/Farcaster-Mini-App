@@ -134,24 +134,34 @@ export function getWagmiConfig() {
   if (typeof window === 'undefined') {
     // Create minimal config for SSR - connectors will be empty but config structure is valid
     // Use connectorsForWallets for consistency with client-side config
-    // Note: connectorsForWallets returns an array of connector functions directly
     let defaultConnectors: any[] = []
     try {
       const result = connectorsForWallets(
         [
           {
             groupName: 'Recommended',
-            wallets: [metaMaskWallet, walletConnectWallet, coinbaseWallet, injectedWallet],
+            wallets: [
+              // Wallet factories must be passed as function references (not invoked)
+              // connectorsForWallets will call them with options from the second parameter
+              // We wrap them to merge shared options with wallet-specific options like chains
+              (options: any) => metaMaskWallet({ ...options, chains: allChains }),
+              (options: any) => walletConnectWallet({ ...options, projectId: walletConnectProjectId!, chains: allChains }),
+              (options: any) => coinbaseWallet({ ...options, appName: APP_NAME, chains: allChains }),
+              () => injectedWallet(),
+            ],
           },
         ],
         {
-      appName: APP_NAME,
-      projectId: walletConnectProjectId!,
+          appName: APP_NAME,
+          projectId: walletConnectProjectId!,
         }
       )
       
-      // connectorsForWallets returns an array of connector functions directly
-      if (Array.isArray(result)) {
+      // connectorsForWallets in v2 may return a function that must be called, or an array directly
+      // Handle both cases for compatibility
+      if (typeof result === 'function') {
+        defaultConnectors = (result as () => any[])()
+      } else if (Array.isArray(result)) {
         defaultConnectors = result
       } else {
         defaultConnectors = []
@@ -179,7 +189,6 @@ export function getWagmiConfig() {
 
   // Use custom wallet list with connectorsForWallets for better control
   // This allows us to specify exact wallets and their order
-  // Note: connectorsForWallets returns an array of connector functions directly
   let defaultConnectors: any[] = []
   try {
     const result = connectorsForWallets(
@@ -187,22 +196,28 @@ export function getWagmiConfig() {
         {
           groupName: 'Recommended',
           wallets: [
-            metaMaskWallet,
-            walletConnectWallet,
-            coinbaseWallet,
-            injectedWallet,
-            safeWallet,
+            // Wallet factories must be passed as function references (not invoked)
+            // connectorsForWallets will call them with options from the second parameter
+            // We wrap them to merge shared options with wallet-specific options like chains
+            (options: any) => metaMaskWallet({ ...options, chains: allChains }),
+            (options: any) => walletConnectWallet({ ...options, projectId: walletConnectProjectId!, chains: allChains }),
+            (options: any) => coinbaseWallet({ ...options, appName: APP_NAME, chains: allChains }),
+            () => injectedWallet(),
+            () => safeWallet(),
           ],
         },
       ],
       {
-    appName: APP_NAME,
-    projectId: walletConnectProjectId!,
+        appName: APP_NAME,
+        projectId: walletConnectProjectId!,
       }
     )
 
-    // connectorsForWallets returns an array of connector functions directly
-    if (Array.isArray(result)) {
+    // connectorsForWallets in v2 may return a function that must be called, or an array directly
+    // Handle both cases for compatibility
+    if (typeof result === 'function') {
+      defaultConnectors = (result as () => any[])()
+    } else if (Array.isArray(result)) {
       defaultConnectors = result
     } else {
       console.warn('connectorsForWallets returned unexpected structure:', typeof result)

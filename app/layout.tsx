@@ -89,8 +89,7 @@ export const metadata: Metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
   viewportFit: "cover" as const, // For iOS safe area
   themeColor: "#58B12F",
 };
@@ -101,7 +100,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" style={{ colorScheme: 'dark' }}>
       <head>
         <meta name="base:app_id" content="69450375d77c069a945be104" />
         <meta property="og:image" content={OG_IMAGE_URL} />

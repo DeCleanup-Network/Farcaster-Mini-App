@@ -156,15 +156,15 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const Icon = currentStepData.icon
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-2 sm:p-4">
-      <div className="relative mx-auto w-full max-w-md max-h-[calc(100vh-1rem)] rounded-lg border-2 border-brand-green bg-gray-900 p-4 sm:p-6 shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-2 sm:p-4 overscroll-contain">
+      <div className="relative mx-auto w-full max-w-md max-h-[calc(100vh-1rem)] rounded-lg border-2 border-brand-green bg-gray-900 p-4 sm:p-6 shadow-2xl flex flex-col overscroll-contain">
         {/* Close button */}
         <button
           onClick={handleSkip}
           className="absolute right-4 top-4 rounded-lg p-1 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors z-10"
           aria-label="Skip onboarding"
         >
-          <X className="h-5 w-5" />
+          <X className="h-5 w-5" aria-hidden="true" />
         </button>
 
         {/* Step indicator */}
@@ -172,7 +172,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           {steps.map((_, index) => (
             <div
               key={index}
-              className={`h-2 rounded-full transition-all ${
+              className={`h-2 rounded-full transition-[width,background-color] duration-300 ${
                 index === currentStep
                   ? 'w-8 bg-brand-green'
                   : index < currentStep
@@ -196,7 +196,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           <div className="mb-4 aspect-video w-full overflow-hidden rounded-lg border border-gray-700 bg-gray-800 relative max-h-[180px] sm:max-h-[240px]">
             {imageLoading[currentStep] && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                <Loader2 className="h-8 w-8 animate-spin text-brand-green" />
+                <Loader2 className="h-8 w-8 text-brand-green motion-safe:animate-spin" />
               </div>
             )}
             <Image
@@ -204,7 +204,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               alt={currentStepData.title}
               width={600}
               height={400}
-              className={`h-full w-full object-cover transition-opacity duration-300 ${
+              className={`h-full w-full object-cover transition-opacity duration-300 motion-safe:transition-opacity ${
                 imageLoading[currentStep] ? 'opacity-0' : 'opacity-100'
               }`}
               unoptimized

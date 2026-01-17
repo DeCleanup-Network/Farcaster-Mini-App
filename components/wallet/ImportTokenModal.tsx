@@ -43,19 +43,21 @@ export function ImportTokenModal({ type, tokenId, onCopy }: ImportTokenModalProp
         onClick={() => setIsOpen(true)}
         className="inline-flex items-center justify-center rounded-full p-1 text-gray-400 hover:text-gray-300 hover:bg-gray-800 transition-colors"
         title={type === 'token' ? 'How to add $bDCU to your wallet' : 'How to import Impact Product NFT'}
+        aria-label={type === 'token' ? 'How to add $bDCU to your wallet' : 'How to import Impact Product NFT'}
       >
-        <HelpCircle className="h-4 w-4" />
+        <HelpCircle className="h-4 w-4" aria-hidden="true" />
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setIsOpen(false)}>
-          <div className="relative w-full max-w-md rounded-lg border border-gray-700 bg-gray-900 p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 overscroll-contain" onClick={() => setIsOpen(false)}>
+          <div className="relative w-full max-w-md rounded-lg border border-gray-700 bg-gray-900 p-6 shadow-xl overscroll-contain" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
               className="absolute right-4 top-4 rounded-full p-1 text-gray-400 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+              aria-label="Close"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
 
             <h2 className="mb-4 text-xl font-bold text-white">
@@ -76,7 +78,7 @@ export function ImportTokenModal({ type, tokenId, onCopy }: ImportTokenModalProp
                       onClick={() => handleCopy(tokenAddress!, 'Token address')}
                       className="flex items-center gap-1 text-brand-green hover:text-brand-yellow transition-colors"
                     >
-                      <Copy className="h-3.5 w-3.5" />
+                      <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                       Copy
                     </button>
                   </div>
