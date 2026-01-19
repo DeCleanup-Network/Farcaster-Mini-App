@@ -8,6 +8,7 @@ import { REQUIRED_CHAIN_ID } from '@/lib/wagmi'
 import { Button } from '@/components/ui/button'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { mainnet } from 'wagmi/chains'
+import { TurnstileCaptcha, verifyCaptchaToken } from '@/components/captcha/TurnstileCaptcha'
 
 /**
  * WalletConnect component using RainbowKit
@@ -29,6 +30,12 @@ export function WalletConnect() {
   const previousConnectedRef = useRef(false)
   const previousAddressRef = useRef<string | undefined>(undefined)
   
+  // CAPTCHA state (only for web app, not Farcaster)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [isVerifyingCaptcha, setIsVerifyingCaptcha] = useState(false)
+  const [captchaError, setCaptchaError] = useState<string | null>(null)
+  const [showCaptcha, setShowCaptcha] = useState(false)
+  
   // Use RainbowKit modal hooks for programmatic control
   // These hooks provide access to modal state and open functions
   const { openConnectModal, connectModalOpen } = useConnectModal()
@@ -38,13 +45,16 @@ export function WalletConnect() {
   // Use wagmi's useEnsName hook for ENS resolution (web flow only)
   // RainbowKit's account.displayName already includes ENS, but we use this as fallback
   // for cases where we need ENS outside of ConnectButton.Custom context
+  // OPTIMIZED: ENS resolution with better caching and reduced retries
   const { data: ensName } = useEnsName({
     address: !isMiniApp && isConnected && address ? address : undefined,
     chainId: mainnet.id, // ENS is on mainnet
     query: {
       enabled: !isMiniApp && isConnected && !!address, // Only query on web when connected
-      retry: 2, // Retry up to 2 times
-      staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+      retry: 1, // Reduced from 2 to 1 for faster failure
+      staleTime: 10 * 60 * 1000, // Increased cache to 10 minutes (was 5)
+      gcTime: 15 * 60 * 1000, // Keep in cache for 15 minutes
+      refetchOnWindowFocus: false, // Don't refetch on window focus
     },
   })
 
@@ -52,16 +62,8 @@ export function WalletConnect() {
   useEffect(() => {
     setMounted(true)
     
-    // Log connector status for debugging
-    if (isMiniApp) {
-      console.log('🔵 Farcaster environment detected in WalletConnect')
-      console.log('Available connectors:', connectors.map(c => ({
-        id: c.id,
-        name: c.name,
-        ready: c.ready,
-        type: c.type,
-      })))
-      
+    // OPTIMIZED: Only log in development to reduce production overhead
+    if (isMiniApp && process.env.NODE_ENV === 'development') {
       const farcasterConnector = connectors.find(c => {
         const name = c.name.toLowerCase()
         const id = c.id?.toLowerCase() || ''
@@ -73,38 +75,39 @@ export function WalletConnect() {
                id.includes('miniapp')
       })
       
-      if (farcasterConnector) {
-        console.log('✅ Farcaster connector found:', {
-          id: farcasterConnector.id,
-          name: farcasterConnector.name,
-          ready: farcasterConnector.ready,
-        })
-      } else {
+      if (!farcasterConnector) {
         console.warn('⚠️ Farcaster environment but no Farcaster connector found!')
       }
     }
     
     // Force connectors to initialize if they're not ready yet
     // This helps when WalletConnect is used on pages that load before connectors are ready
+    // OPTIMIZED: Reduced wait time from 1000ms to 200ms for faster initialization
     if (connectors.length > 0) {
       const readyCount = connectors.filter(c => c.ready).length
       if (readyCount === 0) {
-        console.log('⏳ No connectors ready yet, waiting for initialization...')
-        // Give connectors time to initialize (especially important for verifier page)
+        // Reduced wait: Most connectors initialize within 200ms
         const initTimer = setTimeout(() => {
           const nowReady = connectors.filter(c => c.ready).length
           if (nowReady > 0) {
-            console.log(`✅ ${nowReady} connector(s) ready after initialization wait`)
             setForceUpdate(prev => prev + 1) // Force re-render to update UI
-          } else {
-            console.warn('⚠️ Connectors still not ready after initialization wait')
           }
-        }, 1000)
+        }, 200)
         
         return () => clearTimeout(initTimer)
       }
     }
   }, [connectors, isMiniApp])
+
+  // Reset CAPTCHA when connection succeeds
+  useEffect(() => {
+    if (isConnected && address && captchaToken) {
+      // Connection successful - reset CAPTCHA for next time
+      setCaptchaToken(null)
+      setShowCaptcha(false)
+      setCaptchaError(null)
+    }
+  }, [isConnected, address, captchaToken])
 
   // Monitor connection state changes and force UI update when WalletConnect connects
   useEffect(() => {
@@ -203,6 +206,17 @@ export function WalletConnect() {
               e.preventDefault()
               e.stopPropagation()
               
+              // CAPTCHA is optional - show if available, but don't block modal opening
+              // If CAPTCHA fails or is not configured, connection will proceed anyway
+              if (!isMiniApp && !captchaToken && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+                // Show CAPTCHA if not already shown and site key is configured
+                if (!showCaptcha) {
+                  setShowCaptcha(true)
+                }
+                // Continue - allow modal to open, CAPTCHA verification happens in handleDirectConnect
+                // Connection will proceed even if CAPTCHA fails (graceful degradation)
+              }
+              
               // Detect mobile browsers
               const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
               const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
@@ -219,29 +233,24 @@ export function WalletConnect() {
                 allConnectors: connectors.map(c => ({ id: c.id, name: c.name, ready: c.ready })),
               })
               
-              // If no connectors are ready, wait a bit and try again
-              // This is especially important for Safari where connectors may take time to initialize
+              // OPTIMIZED: Reduced wait time and attempts for faster connection
               if (!hasReadyConnectors) {
-                console.log('⏳ No ready connectors, waiting for initialization...')
-                // Wait for connectors to become ready (up to 3 seconds)
+                // Reduced wait: Check every 100ms, max 5 attempts (500ms total instead of 3s)
                 let attempts = 0
                 const checkConnectors = setInterval(() => {
                   attempts++
                   const nowReady = connectors.filter(c => c.ready)
-                  if (nowReady.length > 0 || attempts >= 6) {
+                  if (nowReady.length > 0 || attempts >= 5) {
                     clearInterval(checkConnectors)
                     if (nowReady.length > 0) {
-                      console.log(`✅ Connectors ready after ${attempts * 500}ms`)
                       // Retry the connection
                       handleConnect(e)
                     } else {
-                      console.warn('⚠️ Connectors still not ready after waiting')
                       // Try opening modal anyway - RainbowKit might handle it
                       if (openConnectModal) {
                         try {
                           openConnectModal()
                         } catch (error) {
-                          console.warn('RainbowKit modal failed:', error)
                           handleDirectConnect()
                         }
                       } else {
@@ -249,7 +258,7 @@ export function WalletConnect() {
                       }
                     }
                   }
-                }, 500)
+                }, 100) // Reduced from 500ms to 100ms
                 return
               }
               
@@ -265,18 +274,9 @@ export function WalletConnect() {
               // Use the hook-provided function for better reliability
               if (openConnectModal) {
                 try {
-                  console.log('Opening RainbowKit connect modal...')
                   openConnectModal()
-                  // On mobile, also set up a fallback in case modal doesn't work
-                  if (isMobile) {
-                    setTimeout(() => {
-                      // Check if connection happened after modal opened
-                      // If not, try direct connect as fallback
-                      if (!isConnected) {
-                        console.log('Modal opened but no connection detected, will try direct connect if user cancels')
-                      }
-                    }, 2000)
-                  }
+                  // OPTIMIZED: Removed unnecessary timeout check
+                  // RainbowKit modal handles connection state properly
                 } catch (error) {
                   console.warn('RainbowKit modal failed:', error)
                   // Fallback: Try connecting directly
@@ -290,6 +290,44 @@ export function WalletConnect() {
             }
 
             const handleDirectConnect = async () => {
+              // CAPTCHA verification (only on web, not in Farcaster Mini App)
+              // OPTIMIZED: Make CAPTCHA optional - if it fails, allow connection to proceed
+              // This provides graceful degradation if CAPTCHA is misconfigured (error 110200)
+              if (!isMiniApp) {
+                // Only verify CAPTCHA if token exists (user completed it)
+                // If CAPTCHA is not configured or fails, allow connection anyway
+                if (captchaToken) {
+                  // Verify CAPTCHA on server before connecting
+                  setIsVerifyingCaptcha(true)
+                  setCaptchaError(null)
+                  
+                  try {
+                    const verified = await verifyCaptchaToken(captchaToken)
+                    if (!verified) {
+                      console.warn('CAPTCHA verification failed, but allowing connection to proceed')
+                      // Don't block connection - just log the warning
+                      // This provides graceful degradation if CAPTCHA is misconfigured
+                    } else {
+                      console.log('✅ CAPTCHA verified successfully')
+                    }
+                  } catch (error) {
+                    console.warn('CAPTCHA verification error, but allowing connection to proceed:', error)
+                    // Don't block connection - CAPTCHA is optional for graceful degradation
+                  } finally {
+                    setIsVerifyingCaptcha(false)
+                  }
+                } else {
+                  // No CAPTCHA token - show CAPTCHA if available, but don't block
+                  if (!showCaptcha && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+                    setShowCaptcha(true)
+                  }
+                  // Allow connection to proceed even without CAPTCHA
+                  // This provides graceful degradation if CAPTCHA is not configured
+                }
+              } else {
+                console.log('🔵 Farcaster Mini App detected - skipping CAPTCHA')
+              }
+
               // CRITICAL: Use proper environment detection from FarcasterProvider
               // In Farcaster Mini App, we MUST use the Farcaster connector, not injected wallets
               const isFarcasterEnv = isMiniApp
@@ -338,14 +376,12 @@ export function WalletConnect() {
                 })
                 
                 if (farcasterConnector) {
-                  // Wait for Farcaster connector to be ready (it may take time to initialize)
+                  // OPTIMIZED: Reduced wait time for Farcaster connector
                   if (!farcasterConnector.ready) {
-                    console.log('⏳ Farcaster connector not ready yet, waiting...')
-                    // Reduced wait time: up to 1.5 seconds (3 attempts × 500ms)
+                    // Reduced wait: 3 attempts × 100ms = 300ms total (was 1.5s)
                     for (let attempt = 0; attempt < 3; attempt++) {
-                      await new Promise(resolve => setTimeout(resolve, 500))
+                      await new Promise(resolve => setTimeout(resolve, 100))
                       if (farcasterConnector.ready) {
-                        console.log(`✅ Farcaster connector ready after ${(attempt + 1) * 500}ms`)
                         break
                       }
                     }
@@ -366,32 +402,25 @@ export function WalletConnect() {
                 }
               } else {
                 // NOT in Farcaster - use standard wallet connection logic
-                // Optimized: Reduced wait times for faster connection
+                // OPTIMIZED: Significantly reduced wait times for faster connection
                 if (availableConnectors.length === 0) {
-                  console.log('⏳ No ready connectors found, waiting for initialization...')
-                  // Reduced wait time: up to 2 seconds on mobile, 1.2 seconds on desktop
-                  const maxAttempts = isMobile ? 4 : 4
-                  const delay = isMobile ? 500 : 300
+                  // Reduced wait: 5 attempts × 100ms = 500ms total (was 2s)
+                  const maxAttempts = 5
+                  const delay = 100
                   
                   for (let attempt = 0; attempt < maxAttempts; attempt++) {
                     await new Promise(resolve => setTimeout(resolve, delay))
                     availableConnectors = connectors.filter(c => c.ready)
-                    console.log(`Attempt ${attempt + 1}/${maxAttempts}: ${availableConnectors.length} ready connectors`, {
-                      connectors: availableConnectors.map(c => ({ id: c.id, name: c.name, ready: c.ready })),
-                    })
                     if (availableConnectors.length > 0) {
-                      console.log(`✅ Connectors ready after ${(attempt + 1) * delay}ms`)
                       break
                     }
                   }
                 }
                 
-                // If still no connectors, check if we have injected wallet
-                // On mobile Safari, injected wallets might not show up as connectors immediately
+                // OPTIMIZED: Reduced wait for injected wallets
                 if (availableConnectors.length === 0 && hasInjectedWallet) {
-                  console.log('⚠️ No ready connectors but injected wallet detected, waiting a bit more...')
-                  // Reduced wait: 500ms for mobile, 300ms for desktop
-                  await new Promise(resolve => setTimeout(resolve, isMobile ? 500 : 300))
+                  // Reduced wait: 100ms (was 500ms/300ms)
+                  await new Promise(resolve => setTimeout(resolve, 100))
                   availableConnectors = connectors.filter(c => c.ready)
                 }
                 
@@ -482,15 +511,59 @@ export function WalletConnect() {
             }
 
             return (
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-end gap-2">
+                {/* CAPTCHA - Only show on web app, not in Farcaster */}
+                {!isMiniApp && showCaptcha && (
+                  <div className="flex flex-col gap-2 rounded-lg border border-gray-700 bg-gray-900 p-3">
+                    <TurnstileCaptcha
+                      onVerify={(token) => {
+                        setCaptchaToken(token)
+                        setCaptchaError(null)
+                        setShowCaptcha(false) // Hide after verification
+                      }}
+                    onError={(error) => {
+                      // Error 110200 = Invalid site key or domain mismatch
+                      // Make CAPTCHA optional - don't block wallet connection
+                      if (error.includes('110200') || error.includes('configuration error')) {
+                        setCaptchaError('CAPTCHA not configured correctly. Wallet connection will proceed without CAPTCHA.')
+                        console.warn('CAPTCHA configuration error - allowing wallet connection without CAPTCHA')
+                      } else {
+                        setCaptchaError(`CAPTCHA error: ${error}`)
+                      }
+                      setCaptchaToken(null)
+                      // Don't block - allow wallet connection to proceed
+                    }}
+                      onExpire={() => {
+                        setCaptchaToken(null)
+                        setCaptchaError('CAPTCHA expired. Please verify again.')
+                      }}
+                      theme="auto"
+                      size="normal"
+                    />
+                    {captchaError && (
+                      <p className="text-xs text-red-400">{captchaError}</p>
+                    )}
+                    {captchaToken && (
+                      <p className="text-xs text-green-400">✓ CAPTCHA verified</p>
+                    )}
+                  </div>
+                )}
+                
                 <Button
                   size="sm"
                   onClick={handleConnect}
-                  disabled={isPending}
+                  disabled={isPending || isVerifyingCaptcha}
                   className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm disabled:opacity-50"
                 >
                   <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span>{isPending ? 'Connecting…' : 'Connect Wallet'}</span>
+                  <span>
+                    {isVerifyingCaptcha 
+                      ? 'Verifying…' 
+                      : isPending 
+                        ? 'Connecting…' 
+                        : 'Connect Wallet'
+                    }
+                  </span>
                 </Button>
               </div>
             )

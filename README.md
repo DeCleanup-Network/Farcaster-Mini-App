@@ -2,7 +2,7 @@
 
 > **A production-ready Farcaster Mini App that gamifies environmental cleanup through Impact Product NFTs, DCU points, and $bDCU token rewards on Base.**
 
-**🌐 [Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** | **🌍 [Web App](https://decleanup.net)** | **📖 [Admin Guide](ADMIN_GUIDE.md)** | **🏗️ [Deployment Guide](DEPLOYMENT.md)** | **👨‍💻 [Developer Specs](DEVELOPER_SPECS.md)**
+**🌐 [Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** | **🌍 [Web App](https://decleanup.net)** | **📖 [Admin Guide](ADMIN_GUIDE.md)** | **🏗️ [Deployment Guide](DEPLOYMENT.md)** | **👨‍💻 [Developer Specs](DEVELOPER_SPECS.md)** | **🔐 [Security Audit](SECURITY_AUDIT.md)** | **🔐 [Security Audit](SECURITY_AUDIT.md)**
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
@@ -33,6 +33,8 @@ DeCleanup Rewards is a fully functional, production-ready Farcaster Mini App tha
 - **Token Claims**: Convert DCU points to $bDCU tokens (requires Level 10 and minimum 100 points)
 - **Staking**: Stake tokens to become a verifier (requires ≥51% of balance and Level 10)
 - **Add App Modal**: Prompts users to add app to Farcaster or pin to Base after onboarding
+- **CAPTCHA Protection**: Cloudflare Turnstile CAPTCHA on wallet connection (web app only, skipped in Farcaster)
+- **Security Headers**: Comprehensive CORS, CSP, and security headers for production
 
 ### Admin Features
 - **Verifier Management**: Manually add/remove verifiers (bypasses staking requirement)
@@ -118,6 +120,9 @@ Edit `.env.local` with:
 - WalletConnect Project ID
 - Farcaster Neynar API key
 - Base App ID
+- **CAPTCHA keys** (optional): `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`
+
+See [VERCEL_ENV_SETUP.md](VERCEL_ENV_SETUP.md) for complete environment variables guide.
 
 3. **Run locally:**
 ```bash
@@ -142,6 +147,10 @@ Open [http://localhost:3000](http://localhost:3000) and connect your wallet.
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment and setup guide
 - **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)** - Technical architecture
 - **[LOCAL_TESTING.md](LOCAL_TESTING.md)** - Local testing guide
+- **[VERCEL_ENV_SETUP.md](VERCEL_ENV_SETUP.md)** - Quick Vercel environment variables setup
+- **[SECURITY_AUDIT.md](SECURITY_AUDIT.md)** - Comprehensive security audit and compliance
+- **[ANALYSIS_SUMMARY.md](ANALYSIS_SUMMARY.md)** - Recent improvements and fixes summary
+- **[CHANGELOG.md](CHANGELOG.md)** - Changelog of recent updates
 - **[docs/](docs/)** - Additional technical documentation
 
 ### For Users
@@ -224,11 +233,24 @@ See [ADMIN_GUIDE.md](ADMIN_GUIDE.md) for complete admin documentation.
 
 ## 🔐 Security
 
+### Smart Contract Security
 - **Ownable Contracts**: All contracts use OpenZeppelin's Ownable pattern
 - **ReentrancyGuard**: Critical functions protected against reentrancy
 - **Pausable**: Emergency pause functionality available
 - **Access Control**: Verifier and admin roles properly managed
 - **Input Validation**: All user inputs validated
+
+### Application Security
+- **CAPTCHA Protection**: Cloudflare Turnstile CAPTCHA on wallet connection (web app only)
+- **Rate Limiting**: All API endpoints rate-limited to prevent abuse
+- **CORS Security**: Secure CORS with origin validation (no wildcard)
+- **CSP Headers**: Comprehensive Content Security Policy
+- **Security Headers**: HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- **Input Validation**: JSON depth and size limits to prevent DoS attacks
+- **API Key Security**: Server-side secrets properly isolated
+- **Automated Security**: Dependabot for dependency updates, CodeRabbit for PR reviews
+
+See [SECURITY_AUDIT.md](SECURITY_AUDIT.md) for complete security analysis.
 
 ---
 
@@ -260,7 +282,10 @@ See [LICENSE](LICENSE) file for details.
 ✅ **Production Ready** - All core features implemented and tested  
 ✅ **Admin Controls** - Comprehensive admin functions available  
 ✅ **Documentation** - Complete documentation for admins, developers, and users  
-✅ **Security** - Contracts secured with best practices
+✅ **Security** - Contracts and application secured with best practices  
+✅ **CAPTCHA Protection** - Cloudflare Turnstile integrated (web app only)  
+✅ **CORS/CSP** - Secure headers and policies configured  
+✅ **Automated Security** - Dependabot and CodeRabbit configured
 
 ---
 

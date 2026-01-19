@@ -425,11 +425,22 @@ export default function Home() {
                           if (address) {
                             const status = await getUserCleanupStatus(address)
                             setCleanupStatus(status)
-                            if (status.claimed || pollCount >= maxPolls) {
+                            // BUG FIX: Only show success modal when actually claimed, not on timeout
+                            if (status.claimed) {
                               clearInterval(pollInterval)
                               setSuccessModalData({
-                              title: 'Impact Product Minted!',
-                              message: 'Your Impact Product has been successfully minted!',
+                                title: 'Impact Product Minted!',
+                                message: 'Your Impact Product has been successfully minted!',
+                                transactionHash: hash,
+                              })
+                              setShowSuccessModal(true)
+                              // Don't auto-redirect - let user close modal manually
+                            } else if (pollCount >= maxPolls) {
+                              // Timeout reached but not claimed - show different message
+                              clearInterval(pollInterval)
+                              setSuccessModalData({
+                                title: 'Transaction Submitted',
+                                message: 'Transaction submitted but confirmation is taking longer than expected. Please check your profile or explorer to confirm the mint status.',
                                 transactionHash: hash,
                               })
                               setShowSuccessModal(true)

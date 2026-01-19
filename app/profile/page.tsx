@@ -1277,7 +1277,17 @@ function ProfileContent() {
                         setIsStaking(false)
                       }
                     }}
-                    disabled={isStaking || !stakeAmount || parseFloat(stakeAmount) <= 0}
+                    disabled={(() => {
+                      if (isStaking || !stakeAmount || parseFloat(stakeAmount) <= 0) {
+                        return true
+                      }
+                      try {
+                        const amount = parseUnits(stakeAmount, 18)
+                        return amount > profileData.stakedBalance
+                      } catch {
+                        return false // If parsing fails, allow click (will be validated in onClick)
+                      }
+                    })()}
                     variant="outline"
                     className="w-full border-gray-700 text-white hover:bg-gray-800"
                   >

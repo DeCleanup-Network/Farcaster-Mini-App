@@ -53,11 +53,17 @@ export function BottomNav() {
           }
         }
 
-        // 2) Fallback: on-chain check
+        // 2) Fallback: on-chain check (has retry logic built-in)
         const result = await isUserVerifier(address as `0x${string}`)
         if (!cancelled) setIsVerifierWallet(result)
       } catch (error) {
-        console.warn('Failed to check verifier status for bottom nav:', error)
+        // RPC errors are handled gracefully in isUserVerifier (returns false)
+        // Only log non-RPC errors here
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        if (!errorMessage.includes('Failed to fetch') && !errorMessage.includes('HTTP request failed')) {
+          console.warn('Failed to check verifier status for bottom nav:', error)
+        }
+        // Always set to false on error (isUserVerifier already returns false for RPC errors)
         if (!cancelled) setIsVerifierWallet(false)
       }
     }

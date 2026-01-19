@@ -2,6 +2,14 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // Performance optimizations
+  reactStrictMode: true,
+  swcMinify: true, // Use SWC minification (faster than Terser)
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'], // Keep errors and warnings
+    } : false,
+  },
   // Use webpack instead of Turbopack for better compatibility with RainbowKit/WalletConnect
   // Turbopack has issues with Node.js modules (pino/thread-stream) in client bundles
   // Note: Dev script uses --webpack flag to force webpack usage
@@ -104,7 +112,24 @@ const nextConfig: NextConfig = {
           // Security: We specify exact hosts instead of allowing embedding anywhere
           {
             key: 'Content-Security-Policy',
-            value: "frame-ancestors https://warpcast.com https://client.warpcast.com https://farcaster.xyz https://client.farcaster.xyz https://app.farcaster.xyz https://www.farcaster.xyz https://www.warpcast.com https://app.warpcast.com https://base.org https://www.base.org https://base.dev https://www.base.dev https://app.base.org https://app.base.dev;",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://challenges.cloudflare.com", // Cloudflare Turnstile
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: https: blob:",
+              "font-src 'self' data:",
+              "connect-src 'self' https://api.neynar.com https://api.airstack.xyz https://challenges.cloudflare.com https://gateway.pinata.cloud https://ipfs.io https://cloudflare-ipfs.com https://dweb.link wss:",
+              "frame-src 'self' https://challenges.cloudflare.com", // Cloudflare Turnstile
+              "frame-ancestors https://warpcast.com https://client.warpcast.com https://farcaster.xyz https://client.farcaster.xyz https://app.farcaster.xyz https://www.farcaster.xyz https://www.warpcast.com https://app.warpcast.com https://base.org https://www.base.org https://base.dev https://www.base.dev https://app.base.org https://app.base.dev",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+              "upgrade-insecure-requests",
+            ].join('; '),
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains; preload',
           },
           {
             key: 'X-Content-Type-Options',

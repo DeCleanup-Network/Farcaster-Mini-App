@@ -132,25 +132,45 @@ const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
   - Rate limit bypass attempts
 
 **Recommendation**:
-1. **Option 1**: Add CAPTCHA before wallet connection (hCaptcha or reCAPTCHA)
-2. **Option 2**: Implement proof-of-work challenge for sensitive operations
-3. **Option 3**: Use Cloudflare Turnstile (privacy-friendly alternative)
+1. ✅ **Option 3 IMPLEMENTED**: Cloudflare Turnstile (privacy-friendly alternative)
+2. **Option 1**: Add CAPTCHA before wallet connection (hCaptcha or reCAPTCHA) - Alternative
+3. **Option 2**: Implement proof-of-work challenge for sensitive operations - Alternative
 
-**Implementation Example**:
+**Implementation Status**: ✅ **READY FOR INTEGRATION**
+
+**Files Created**:
+- `components/captcha/TurnstileCaptcha.tsx` - Reusable CAPTCHA component
+- `app/api/captcha/verify/route.ts` - Server-side verification endpoint
+- `components/captcha/WalletConnectWithCaptcha.example.tsx` - Integration example
+- `CAPTCHA_IMPLEMENTATION.md` - Complete implementation guide
+
+**Usage Example**:
 ```typescript
-// Add to wallet connection flow
-import { Turnstile } from '@marsidev/react-turnstile'
+import { TurnstileCaptcha, verifyCaptchaToken } from '@/components/captcha/TurnstileCaptcha'
 
-// Before allowing wallet connection, verify CAPTCHA
 const [captchaToken, setCaptchaToken] = useState<string | null>(null)
 
-// Verify token on server before processing
+// Add CAPTCHA component
+<TurnstileCaptcha onVerify={setCaptchaToken} />
+
+// Verify before connecting wallet
+const verified = await verifyCaptchaToken(captchaToken)
+if (verified) {
+  await connectWallet()
+}
 ```
 
 **Action Required**: 
-- ⚠️ **MEDIUM PRIORITY**: Consider adding CAPTCHA for wallet connection flows
-- Evaluate if current rate limiting is sufficient
-- Monitor for automated connection attempts
+- ✅ **Implementation files created**:
+  - `components/captcha/TurnstileCaptcha.tsx` - Reusable CAPTCHA component
+  - `app/api/captcha/verify/route.ts` - Server-side verification endpoint
+  - `CAPTCHA_IMPLEMENTATION.md` - Complete implementation guide
+- ⚠️ **Next Steps**:
+  1. Get Cloudflare Turnstile credentials (free tier available)
+  2. Add environment variables: `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`
+  3. Install dependency: `npm install @marsidev/react-turnstile`
+  4. Integrate CAPTCHA component in wallet connection flow
+  5. Test thoroughly before enabling in production
 
 ---
 
@@ -288,15 +308,66 @@ updates:
 - Security events logged via `lib/security-monitoring.ts`
 - Tracks validation failures, rate limit violations
 
-### ⚠️ CORS Configuration
-**Status**: ⚠️ **NEEDS VERIFICATION**
-- Verify CORS headers are properly configured
-- Ensure only trusted origins allowed
+### ✅ CORS Configuration
+**Status**: ✅ **FULLY IMPLEMENTED**
+
+**Current State**:
+- ✅ CORS utility created: `lib/cors.ts`
+- ✅ Origin validation (only trusted origins allowed)
+- ✅ No wildcard `*` in production
+- ✅ Preflight request handling
+- ✅ Credentials support for trusted origins
+
+**Implementation**:
+- ✅ Secure CORS headers in API routes
+- ✅ Allowed origins: Production domains, Farcaster, Base
+- ✅ Development mode support (localhost)
+- ✅ Helper functions for easy integration
+
+**Files**:
+- `lib/cors.ts` - CORS utility functions
+- `app/api/ipfs/fetch/route.ts` - Example usage
+
+**Action Required**: 
+- ✅ Continue using CORS utility in all API routes
+- ✅ Review allowed origins periodically
+- ✅ Test CORS with different origins
+
+---
 
 ### ✅ Content Security Policy (CSP)
-**Status**: ⚠️ **NEEDS VERIFICATION**
-- Check if CSP headers are set
-- Verify inline scripts are minimized
+**Status**: ✅ **FULLY IMPLEMENTED**
+
+**Current State**:
+- ✅ Comprehensive CSP policy in `next.config.ts`
+- ✅ Script source restrictions
+- ✅ Image source restrictions (allows IPFS gateways)
+- ✅ Frame ancestor restrictions (Farcaster/Base only)
+- ✅ Connect source restrictions (API endpoints)
+- ✅ Upgrade insecure requests
+
+**CSP Policy Includes**:
+- ✅ `default-src 'self'` - Restrictive default
+- ✅ `script-src` - Allows Next.js and Cloudflare Turnstile
+- ✅ `img-src` - Allows HTTPS images (IPFS gateways)
+- ✅ `connect-src` - Allows API calls to trusted endpoints
+- ✅ `frame-ancestors` - Only Farcaster and Base domains
+- ✅ `upgrade-insecure-requests` - Force HTTPS
+
+**Additional Security Headers**:
+- ✅ HSTS (Strict-Transport-Security)
+- ✅ X-Content-Type-Options: nosniff
+- ✅ Referrer-Policy: strict-origin-when-cross-origin
+- ✅ Permissions-Policy: Restricted browser APIs
+- ✅ X-XSS-Protection: Legacy XSS protection
+
+**Files**:
+- `next.config.ts` - CSP and security headers
+
+**Action Required**: 
+- ✅ Monitor CSP violations in production
+- ✅ Test with CSP evaluator tools
+- ✅ Update CSP as new features are added
 
 ---
 

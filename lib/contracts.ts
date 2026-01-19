@@ -23,7 +23,7 @@ import { tryAddRequiredChain, switchToRequiredChainViaProvider } from './network
 import * as pointsLib from './points'
 import { getCurrentChainIdCached, clearChainIdCache } from './chain-detection'
 import { validatePreFlight } from './preflight-validation'
-import { withTimeout, TimeoutError } from './timeout-utils'
+import { withTimeout, TimeoutError, retryWithTimeout } from './timeout-utils'
 import { logTransactionAttempt, logTransactionSuccess, logTransactionError, logChainSwitchAttempt, logChainSwitchSuccess, logChainSwitchError } from './structured-logging'
 import { cleanupAddressStorage, setPendingCleanupId, setPendingCleanupLocation, removeReferrer } from './storage-manager'
 
@@ -1613,12 +1613,25 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
     throw new Error('Verification contract address not set')
   }
 
-  const result = await readContract(getWagmiConfig(), {
-    address: CONTRACT_ADDRESSES.VERIFICATION,
-    abi: VERIFICATION_ABI,
-    functionName: 'getCleanup',
-    args: [cleanupId],
-  })
+  // Use retry logic for RPC calls to handle network issues
+  const result = await retryWithTimeout(
+    async () => {
+      return await readContract(getWagmiConfig(), {
+        address: CONTRACT_ADDRESSES.VERIFICATION,
+        abi: VERIFICATION_ABI,
+        functionName: 'getCleanup',
+        args: [cleanupId],
+      })
+    },
+    {
+      maxRetries: 2,
+      timeoutMs: 10000, // 10 second timeout
+      initialDelayMs: 1000,
+      onRetry: (attempt, error) => {
+        console.warn(`[getCleanupDetails] Retry attempt ${attempt} after RPC error:`, error?.message)
+      },
+    }
+  )
 
   if (Array.isArray(result)) {
     return {
@@ -1672,11 +1685,40 @@ export async function getCleanupCounter(): Promise<bigint> {
     throw new Error('Verification contract address not set')
   }
 
-  return await readContract(getWagmiConfig(), {
-    address: CONTRACT_ADDRESSES.VERIFICATION,
-    abi: VERIFICATION_ABI,
-    functionName: 'cleanupCounter',
-  })
+  try {
+    // Use retry logic for RPC calls to handle network issues
+    return await retryWithTimeout(
+      async () => {
+        return await readContract(getWagmiConfig(), {
+          address: CONTRACT_ADDRESSES.VERIFICATION,
+          abi: VERIFICATION_ABI,
+          functionName: 'cleanupCounter',
+        })
+      },
+      {
+        maxRetries: 2,
+        timeoutMs: 10000, // 10 second timeout
+        initialDelayMs: 1000,
+        onRetry: (attempt, error) => {
+          console.warn(`[getCleanupCounter] Retry attempt ${attempt} after RPC error:`, error?.message)
+        },
+      }
+    )
+  } catch (error) {
+    // RPC failures - throw with helpful message
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const isRpcError = errorMessage.includes('Failed to fetch') || 
+                      errorMessage.includes('HTTP request failed') ||
+                      errorMessage.includes('network') ||
+                      errorMessage.includes('timeout')
+    
+    if (isRpcError) {
+      console.error('[getCleanupCounter] RPC error:', errorMessage)
+      throw new Error('Network error: Unable to connect to blockchain. Please check your internet connection and try again.')
+    }
+    
+    throw error
+  }
 }
 
 /**
@@ -3187,16 +3229,41 @@ export async function isUserVerifier(userAddress: Address): Promise<boolean> {
   }
 
   try {
-    const isVerifier = await readContract(getWagmiConfig(), {
-      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
-      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
-      functionName: 'isVerifier',
-      args: [userAddress],
-    }) as boolean
+    // Use retry logic for RPC calls to handle network issues
+    const isVerifier = await retryWithTimeout(
+      async () => {
+        return await readContract(getWagmiConfig(), {
+          address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+          abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+          functionName: 'isVerifier',
+          args: [userAddress],
+        }) as boolean
+      },
+      {
+        maxRetries: 2,
+        timeoutMs: 10000, // 10 second timeout
+        initialDelayMs: 1000,
+        onRetry: (attempt, error) => {
+          console.warn(`[isUserVerifier] Retry attempt ${attempt} after RPC error:`, error?.message)
+        },
+      }
+    )
 
     return isVerifier
   } catch (error) {
-    console.error('Error checking verifier status:', error)
+    // RPC failures - return false gracefully instead of breaking UI
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const isRpcError = errorMessage.includes('Failed to fetch') || 
+                      errorMessage.includes('HTTP request failed') ||
+                      errorMessage.includes('network') ||
+                      errorMessage.includes('timeout')
+    
+    if (isRpcError) {
+      console.warn('[isUserVerifier] RPC error, returning false (non-critical):', errorMessage)
+      return false // Graceful degradation - UI won't break
+    }
+    
+    console.error('[isUserVerifier] Error checking verifier status:', error)
     return false
   }
 }

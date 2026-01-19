@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { safeJsonParse } from '@/lib/input-validation'
 import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from '@/lib/rate-limit'
 import { isIPBlocked, getClientIP } from '@/lib/security-monitoring'
+import { getCorsHeaders } from '@/lib/cors'
 
 /**
  * API Route to proxy IPFS fetches
@@ -78,10 +79,12 @@ export async function GET(request: NextRequest) {
             endpoint: '/api/ipfs/fetch',
             request,
           })
+          // Use secure CORS headers (only allow trusted origins)
+          const corsHeaders = getCorsHeaders(request)
+          
           return NextResponse.json(data, {
             headers: {
-              'Access-Control-Allow-Origin': '*',
-              'Access-Control-Allow-Methods': 'GET',
+              ...corsHeaders,
               'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
             },
           })

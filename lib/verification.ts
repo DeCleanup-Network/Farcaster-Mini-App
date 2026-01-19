@@ -34,8 +34,17 @@ async function findUserCleanupOnChain(
   try {
     const { getCleanupCounter, getCleanupDetails } = await import('./contracts')
     
-    // Get the current cleanup counter
-    const counter = await getCleanupCounter()
+    // Get the current cleanup counter (with retry logic built-in)
+    let counter: bigint
+    try {
+      counter = await getCleanupCounter()
+    } catch (error) {
+      // RPC error - return null gracefully instead of breaking
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.warn('[findUserCleanupOnChain] Failed to get cleanup counter (RPC error):', errorMessage)
+      return null
+    }
+    
     if (counter <= BigInt(1)) {
       // No cleanups exist yet
       return null
@@ -48,7 +57,20 @@ async function findUserCleanupOnChain(
     
     for (let id = counter - BigInt(1); id >= startId; id--) {
       try {
-        const details = await getCleanupDetails(id)
+        // getCleanupDetails has retry logic built-in, but catch errors gracefully
+        const details = await getCleanupDetails(id).catch((error) => {
+          // If RPC fails for a specific cleanup, skip it and continue
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          if (errorMessage.includes('Failed to fetch') || errorMessage.includes('HTTP request failed')) {
+            console.warn(`[findUserCleanupOnChain] RPC error for cleanup ${id}, skipping:`, errorMessage)
+            return null // Return null to skip this cleanup
+          }
+          throw error // Re-throw non-RPC errors
+        })
+        
+        if (!details) {
+          continue // Skip if RPC error occurred
+        }
         
         // Check if this cleanup belongs to the user
         if (details.user.toLowerCase() === userAddress.toLowerCase()) {
