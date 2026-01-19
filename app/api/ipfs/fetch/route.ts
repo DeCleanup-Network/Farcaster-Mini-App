@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
             },
           })
         }
-      } catch (error) {
+      } catch {
         // Try next gateway
         continue
       }

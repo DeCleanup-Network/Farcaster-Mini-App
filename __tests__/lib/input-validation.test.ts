@@ -10,7 +10,7 @@ describe('Input Validation', () => {
 
     it('should reject JSON exceeding depth limit', () => {
       // Create deeply nested JSON (50 levels)
-      let deep: any = {}
+      const deep: any = {}
       let current = deep
       for (let i = 0; i < 50; i++) {
         current.nested = {}
@@ -55,7 +55,7 @@ describe('Input Validation', () => {
     })
 
     it('should reject object exceeding depth limit', () => {
-      let deep: any = {}
+      const deep: any = {}
       let current = deep
       for (let i = 0; i < 20; i++) {
         current.nested = {}
@@ -107,7 +107,7 @@ describe('Input Validation', () => {
     it('should prevent DoS attack with deeply nested levels', () => {
       // Simulate the attack from the Node.js security advisory
       // Create nested object structure (more reliable than arrays for depth calculation)
-      let attack: any = {}
+      const attack: any = {}
       let current: any = attack
       for (let i = 0; i < 50; i++) { // 50 levels should be rejected (limit is 32)
         current.nested = {}

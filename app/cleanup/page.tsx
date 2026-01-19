@@ -785,10 +785,6 @@ function CleanupContent() {
         const uploadErrorMessage = uploadError?.message || String(uploadError || 'Unknown error')
         console.error('Photo upload failed:', uploadErrorMessage)
         
-        // Create a more helpful error message with troubleshooting steps
-        let errorTitle = 'Failed to submit cleanup:'
-        let errorDetails = uploadErrorMessage
-        
         // Add troubleshooting checklist
         const troubleshootingSteps = [
           'Your wallet is connected',
@@ -798,7 +794,7 @@ function CleanupContent() {
         ]
         
         // Show error modal with detailed message
-        const fullErrorMessage = `${errorDetails}\n\nPlease check:\n${troubleshootingSteps.map(step => `- ${step}`).join('\n')}`
+        const fullErrorMessage = `${uploadErrorMessage}\n\nPlease check:\n${troubleshootingSteps.map(step => `- ${step}`).join('\n')}`
         
         alert(`Failed to submit cleanup:\n\n${fullErrorMessage}`)
         setIsSubmitting(false)
