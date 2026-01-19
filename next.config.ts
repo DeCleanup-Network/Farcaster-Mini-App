@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   // Performance optimizations
   reactStrictMode: true,
-  swcMinify: true, // Use SWC minification (faster than Terser)
+  // SWC minification is enabled by default in Next.js 13+
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? {
       exclude: ['error', 'warn'], // Keep errors and warnings
