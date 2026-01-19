@@ -48,7 +48,7 @@ export function WalletConnect() {
     },
   })
 
-  // Initialize on mount
+  // Initialize on mount and ensure connectors are ready
   useEffect(() => {
     setMounted(true)
     
@@ -83,7 +83,28 @@ export function WalletConnect() {
         console.warn('⚠️ Farcaster environment but no Farcaster connector found!')
       }
     }
-  }, [connectors])
+    
+    // Force connectors to initialize if they're not ready yet
+    // This helps when WalletConnect is used on pages that load before connectors are ready
+    if (connectors.length > 0) {
+      const readyCount = connectors.filter(c => c.ready).length
+      if (readyCount === 0) {
+        console.log('⏳ No connectors ready yet, waiting for initialization...')
+        // Give connectors time to initialize (especially important for verifier page)
+        const initTimer = setTimeout(() => {
+          const nowReady = connectors.filter(c => c.ready).length
+          if (nowReady > 0) {
+            console.log(`✅ ${nowReady} connector(s) ready after initialization wait`)
+            setForceUpdate(prev => prev + 1) // Force re-render to update UI
+          } else {
+            console.warn('⚠️ Connectors still not ready after initialization wait')
+          }
+        }, 1000)
+        
+        return () => clearTimeout(initTimer)
+      }
+    }
+  }, [connectors, isMiniApp])
 
   // Monitor connection state changes and force UI update when WalletConnect connects
   useEffect(() => {

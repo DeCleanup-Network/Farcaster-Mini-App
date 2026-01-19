@@ -1,0 +1,69 @@
+# CodeRabbit Configuration
+# Automated code review for pull requests
+# Documentation: https://docs.coderabbit.ai/
+
+language: typescript
+
+reviews:
+  pull_requests:
+    enabled: true
+    base_branches:
+      - main
+      - develop
+    review_type: "full" # Options: "full", "diff", "changed_files"
+    path_filters:
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "**/*.js"
+      - "**/*.jsx"
+    ignore_files:
+      - "**/*.test.ts"
+      - "**/*.test.tsx"
+      - "**/*.spec.ts"
+      - "**/*.spec.tsx"
+      - "node_modules/**"
+      - ".next/**"
+      - "dist/**"
+      - "build/**"
+
+# Review settings
+review:
+  # Request review from CodeRabbit
+  request_review: true
+  
+  # Review comment settings
+  review_comment:
+    enabled: true
+    max_lines: 50 # Maximum lines to review per comment
+    
+  # Code quality checks
+  code_quality:
+    enabled: true
+    checks:
+      - security
+      - performance
+      - best_practices
+      - maintainability
+      
+  # Security checks
+  security:
+    enabled: true
+    checks:
+      - sql_injection
+      - xss
+      - csrf
+      - authentication
+      - authorization
+      - sensitive_data_exposure
+      - dependency_vulnerabilities
+
+# Chat settings (for PR discussions)
+chat:
+  enabled: true
+  auto_reply: false # Set to true for automatic responses
+
+# Suggestions
+suggestions:
+  enabled: true
+  max_suggestions: 10
+
