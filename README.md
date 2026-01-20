@@ -33,7 +33,7 @@ DeCleanup Rewards is a fully functional, production-ready Farcaster Mini App tha
 - **Token Claims**: Convert DCU points to $bDCU tokens (requires Level 10 and minimum 100 points)
 - **Staking**: Stake tokens to become a verifier (requires ≥51% of balance and Level 10)
 - **Add App Modal**: Prompts users to add app to Farcaster or pin to Base after onboarding
-- **CAPTCHA Protection**: Cloudflare Turnstile CAPTCHA on wallet connection (web app only, skipped in Farcaster)
+- **Bot Protection**: Vercel Bot ID protection on sensitive routes (Edge-level, no user friction)
 - **Security Headers**: Comprehensive CORS, CSP, and security headers for production
 
 ### Admin Features
@@ -120,7 +120,7 @@ Edit `.env.local` with:
 - WalletConnect Project ID
 - Farcaster Neynar API key
 - Base App ID
-- **CAPTCHA keys** (optional): `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`
+- **Bot Protection**: Enabled via Vercel Bot ID (no environment variables needed - configured in Vercel dashboard)
 
 See [VERCEL_ENV_SETUP.md](VERCEL_ENV_SETUP.md) for complete environment variables guide.
 
@@ -241,7 +241,7 @@ See [ADMIN_GUIDE.md](ADMIN_GUIDE.md) for complete admin documentation.
 - **Input Validation**: All user inputs validated
 
 ### Application Security
-- **CAPTCHA Protection**: Cloudflare Turnstile CAPTCHA on wallet connection (web app only)
+- **Bot Protection**: Vercel Bot ID protection on sensitive routes (Edge-level, no user friction)
 - **Rate Limiting**: All API endpoints rate-limited to prevent abuse
 - **CORS Security**: Secure CORS with origin validation (no wildcard)
 - **CSP Headers**: Comprehensive Content Security Policy
@@ -283,7 +283,7 @@ See [LICENSE](LICENSE) file for details.
 ✅ **Admin Controls** - Comprehensive admin functions available  
 ✅ **Documentation** - Complete documentation for admins, developers, and users  
 ✅ **Security** - Contracts and application secured with best practices  
-✅ **CAPTCHA Protection** - Cloudflare Turnstile integrated (web app only)  
+✅ **Bot Protection** - Vercel Bot ID integrated (Edge-level protection, no user friction)  
 ✅ **CORS/CSP** - Secure headers and policies configured  
 ✅ **Automated Security** - Dependabot and CodeRabbit configured
 

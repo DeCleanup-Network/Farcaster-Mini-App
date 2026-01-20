@@ -115,62 +115,56 @@ const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 
 ---
 
-### ❌ 5. CAPTCHA on Auth Flows
-**Status**: ❌ **NOT IMPLEMENTED**
+### ✅ 5. Bot Protection on Auth Flows
+**Status**: ✅ **IMPLEMENTED**
 
 **Current State**: 
-- No CAPTCHA found in authentication flows
+- Vercel Bot ID protection enabled via middleware
+- Edge-level bot detection (no user friction)
 - Wallet-based authentication (signature-based)
 - No traditional username/password auth
 
 **Analysis**:
 - Wallet signature authentication provides some protection (requires wallet control)
-- However, automated wallet connection attempts could still be a concern
-- CAPTCHA would protect against:
+- Vercel Bot ID protects against:
   - Automated wallet connection spam
   - Bot-driven API abuse
   - Rate limit bypass attempts
+  - Edge-level protection (runs before requests reach application)
 
-**Recommendation**:
-1. ✅ **Option 3 IMPLEMENTED**: Cloudflare Turnstile (privacy-friendly alternative)
-2. **Option 1**: Add CAPTCHA before wallet connection (hCaptcha or reCAPTCHA) - Alternative
-3. **Option 2**: Implement proof-of-work challenge for sensitive operations - Alternative
-
-**Implementation Status**: ✅ **READY FOR INTEGRATION**
+**Implementation**: ✅ **COMPLETE**
 
 **Files Created**:
-- `components/captcha/TurnstileCaptcha.tsx` - Reusable CAPTCHA component
-- `app/api/captcha/verify/route.ts` - Server-side verification endpoint
-- `components/captcha/WalletConnectWithCaptcha.example.tsx` - Integration example
-- `CAPTCHA_IMPLEMENTATION.md` - Complete implementation guide
+- `middleware.ts` - Bot ID verification middleware (protects sensitive routes)
+- `app/api/bot-check/route.ts` - Client-side bot check API endpoint
+- `package.json` - Added `botid` dependency
 
-**Usage Example**:
-```typescript
-import { TurnstileCaptcha, verifyCaptchaToken } from '@/components/captcha/TurnstileCaptcha'
+**How It Works**:
+1. Vercel Bot Protection automatically injects `x-vercel-bot-score` headers
+2. Middleware verifies requests using `verifyRequest()` from `botid` package
+3. Bot scores range from 0 (definitely bot) to 100 (definitely human)
+4. Requests with low bot scores (< 10) are blocked at the Edge level
+5. No user interaction required - completely invisible to legitimate users
 
-const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+**Protected Routes**:
+- `/api/cleanup/submit` - Cleanup submissions
+- `/api/cleanup/verify` - Verification endpoints
+- `/api/points` - Points-related operations
+- `/verifier` - Verifier pages
 
-// Add CAPTCHA component
-<TurnstileCaptcha onVerify={setCaptchaToken} />
-
-// Verify before connecting wallet
-const verified = await verifyCaptchaToken(captchaToken)
-if (verified) {
-  await connectWallet()
-}
-```
+**Configuration**:
+- Enable Bot Protection in Vercel Dashboard: Settings > Security > Bot Protection
+- No environment variables needed
+- Works automatically once enabled in Vercel dashboard
 
 **Action Required**: 
-- ✅ **Implementation files created**:
-  - `components/captcha/TurnstileCaptcha.tsx` - Reusable CAPTCHA component
-  - `app/api/captcha/verify/route.ts` - Server-side verification endpoint
-  - `CAPTCHA_IMPLEMENTATION.md` - Complete implementation guide
+- ✅ **Implementation complete**
+- ✅ **Middleware configured**
+- ✅ **Sensitive routes protected**
 - ⚠️ **Next Steps**:
-  1. Get Cloudflare Turnstile credentials (free tier available)
-  2. Add environment variables: `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`
-  3. Install dependency: `npm install @marsidev/react-turnstile`
-  4. Integrate CAPTCHA component in wallet connection flow
-  5. Test thoroughly before enabling in production
+  1. Enable Bot Protection in Vercel Dashboard (if not already enabled)
+  2. Monitor bot detection in Vercel Analytics
+  3. Adjust bot score threshold in middleware if needed (currently < 10)
 
 ---
 
@@ -348,7 +342,7 @@ updates:
 
 **CSP Policy Includes**:
 - ✅ `default-src 'self'` - Restrictive default
-- ✅ `script-src` - Allows Next.js and Cloudflare Turnstile
+- ✅ `script-src` - Allows Next.js scripts
 - ✅ `img-src` - Allows HTTPS images (IPFS gateways)
 - ✅ `connect-src` - Allows API calls to trusted endpoints
 - ✅ `frame-ancestors` - Only Farcaster and Base domains
@@ -379,7 +373,7 @@ updates:
 | Rate Limiting | ✅ Implemented | ✅ Complete |
 | Row-Level Security | ❓ N/A or Needs Verification | Low |
 | API Keys in Env Vars | ✅ Properly Implemented | ✅ Complete |
-| CAPTCHA on Auth | ❌ Not Implemented | Medium |
+| Bot Protection | ✅ Implemented | Low |
 | HTTPS Enforced | ✅ Enforced by Vercel | ✅ Complete |
 | Input Validation | ✅ Comprehensive | ✅ Complete |
 | Dependency Audits | ⚠️ Needs Automation | High |
@@ -392,7 +386,7 @@ updates:
 
 ### Medium Priority
 3. ⚠️ **Configure CodeRabbit** for automated code review
-4. ⚠️ **Consider adding CAPTCHA** for wallet connection flows
+4. ✅ **Bot Protection implemented** - Vercel Bot ID protects sensitive routes
 5. ⚠️ **Verify RLS** if using any database
 
 ### Low Priority

@@ -5,10 +5,11 @@ All notable changes to the DeCleanup Mini App will be documented in this file.
 ## [2025-01-27] - Security & UX Improvements
 
 ### ✅ Added
-- **CAPTCHA Protection**: Cloudflare Turnstile CAPTCHA integrated for wallet connection
-  - Only appears on web app (automatically skipped in Farcaster Mini App)
-  - Server-side verification for security
-  - Privacy-friendly solution
+- **Bot Protection**: Vercel Bot ID protection integrated
+  - Edge-level protection (runs before requests reach application)
+  - No user friction (completely invisible to legitimate users)
+  - Protects sensitive routes: cleanup submissions, verification, points, verifier pages
+  - Configured via Vercel Dashboard (no environment variables needed)
 - **CORS Security**: Secure CORS implementation with origin validation
   - No wildcard `*` - only trusted origins allowed
   - Proper preflight handling
@@ -42,10 +43,11 @@ All notable changes to the DeCleanup Mini App will be documented in this file.
   - Enhanced error messages
 
 ### 🔄 Changed
-- **Wallet Connection Flow**: Added CAPTCHA verification (web only)
-  - CAPTCHA appears before wallet connection on web
-  - Automatically skipped in Farcaster Mini App
-  - Server-side verification before connection
+- **Bot Protection**: Replaced CAPTCHA with Vercel Bot ID
+  - Edge-level protection via middleware
+  - No user interaction required
+  - Better performance (no client-side libraries)
+  - Automatic bot detection and blocking
 - **CORS Implementation**: Replaced wildcard with origin validation
   - Secure origin checking
   - Only allows trusted domains

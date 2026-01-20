@@ -114,12 +114,12 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://challenges.cloudflare.com", // Cloudflare Turnstile
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https: blob:",
               "font-src 'self' data:",
-              "connect-src 'self' https://api.neynar.com https://api.airstack.xyz https://challenges.cloudflare.com https://gateway.pinata.cloud https://ipfs.io https://cloudflare-ipfs.com https://dweb.link wss:",
-              "frame-src 'self' https://challenges.cloudflare.com", // Cloudflare Turnstile
+              "connect-src 'self' https://api.neynar.com https://api.airstack.xyz https://gateway.pinata.cloud https://ipfs.io https://cloudflare-ipfs.com https://dweb.link wss:",
+              "frame-src 'self'",
               "frame-ancestors https://warpcast.com https://client.warpcast.com https://farcaster.xyz https://client.farcaster.xyz https://app.farcaster.xyz https://www.farcaster.xyz https://www.warpcast.com https://app.warpcast.com https://base.org https://www.base.org https://base.dev https://www.base.dev https://app.base.org https://app.base.dev",
               "object-src 'none'",
               "base-uri 'self'",

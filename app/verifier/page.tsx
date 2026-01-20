@@ -26,6 +26,7 @@ import { WalletConnect } from '@/components/wallet/WalletConnect'
 import { getIPFSUrl, getIPFSFallbackUrls } from '@/lib/ipfs'
 import { findCleanupsByWallet } from '@/lib/find-cleanup-by-wallet'
 import { tryAddRequiredChain } from '@/lib/network'
+import { getCurrentChainIdCached } from '@/lib/chain-detection'
 
 const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
@@ -172,8 +173,7 @@ export default function VerifierPage() {
     if (typeof chainId === 'number' && chainId === REQUIRED_CHAIN_ID) {
       // Verify with a direct check to avoid unnecessary switching
       try {
-        const { getCurrentChainId } = await import('@/lib/contracts')
-        const actualChainId = await getCurrentChainId()
+        const actualChainId = await getCurrentChainIdCached()
         if (actualChainId === REQUIRED_CHAIN_ID) {
           console.log(`[${context}] ✅ Verified on correct chain (${REQUIRED_CHAIN_ID})`)
           return
