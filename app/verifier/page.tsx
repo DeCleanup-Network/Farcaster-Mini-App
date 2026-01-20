@@ -108,9 +108,12 @@ export default function VerifierPage() {
   })
 
   const { signMessageAsync, isPending: isSigning } = useSignMessage()
+  // Improved network detection - check multiple sources to avoid false positives on Safari iOS
   const isWrongNetwork = Boolean(
     isConnected &&
-      (typeof chainId !== 'number' || chainId !== REQUIRED_CHAIN_ID)
+      (typeof chainId !== 'number' || chainId !== REQUIRED_CHAIN_ID) &&
+      chainId !== null && // Don't treat null/undefined as wrong network (might be loading)
+      chainId !== undefined
   )
 
   const attemptSwitchToRequiredChain = async (context: string) => {
@@ -163,9 +166,27 @@ export default function VerifierPage() {
     if (!isConnected) {
       throw new Error('Please connect your wallet first.')
     }
+    
+    // Double-check chain ID from multiple sources to avoid false positives on Safari iOS
+    // Sometimes chainId from useChainId hook can be stale or incorrect
     if (typeof chainId === 'number' && chainId === REQUIRED_CHAIN_ID) {
-      return
+      // Verify with a direct check to avoid unnecessary switching
+      try {
+        const { getCurrentChainId } = await import('@/lib/contracts')
+        const actualChainId = await getCurrentChainId()
+        if (actualChainId === REQUIRED_CHAIN_ID) {
+          console.log(`[${context}] ✅ Verified on correct chain (${REQUIRED_CHAIN_ID})`)
+          return
+        }
+        // If actual chain ID differs, proceed with switch
+        console.log(`[${context}] Chain ID mismatch: hook says ${chainId}, actual is ${actualChainId}`)
+      } catch (error) {
+        // If we can't verify, trust the hook value and return if it matches
+        console.warn(`[${context}] Could not verify chain ID, trusting hook value:`, error)
+        return
+      }
     }
+    
     await attemptSwitchToRequiredChain(context)
   }
 

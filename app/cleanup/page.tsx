@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
-import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle, Users } from 'lucide-react'
+import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle, Users, RotateCw } from 'lucide-react'
 import { uploadToIPFS, uploadJSONToIPFS, getIPFSUrl } from '@/lib/ipfs'
 import { submitCleanup, getSubmissionFee, getCleanupStatus, getUserLevel, CONTRACT_ADDRESSES, checkReferralEligibility, VERIFICATION_ABI } from '@/lib/contracts'
 import { clearPendingCleanupData, resetSubmissionCounting } from '@/lib/clear-cleanup-data'
@@ -1699,7 +1699,7 @@ function CleanupContent() {
                 onChange={(e) => setBeforePhotoAllowed(e.target.checked)}
                 className="rounded border-gray-700 bg-gray-800"
               />
-              Agree if you allow us to post this picture on social platforms (X, Telegram)
+              Agree if you allow us to post this picture on social platforms (X, Telegram, Farcaster)
             </label>
           </div>
 
@@ -1931,7 +1931,7 @@ function CleanupContent() {
                 onChange={(e) => setAfterPhotoAllowed(e.target.checked)}
                 className="rounded border-gray-700 bg-gray-800"
               />
-              Agree if you allow us to post this picture on social platforms (X, Telegram)
+              Agree if you allow us to post this picture on social platforms (X, Telegram, Farcaster)
             </label>
           </div>
 
@@ -2531,23 +2531,39 @@ function CleanupContent() {
             >
               Skip Impact Report
             </Button>
-            <Button
-              onClick={handleSubmitEnhanced}
-              disabled={isSubmitting}
-              className="flex-1 gap-2 bg-brand-yellow text-black hover:bg-[#e6e600]"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Submitting…
-                </>
-              ) : (
-                <>
-                  Submit {enhancedData.area ? 'with Bonus' : ''}
-                  <ArrowRight className="h-4 w-4" />
-                </>
+            <div className="flex-1 flex flex-col gap-2">
+              <Button
+                onClick={handleSubmitEnhanced}
+                disabled={isSubmitting}
+                className="w-full gap-2 bg-brand-yellow text-black hover:bg-[#e6e600]"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Submitting…
+                  </>
+                ) : (
+                  <>
+                    Submit {enhancedData.area ? 'with Bonus' : ''}
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+              {isSubmitting && (
+                <Button
+                  onClick={() => {
+                    setIsSubmitting(false)
+                    window.location.reload()
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800 text-xs"
+                >
+                  <RotateCw className="h-3 w-3" />
+                  Stuck? Refresh Page
+                </Button>
               )}
-            </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -2591,6 +2607,17 @@ function CleanupContent() {
           <p className="text-sm text-gray-400">
             After the team reviews the proof of cleanup, come back to claim your level. Usually the process takes from 2 to 12 hours. Contact us in telegram group if you have questions or for troubleshooting.
           </p>
+          <div className="mt-4">
+            <Button
+              onClick={() => window.location.reload()}
+              variant="outline"
+              size="sm"
+              className="gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800"
+            >
+              <RotateCw className="h-4 w-4" />
+              Refresh Page
+            </Button>
+          </div>
         </div>
 
         {((beforePhoto && afterPhoto) || (beforePhotoIPFSHash && afterPhotoIPFSHash)) && (

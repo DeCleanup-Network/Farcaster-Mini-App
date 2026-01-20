@@ -8,7 +8,6 @@ import { REQUIRED_CHAIN_ID } from '@/lib/wagmi'
 import { Button } from '@/components/ui/button'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { mainnet } from 'wagmi/chains'
-import { TurnstileCaptcha, verifyCaptchaToken } from '@/components/captcha/TurnstileCaptcha'
 
 /**
  * WalletConnect component using RainbowKit
@@ -30,11 +29,6 @@ export function WalletConnect() {
   const previousConnectedRef = useRef(false)
   const previousAddressRef = useRef<string | undefined>(undefined)
   
-  // CAPTCHA state (only for web app, not Farcaster)
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
-  const [isVerifyingCaptcha, setIsVerifyingCaptcha] = useState(false)
-  const [captchaError, setCaptchaError] = useState<string | null>(null)
-  const [showCaptcha, setShowCaptcha] = useState(false)
   
   // Use RainbowKit modal hooks for programmatic control
   // These hooks provide access to modal state and open functions
@@ -99,15 +93,6 @@ export function WalletConnect() {
     }
   }, [connectors, isMiniApp])
 
-  // Reset CAPTCHA when connection succeeds
-  useEffect(() => {
-    if (isConnected && address && captchaToken) {
-      // Connection successful - reset CAPTCHA for next time
-      setCaptchaToken(null)
-      setShowCaptcha(false)
-      setCaptchaError(null)
-    }
-  }, [isConnected, address, captchaToken])
 
   // Monitor connection state changes and force UI update when WalletConnect connects
   useEffect(() => {
@@ -206,17 +191,6 @@ export function WalletConnect() {
               e.preventDefault()
               e.stopPropagation()
               
-              // CAPTCHA is optional - show if available, but don't block modal opening
-              // If CAPTCHA fails or is not configured, connection will proceed anyway
-              if (!isMiniApp && !captchaToken && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
-                // Show CAPTCHA if not already shown and site key is configured
-                if (!showCaptcha) {
-                  setShowCaptcha(true)
-                }
-                // Continue - allow modal to open, CAPTCHA verification happens in handleDirectConnect
-                // Connection will proceed even if CAPTCHA fails (graceful degradation)
-              }
-              
               // Detect mobile browsers
               const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
               const isIOSSafari = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
@@ -290,44 +264,6 @@ export function WalletConnect() {
             }
 
             const handleDirectConnect = async () => {
-              // CAPTCHA verification (only on web, not in Farcaster Mini App)
-              // OPTIMIZED: Make CAPTCHA optional - if it fails, allow connection to proceed
-              // This provides graceful degradation if CAPTCHA is misconfigured (error 110200)
-              if (!isMiniApp) {
-                // Only verify CAPTCHA if token exists (user completed it)
-                // If CAPTCHA is not configured or fails, allow connection anyway
-                if (captchaToken) {
-                  // Verify CAPTCHA on server before connecting
-                  setIsVerifyingCaptcha(true)
-                  setCaptchaError(null)
-                  
-                  try {
-                    const verified = await verifyCaptchaToken(captchaToken)
-                    if (!verified) {
-                      console.warn('CAPTCHA verification failed, but allowing connection to proceed')
-                      // Don't block connection - just log the warning
-                      // This provides graceful degradation if CAPTCHA is misconfigured
-                    } else {
-                      console.log('✅ CAPTCHA verified successfully')
-                    }
-                  } catch (error) {
-                    console.warn('CAPTCHA verification error, but allowing connection to proceed:', error)
-                    // Don't block connection - CAPTCHA is optional for graceful degradation
-                  } finally {
-                    setIsVerifyingCaptcha(false)
-                  }
-                } else {
-                  // No CAPTCHA token - show CAPTCHA if available, but don't block
-                  if (!showCaptcha && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
-                    setShowCaptcha(true)
-                  }
-                  // Allow connection to proceed even without CAPTCHA
-                  // This provides graceful degradation if CAPTCHA is not configured
-                }
-              } else {
-                console.log('🔵 Farcaster Mini App detected - skipping CAPTCHA')
-              }
-
               // CRITICAL: Use proper environment detection from FarcasterProvider
               // In Farcaster Mini App, we MUST use the Farcaster connector, not injected wallets
               const isFarcasterEnv = isMiniApp
@@ -511,61 +447,17 @@ export function WalletConnect() {
             }
 
             return (
-              <div className="flex flex-col items-end gap-2">
-                {/* CAPTCHA - Only show on web app, not in Farcaster */}
-                {!isMiniApp && showCaptcha && (
-                  <div className="flex flex-col gap-2 rounded-lg border border-gray-700 bg-gray-900 p-3">
-                    <TurnstileCaptcha
-                      onVerify={(token) => {
-                        setCaptchaToken(token)
-                        setCaptchaError(null)
-                        setShowCaptcha(false) // Hide after verification
-                      }}
-                    onError={(error) => {
-                      // Error 110200 = Invalid site key or domain mismatch
-                      // Make CAPTCHA optional - don't block wallet connection
-                      if (error.includes('110200') || error.includes('configuration error')) {
-                        setCaptchaError('CAPTCHA not configured correctly. Wallet connection will proceed without CAPTCHA.')
-                        console.warn('CAPTCHA configuration error - allowing wallet connection without CAPTCHA')
-                      } else {
-                        setCaptchaError(`CAPTCHA error: ${error}`)
-                      }
-                      setCaptchaToken(null)
-                      // Don't block - allow wallet connection to proceed
-                    }}
-                      onExpire={() => {
-                        setCaptchaToken(null)
-                        setCaptchaError('CAPTCHA expired. Please verify again.')
-                      }}
-                      theme="auto"
-                      size="normal"
-                    />
-                    {captchaError && (
-                      <p className="text-xs text-red-400">{captchaError}</p>
-                    )}
-                    {captchaToken && (
-                      <p className="text-xs text-green-400">✓ CAPTCHA verified</p>
-                    )}
-                  </div>
-                )}
-                
-                <Button
-                  size="sm"
-                  onClick={handleConnect}
-                  disabled={isPending || isVerifyingCaptcha}
-                  className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm disabled:opacity-50"
-                >
-                  <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span>
-                    {isVerifyingCaptcha 
-                      ? 'Verifying…' 
-                      : isPending 
-                        ? 'Connecting…' 
-                        : 'Connect Wallet'
-                    }
-                  </span>
-                </Button>
-              </div>
+              <Button
+                size="sm"
+                onClick={handleConnect}
+                disabled={isPending}
+                className="gap-2 bg-brand-green text-black hover:bg-[#4a9a26] text-xs sm:text-sm disabled:opacity-50"
+              >
+                <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span>
+                  {isPending ? 'Connecting…' : 'Connect Wallet'}
+                </span>
+              </Button>
             )
           }
 

@@ -275,3 +275,49 @@
   overflow: hidden !important;
   text-overflow: ellipsis !important;
 }
+
+/* Additional fixes for wallet text display - prevent overlapping */
+[data-rk] button,
+[data-rk] [data-rk] button {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+  padding: 0.75rem 1rem !important;
+  gap: 0.75rem !important;
+}
+
+/* Ensure wallet name text has proper spacing and doesn't overlap */
+[data-rk] button span,
+[data-rk] [data-rk] button span,
+[data-rk] button div span,
+[data-rk] [data-rk] button div span {
+  display: inline-block !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  word-break: break-word !important;
+  line-height: 1.5 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Fix for wallet icons and text spacing */
+[data-rk] button > *:first-child,
+[data-rk] [data-rk] button > *:first-child {
+  flex-shrink: 0 !important;
+  margin-right: 0.5rem !important;
+}
+
+/* Ensure proper flex layout for wallet buttons */
+[data-rk] [data-rk] ul li,
+[data-rk] [data-rk] div[role="listbox"] > div {
+  margin-bottom: 0.5rem !important;
+}
+
+[data-rk] [data-rk] ul li:last-child,
+[data-rk] [data-rk] div[role="listbox"] > div:last-child {
+  margin-bottom: 0 !important;
+}
