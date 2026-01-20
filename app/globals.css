@@ -163,28 +163,15 @@
       position: relative;
     }
     
-    /* Prevent horizontal scrolling */
-    * {
+    /* Prevent horizontal scrolling - but exclude modals and dialogs */
+    *:not([data-rk]):not([role="dialog"]):not([data-slot="dialog-portal"]):not([data-slot="dialog-content"]) {
       max-width: 100%;
       box-sizing: border-box;
     }
     
-    /* Ensure buttons are properly centered on mobile */
-    button, [role="button"] {
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      text-align: center !important;
-      width: 100%;
-    }
-    
-    /* Center text in buttons */
-    button > *, [role="button"] > * {
-      text-align: center !important;
-    }
-    
-    /* Fix container widths */
-    .container, [class*="container"] {
+    /* Fix container widths - exclude modal containers */
+    .container:not([data-rk]):not([role="dialog"]), 
+    [class*="container"]:not([data-rk]):not([role="dialog"]) {
       max-width: 100% !important;
       padding-left: 1rem;
       padding-right: 1rem;
@@ -200,8 +187,8 @@
       padding-right: 1rem;
     }
     
-    /* Fix flex containers on mobile */
-    .flex {
+    /* Fix flex containers on mobile - exclude modals */
+    .flex:not([data-rk]):not([role="dialog"]) {
       flex-wrap: wrap;
     }
   }
@@ -275,10 +262,15 @@
     padding: 0.875rem 1rem !important;
   }
   
-  /* Ensure wallet modal is mobile-sized */
+  /* Ensure wallet modal is mobile-sized - let RainbowKit handle its own layout */
   [data-rk] [role="dialog"] {
     max-width: calc(100vw - 2rem) !important;
     margin: 1rem !important;
+  }
+  
+  /* Exclude RainbowKit from body overflow constraints */
+  body:has([data-rk] [role="dialog"]) {
+    overflow: hidden !important;
   }
 }
 

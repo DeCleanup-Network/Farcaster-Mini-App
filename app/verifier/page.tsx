@@ -110,11 +110,11 @@ export default function VerifierPage() {
 
   const { signMessageAsync, isPending: isSigning } = useSignMessage()
   // Improved network detection - check multiple sources to avoid false positives on Safari iOS
+  // Only show wrong network if we're connected, have a valid chainId, and it's not the required one
   const isWrongNetwork = Boolean(
     isConnected &&
-      (typeof chainId !== 'number' || chainId !== REQUIRED_CHAIN_ID) &&
-      chainId !== null && // Don't treat null/undefined as wrong network (might be loading)
-      chainId !== undefined
+      typeof chainId === 'number' && // Must be a valid number (not null/undefined)
+      chainId !== REQUIRED_CHAIN_ID
   )
 
   const attemptSwitchToRequiredChain = async (context: string) => {
