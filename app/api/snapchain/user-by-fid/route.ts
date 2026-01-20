@@ -16,10 +16,12 @@ import { checkRateLimit, getRateLimitIdentifier, RATE_LIMITS } from '@/lib/rate-
  * - USER_DATA_TYPE_DISPLAY (2): Display Name
  * - USER_DATA_TYPE_BIO (3): Bio
  * - USER_DATA_TYPE_USERNAME (6): Username
+ * - USER_DATA_TYPE_LOCATION (5): Location
  * 
  * If no user_data_type is specified, returns all user data for the FID
  * 
  * Setup: Add NEXT_PUBLIC_SNAPCHAIN_ENDPOINT=http://your-server:3381 to .env.local
+ * Or use free public node: https://hub.merv.fun (no env var needed)
  * See SNAPCHAIN_SETUP.md for detailed setup instructions
  */
 export async function GET(request: NextRequest) {
@@ -53,17 +55,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get Snapchain endpoint from env
+    // Get Snapchain endpoint from env, or use free public node (merv.fun)
     // Note: Snapchain requires self-hosting (see SNAPCHAIN_SETUP.md)
-    // If not configured, this endpoint returns 503 and caller should use Neynar instead
-    const snapchainEndpoint = process.env.NEXT_PUBLIC_SNAPCHAIN_ENDPOINT
-    
-    if (!snapchainEndpoint) {
-      return NextResponse.json(
-        { error: 'Snapchain endpoint not configured. Use Neynar API instead (easier setup).' },
-        { status: 503 } // Service Unavailable - indicates fallback should be used
-      )
-    }
+    // Free public node available at https://hub.merv.fun (no API key needed)
+    const snapchainEndpoint = process.env.NEXT_PUBLIC_SNAPCHAIN_ENDPOINT || 'https://hub.merv.fun'
     
     // Build URL - if user_data_type is specified, include it
     let snapchainUrl = `${snapchainEndpoint}/v1/userDataByFid?fid=${fid}`
@@ -121,15 +116,19 @@ export async function GET(request: NextRequest) {
       displayName?: string
       bio?: string
       username?: string
+      location?: string
     } = {}
     
     for (const message of messages) {
       // Handle different response structures
       const userDataBody = message.userDataBody || message.data?.userDataBody || message
-      if (!userDataBody || !userDataBody.value) continue
+      if (!userDataBody) continue
       
       const type = userDataBody.type
       const value = userDataBody.value
+      
+      // Skip empty values (like empty location strings)
+      if (value === '' || value === null || value === undefined) continue
       
       // Handle both string and numeric types
       if (type === 'USER_DATA_TYPE_PFP' || type === 1) {
@@ -140,6 +139,8 @@ export async function GET(request: NextRequest) {
         userData.bio = value
       } else if (type === 'USER_DATA_TYPE_USERNAME' || type === 6) {
         userData.username = value
+      } else if (type === 'USER_DATA_TYPE_LOCATION' || type === 5) {
+        userData.location = value
       }
     }
     

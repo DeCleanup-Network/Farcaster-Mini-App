@@ -57,7 +57,7 @@ function CleanupContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { sendWithBuilderCode } = useBuilderCodeAttribution()
-  const { isMiniApp } = useFarcaster()
+  const { isMiniApp, context } = useFarcaster()
   const [mounted, setMounted] = useState(false)
   const [referrerAddress, setReferrerAddress] = useState<Address | null>(null)
   const [step, setStep] = useState<Step>('before')
@@ -589,18 +589,94 @@ function CleanupContent() {
     }
   }
 
-  const getLocation = () => {
+  // Try to fetch location from Farcaster user data first
+  const fetchLocationFromFarcaster = async (fid: number): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      // Try Snapchain API first (supports free merv.fun node)
+      const snapchainResponse = await fetch(`/api/snapchain/user-by-fid?fid=${fid}`)
+      if (snapchainResponse.ok) {
+        const data = await snapchainResponse.json()
+        if (data.location && data.location.trim() !== '') {
+          // Parse location string - could be coordinates, city name, etc.
+          const locationStr = data.location.trim()
+          
+          // Try to parse as coordinates (lat,lng or lat lng)
+          const coordMatch = locationStr.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/)
+          if (coordMatch) {
+            const lat = parseFloat(coordMatch[1])
+            const lng = parseFloat(coordMatch[2])
+            if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+              console.log('✅ Location fetched from Farcaster:', { lat, lng })
+              return { lat, lng }
+            }
+          }
+          
+          // If not coordinates, log it but don't use it (would need geocoding)
+          console.log('📍 Farcaster location found but not in coordinate format:', locationStr)
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to fetch location from Farcaster:', error)
+    }
+    
+    // Try Neynar API as fallback
+    try {
+      const neynarResponse = await fetch(`/api/neynar/user-by-fid?fid=${fid}`)
+      if (neynarResponse.ok) {
+        const data = await neynarResponse.json()
+        const user = data.result?.user || data.user
+        // Neynar might have location in profile data
+        if (user?.profile?.location) {
+          const locationStr = user.profile.location.trim()
+          const coordMatch = locationStr.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/)
+          if (coordMatch) {
+            const lat = parseFloat(coordMatch[1])
+            const lng = parseFloat(coordMatch[2])
+            if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+              console.log('✅ Location fetched from Neynar:', { lat, lng })
+              return { lat, lng }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to fetch location from Neynar:', error)
+    }
+    
+    return null
+  }
+
+  const getLocation = async () => {
+    setIsGettingLocation(true)
+    setLocationError(null)
+    setManualLocationMode(false)
+    
+    // Priority 1: Try to get location from Farcaster user data
+    if (context?.user?.fid) {
+      const farcasterLocation = await fetchLocationFromFarcaster(context.user.fid)
+      if (farcasterLocation) {
+        setLocation(farcasterLocation)
+        setIsGettingLocation(false)
+        setLocationError(null)
+        setManualLocationMode(false)
+        
+        // Store location in localStorage as backup
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('last_cleanup_location', JSON.stringify(farcasterLocation))
+        }
+        return
+      }
+    }
+    
+    // Priority 2: Fall back to browser geolocation
     if (typeof window === 'undefined' || !navigator.geolocation) {
       const message = 'Geolocation is not supported or allowed in this browser. Please enter coordinates manually below.'
       setLocationError(message)
       setManualLocationMode(true)
+      setIsGettingLocation(false)
       console.warn(message)
       return
     }
-
-    setIsGettingLocation(true)
-    setLocationError(null)
-    setManualLocationMode(false)
     
     navigator.geolocation.getCurrentPosition(
       (position) => {
