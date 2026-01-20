@@ -28,35 +28,35 @@ export function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur-sm">
-      <div className="container mx-auto flex items-center justify-between px-4 py-2 sm:px-6 sm:py-3">
+    <header className="sticky top-0 z-50 w-full max-w-full border-b border-border bg-background/95 backdrop-blur-sm safe-area-inset-top">
+      <div className="mx-auto flex items-center justify-between px-3 py-2 sm:px-6 sm:py-3 max-w-full overflow-hidden">
         {/* Left side - Logo */}
         <Link 
           href="/" 
           className="flex items-center hover:opacity-80 transition-opacity flex-shrink-0"
         >
-          <div className="relative h-16 w-16 sm:h-20 sm:w-20">
+          <div className="relative h-12 w-12 sm:h-16 sm:w-16">
             <Image
               src={logoUrl}
               alt="DeCleanup"
               fill
               className="object-contain"
               priority
-              sizes="(max-width: 640px) 64px, 80px"
+              sizes="(max-width: 640px) 48px, 64px"
               onError={handleImageError}
             />
           </div>
         </Link>
         
-        {/* Center - Tagline */}
-        <div className="flex-1 flex justify-center items-center px-2">
-          <span className="text-[9px] font-light text-muted-foreground/70 sm:text-[10px] uppercase tracking-wide text-center whitespace-nowrap">
+        {/* Center - Tagline (hidden on very small screens) */}
+        <div className="hidden xs:flex flex-1 justify-center items-center px-2 min-w-0">
+          <span className="text-[8px] sm:text-[10px] font-light text-muted-foreground/70 uppercase tracking-wide text-center truncate">
             Clean Up, Snap, Earn
           </span>
         </div>
         
         {/* Right side - Wallet Connect */}
-        <div className="flex items-center justify-end flex-shrink-0">
+        <div className="flex items-center justify-end flex-shrink-0 ml-2">
           <WalletConnect />
         </div>
       </div>

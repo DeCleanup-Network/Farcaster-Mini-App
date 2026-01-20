@@ -125,8 +125,19 @@ export default function VerifierPage() {
     }
 
     try {
+      // Clear cache before switch
+      const { clearChainIdCache } = await import('@/lib/chain-detection')
+      clearChainIdCache()
+      
       await switchChain({ chainId: REQUIRED_CHAIN_ID })
-      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Wait longer on Safari iOS for chain switch to complete
+      const isSafariIOS = typeof window !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent) && /Safari/i.test(navigator.userAgent)
+      const waitTime = isSafariIOS ? 1500 : 800
+      await new Promise(resolve => setTimeout(resolve, waitTime))
+      
+      // Clear cache again after switch
+      clearChainIdCache()
     } catch (error: any) {
       console.warn(`[${context}] switchChain failed:`, error)
       const message = (error?.message || '').toLowerCase()
@@ -168,26 +179,36 @@ export default function VerifierPage() {
       throw new Error('Please connect your wallet first.')
     }
     
+    // Clear cache to get fresh chain ID (important for Safari iOS)
+    const { clearChainIdCache } = await import('@/lib/chain-detection')
+    clearChainIdCache()
+    
+    // Wait a bit for cache to clear
+    await new Promise(resolve => setTimeout(resolve, 200))
+    
     // Double-check chain ID from multiple sources to avoid false positives on Safari iOS
     // Sometimes chainId from useChainId hook can be stale or incorrect
-    if (typeof chainId === 'number' && chainId === REQUIRED_CHAIN_ID) {
-      // Verify with a direct check to avoid unnecessary switching
-      try {
-        const actualChainId = await getCurrentChainIdCached()
-        if (actualChainId === REQUIRED_CHAIN_ID) {
-          console.log(`[${context}] ✅ Verified on correct chain (${REQUIRED_CHAIN_ID})`)
-          return
-        }
-        // If actual chain ID differs, proceed with switch
-        console.log(`[${context}] Chain ID mismatch: hook says ${chainId}, actual is ${actualChainId}`)
-      } catch (error) {
-        // If we can't verify, trust the hook value and return if it matches
-        console.warn(`[${context}] Could not verify chain ID, trusting hook value:`, error)
-        return
-      }
+    const actualChainId = await getCurrentChainIdCached(true) // Force refresh
+    
+    if (actualChainId === REQUIRED_CHAIN_ID) {
+      console.log(`[${context}] ✅ Verified on correct chain (${REQUIRED_CHAIN_ID})`)
+      return
+    }
+    
+    // If hook says correct but actual is wrong, or both are wrong, switch
+    if (typeof chainId === 'number' && chainId === REQUIRED_CHAIN_ID && actualChainId !== REQUIRED_CHAIN_ID) {
+      console.log(`[${context}] Chain ID mismatch: hook says ${chainId}, actual is ${actualChainId}`)
     }
     
     await attemptSwitchToRequiredChain(context)
+    
+    // After switch, clear cache again and verify
+    clearChainIdCache()
+    await new Promise(resolve => setTimeout(resolve, 500))
+    const newChainId = await getCurrentChainIdCached(true)
+    if (newChainId !== REQUIRED_CHAIN_ID) {
+      console.warn(`[${context}] Chain switch may not have completed. Current: ${newChainId}, Required: ${REQUIRED_CHAIN_ID}`)
+    }
   }
 
   const handleAddNetwork = async () => {
@@ -606,11 +627,51 @@ export default function VerifierPage() {
   setSigningAddress(address)
 
   try {
-    // IMPORTANT: Do NOT force a network switch before signing.
-    // Mobile wallets (especially in Farcaster / WalletConnect flows) often block
-    // network-switch prompts from background calls, which can prevent the
-    // actual signature sheet from ever showing. The verifier auth signature
-    // is chain-agnostic, so we can safely sign on any network.
+    // CRITICAL: Ensure we're on the correct chain BEFORE signing on Safari iOS
+    // The error "chain of the connector does not match" happens when chain switch
+    // hasn't completed yet. We need to wait for the switch to fully complete.
+    console.log('Checking chain before signature...')
+    
+    // Clear cache to get fresh chain ID
+    const { clearChainIdCache } = await import('@/lib/chain-detection')
+    clearChainIdCache()
+    
+    // Wait a bit for cache to clear
+    await new Promise(resolve => setTimeout(resolve, 300))
+    
+    // Check current chain
+    const currentChainId = await getCurrentChainIdCached(true) // Force refresh
+    console.log('Current chain ID before signature:', currentChainId, 'Required:', REQUIRED_CHAIN_ID)
+    
+    // If on wrong chain, switch first and wait for completion
+    if (currentChainId !== null && currentChainId !== REQUIRED_CHAIN_ID) {
+      console.log('Wrong chain detected, switching before signature...')
+      try {
+        await ensureCorrectNetwork('signature flow')
+        
+        // Wait for chain switch to complete (Safari iOS needs extra time)
+        let retries = 0
+        while (retries < 10) {
+          await new Promise(resolve => setTimeout(resolve, 500))
+          clearChainIdCache()
+          const newChainId = await getCurrentChainIdCached(true)
+          if (newChainId === REQUIRED_CHAIN_ID) {
+            console.log('✅ Chain switch completed, proceeding with signature')
+            break
+          }
+          retries++
+          if (retries >= 10) {
+            throw new Error('Chain switch is taking too long. Please ensure you switched to Base Sepolia in your wallet.')
+          }
+        }
+      } catch (switchError: any) {
+        console.error('Chain switch failed:', switchError)
+        setError(`Please switch to ${REQUIRED_CHAIN_NAME} (Chain ID: ${REQUIRED_CHAIN_ID}) in your wallet before signing.`)
+        setSigningAddress(null)
+        return
+      }
+    }
+    
     console.log('Requesting verifier authentication signature...')
     console.log('signMessageAsync function:', typeof signMessageAsync)
     console.log('Message to sign:', VERIFIER_AUTH_MESSAGE)
@@ -1295,8 +1356,8 @@ export default function VerifierPage() {
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-background px-4 py-8 pb-20">
-        <div className="mx-auto max-w-4xl">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20 max-w-full overflow-x-hidden">
+        <div className="mx-auto max-w-4xl w-full">
           <BackButton href="/" />
           <div className="mt-8 flex items-center justify-center p-8">
             <Loader2 className="h-8 w-8 animate-spin text-brand-green" />
@@ -1308,8 +1369,8 @@ export default function VerifierPage() {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-background px-4 py-8 pb-20">
-        <div className="mx-auto max-w-4xl">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20 max-w-full overflow-x-hidden">
+        <div className="mx-auto max-w-4xl w-full">
           <BackButton href="/" />
           <div className="mt-8 rounded-lg border border-gray-800 bg-gray-900 p-6 text-center">
             <h2 className="mb-4 text-2xl font-bold uppercase text-white">Verifier Login</h2>
@@ -1328,8 +1389,8 @@ export default function VerifierPage() {
   // Show signature request screen
   if (needsSignature && !isVerifier) {
     return (
-      <div className="min-h-screen bg-background px-4 py-8 pb-20">
-        <div className="mx-auto max-w-4xl">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20 max-w-full overflow-x-hidden">
+        <div className="mx-auto max-w-4xl w-full">
           <BackButton href="/" />
           <div className="mt-8 rounded-lg border border-gray-800 bg-gray-900 p-6 text-center">
             <Shield className="mx-auto mb-4 h-16 w-16 text-brand-green" />
@@ -1361,7 +1422,7 @@ export default function VerifierPage() {
             <Button
               onClick={handleSignIn}
               disabled={isSigning || loading}
-              className="bg-brand-green text-black hover:bg-brand-green/90"
+              className="w-full sm:w-auto bg-brand-green text-black hover:bg-brand-green/90 justify-center"
             >
               {isSigning ? (
                 <>
@@ -1398,8 +1459,8 @@ export default function VerifierPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background px-4 py-8 pb-20">
-        <div className="mx-auto max-w-4xl">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20 max-w-full overflow-x-hidden">
+        <div className="mx-auto max-w-4xl w-full">
           <BackButton href="/" />
           <div className="mt-8 flex items-center justify-center p-8">
             <Loader2 className="h-8 w-8 animate-spin text-brand-green" />
@@ -1412,8 +1473,8 @@ export default function VerifierPage() {
   if (!isVerifier) {
     const contractAddress = CONTRACT_ADDRESSES.VERIFICATION
     return (
-      <div className="min-h-screen bg-background px-4 py-8 pb-20">
-        <div className="mx-auto max-w-4xl">
+      <div className="min-h-screen bg-background px-4 py-8 pb-20 max-w-full overflow-x-hidden">
+        <div className="mx-auto max-w-4xl w-full">
           <BackButton href="/" />
           <div className="mt-8 rounded-lg border border-red-500/50 bg-red-500/10 p-6 text-center">
             <XCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
@@ -1474,20 +1535,20 @@ export default function VerifierPage() {
   }
 
   return (
-      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20">
-      <div className="mx-auto max-w-6xl">
+      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20 max-w-full overflow-x-hidden">
+      <div className="mx-auto max-w-6xl w-full">
         <BackButton href="/" />
         
-        <div className="mb-8 mt-6 flex items-start justify-between">
-          <div>
-          <h1 className="mb-2 text-4xl font-bold uppercase tracking-wide text-white sm:text-5xl">
+        <div className="mb-8 mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+          <h1 className="mb-2 text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-wide text-white">
             Verifier Dashboard
           </h1>
-          <p className="text-sm text-gray-400">
+          <p className="text-xs sm:text-sm text-gray-400">
             Review and verify cleanup submissions. Assign levels (1-10) based on impact and quality.
           </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto">
             <Button
               onClick={() => {
                 setLoading(true)

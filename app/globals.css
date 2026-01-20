@@ -155,6 +155,66 @@
     @apply touch-manipulation;
   }
   
+  /* Mobile-first responsive constraints */
+  @media (max-width: 640px) {
+    body {
+      max-width: 100vw;
+      overflow-x: hidden;
+      position: relative;
+    }
+    
+    /* Prevent horizontal scrolling */
+    * {
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    
+    /* Ensure buttons are properly centered on mobile */
+    button, [role="button"] {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-align: center !important;
+      width: 100%;
+    }
+    
+    /* Center text in buttons */
+    button > *, [role="button"] > * {
+      text-align: center !important;
+    }
+    
+    /* Fix container widths */
+    .container, [class*="container"] {
+      max-width: 100% !important;
+      padding-left: 1rem;
+      padding-right: 1rem;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    /* Ensure main content doesn't overflow */
+    main {
+      max-width: 100vw;
+      overflow-x: hidden;
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+    
+    /* Fix flex containers on mobile */
+    .flex {
+      flex-wrap: wrap;
+    }
+  }
+  
+  /* Extra small screens */
+  @media (max-width: 375px) {
+    /* Even tighter spacing on very small screens */
+    .container, [class*="container"], main {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
+  }
+  
   /* iOS Safe Area support for notched devices */
   @supports (padding: max(0px)) {
     .safe-area-inset-bottom {
@@ -202,6 +262,24 @@
 [data-rk] button[data-rk] {
   min-height: 3rem !important;
   padding: 0.75rem 1rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+/* Mobile-specific RainbowKit fixes */
+@media (max-width: 640px) {
+  [data-rk] button[data-rk] {
+    min-height: 3.5rem !important;
+    padding: 0.875rem 1rem !important;
+  }
+  
+  /* Ensure wallet modal is mobile-sized */
+  [data-rk] [role="dialog"] {
+    max-width: calc(100vw - 2rem) !important;
+    margin: 1rem !important;
+  }
 }
 
 /* Fix wallet button content layout - prevent text overlap */
