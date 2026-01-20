@@ -29,16 +29,9 @@ export function AddAppModal({ isOpen, onClose }: AddAppModalProps) {
       // Try to use Farcaster SDK to add the app
       const { sdk } = await import('@farcaster/miniapp-sdk')
       
-      // Try different SDK methods that might add the app
-      if (sdk.actions?.addApp) {
-        try {
-          await sdk.actions.addApp()
-          setFarcasterAdded(true)
-          return
-        } catch (error) {
-          console.warn('sdk.actions.addApp failed:', error)
-        }
-      }
+      // Note: Farcaster SDK doesn't have a direct addApp method
+      // Users need to manually add the app through the Farcaster UI
+      // This is intentional - we'll show instructions instead
       
       // Try opening Farcaster settings via deep link
       if (sdk.actions?.openUrl) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyRequest } from 'botid'
+import { checkBotId } from 'botid/server'
 
 export async function proxy(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
@@ -43,9 +43,13 @@ export async function proxy(request: NextRequest) {
       try {
         // Verify request using Vercel Bot ID
         // This checks the x-vercel-bot-score header automatically
-        const isValid = await verifyRequest(request)
+        const result = await checkBotId({
+          developmentOptions: {
+            isDevelopment: process.env.NODE_ENV !== 'production',
+          },
+        })
 
-        if (!isValid) {
+        if (result.isBot && !result.isHuman) {
           // Bot detected - block the request
           console.warn(`[Bot Protection] Blocked bot request to ${pathname}`)
           return new NextResponse(

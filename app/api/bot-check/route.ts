@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyRequest } from 'botid'
+import { checkBotId } from 'botid/server'
 
 /**
  * Bot Check API Route
@@ -11,13 +11,19 @@ import { verifyRequest } from 'botid'
  */
 export async function GET(request: NextRequest) {
   try {
-    const isValid = await verifyRequest(request)
+    const result = await checkBotId({
+      developmentOptions: {
+        isDevelopment: process.env.NODE_ENV !== 'production',
+      },
+    })
     
     // Get bot score from header if available (for debugging)
     const botScore = request.headers.get('x-vercel-bot-score')
     
     return NextResponse.json({
-      isBot: !isValid,
+      isBot: result.isBot && !result.isHuman,
+      isHuman: result.isHuman,
+      isVerifiedBot: result.isVerifiedBot,
       botScore: botScore ? parseInt(botScore) : null,
       // Bot scores: 0 = definitely bot, 100 = definitely human
       // Typically, scores < 10 are considered bots
