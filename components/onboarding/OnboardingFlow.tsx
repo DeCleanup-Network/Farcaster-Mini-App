@@ -156,8 +156,8 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const Icon = currentStepData.icon
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-2 sm:p-4 overscroll-contain">
-      <div className="relative mx-auto w-full max-w-md max-h-[calc(100vh-1rem)] rounded-lg border-2 border-brand-green bg-gray-900 p-4 sm:p-6 shadow-2xl flex flex-col overscroll-contain">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-2 sm:p-4 overscroll-contain safe-area-inset">
+      <div className="relative mx-auto w-full max-w-md max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-4rem)] rounded-lg border-2 border-brand-green bg-gray-900 p-4 sm:p-6 shadow-2xl flex flex-col overscroll-contain">
         {/* Close button */}
         <button
           onClick={handleSkip}

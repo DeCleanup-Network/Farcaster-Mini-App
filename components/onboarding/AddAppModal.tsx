@@ -26,26 +26,11 @@ export function AddAppModal({ isOpen, onClose }: AddAppModalProps) {
 
   const handleAddToFarcaster = async () => {
     try {
-      // Try to use Farcaster SDK to add the app
-      const { sdk } = await import('@farcaster/miniapp-sdk')
+      // Farcaster Mini App SDK doesn't have a direct addApp method
+      // The app is automatically available when opened in Farcaster
+      // Users can manually add it to their apps list from Settings
       
-      // Note: Farcaster SDK doesn't have a direct addApp method
-      // Users need to manually add the app through the Farcaster UI
-      // This is intentional - we'll show instructions instead
-      
-      // Try opening Farcaster settings via deep link
-      if (sdk.actions?.openUrl) {
-        try {
-          // Try to open Farcaster settings page
-          await sdk.actions.openUrl('farcaster://settings/apps')
-          setFarcasterAdded(true)
-          return
-        } catch (error) {
-          console.warn('Failed to open Farcaster settings:', error)
-        }
-      }
-      
-      // Fallback: Show instructions
+      // Show clear instructions instead of trying to open a non-existent deep link
       const instructions = `To add DeCleanup Rewards to your Farcaster apps:
 
 1. Tap the menu (☰) in the top-left of Farcaster
@@ -54,17 +39,13 @@ export function AddAppModal({ isOpen, onClose }: AddAppModalProps) {
 4. Find "DeCleanup Rewards" in the list
 5. Tap "Add" or toggle it on
 
-Alternatively, you can access the app anytime by:
-• Using the app link from your profile
-• Opening any cast or link that includes the app
-
-The app will be available in your apps list for quick access!`
+The app is already available in Farcaster - you just need to add it to your apps list for quick access!`
 
       alert(instructions)
       setFarcasterAdded(true)
     } catch (error) {
-      console.error('Failed to add to Farcaster:', error)
-      alert('Unable to add app automatically. Please add it manually from Farcaster Settings → Apps.')
+      console.error('Failed to show Farcaster instructions:', error)
+      // Still mark as done - user can add manually
       setFarcasterAdded(true)
     }
   }
@@ -102,8 +83,8 @@ The app will be available in your apps list for quick access!`
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 overscroll-contain">
-      <div className="relative w-full max-w-md rounded-lg bg-background p-6 shadow-xl overscroll-contain">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 overscroll-contain safe-area-inset">
+      <div className="relative w-full max-w-md max-h-[calc(100vh-2rem)] rounded-lg bg-background p-6 shadow-xl overscroll-contain overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"

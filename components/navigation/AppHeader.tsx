@@ -48,9 +48,9 @@ export function AppHeader() {
           </div>
         </Link>
         
-        {/* Center - Tagline (hidden on very small screens) */}
-        <div className="hidden xs:flex flex-1 justify-center items-center px-2 min-w-0">
-          <span className="text-[8px] sm:text-[10px] font-light text-muted-foreground/70 uppercase tracking-wide text-center truncate">
+        {/* Center - Tagline */}
+        <div className="flex flex-1 justify-center items-center px-2 min-w-0">
+          <span className="text-[10px] sm:text-xs font-light text-muted-foreground/70 uppercase tracking-wide text-center truncate">
             Clean Up, Snap, Earn
           </span>
         </div>
