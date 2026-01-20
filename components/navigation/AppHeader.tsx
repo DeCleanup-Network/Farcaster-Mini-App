@@ -33,7 +33,7 @@ export function AppHeader() {
         {/* Left side - Logo */}
         <Link 
           href="/" 
-          className="flex items-center hover:opacity-80 transition-opacity"
+          className="flex items-center hover:opacity-80 transition-opacity flex-shrink-0"
         >
           <div className="relative h-16 w-16 sm:h-20 sm:w-20">
             <Image
@@ -49,14 +49,14 @@ export function AppHeader() {
         </Link>
         
         {/* Center - Tagline */}
-        <div className="flex-1 flex justify-center">
-          <span className="text-[9px] font-light text-muted-foreground/70 sm:text-[10px] uppercase tracking-wide">
+        <div className="flex-1 flex justify-center items-center px-2">
+          <span className="text-[9px] font-light text-muted-foreground/70 sm:text-[10px] uppercase tracking-wide text-center whitespace-nowrap">
             Clean Up, Snap, Earn
           </span>
         </div>
         
         {/* Right side - Wallet Connect */}
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end flex-shrink-0">
           <WalletConnect />
         </div>
       </div>

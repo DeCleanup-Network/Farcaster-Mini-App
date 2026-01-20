@@ -312,6 +312,37 @@ function CleanupContent() {
     additionalNotes: '',
   })
 
+  // Restore enhancedData from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && address && mounted) {
+      try {
+        const saved = localStorage.getItem(`enhanced_data_${address.toLowerCase()}`)
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          setEnhancedData({
+            locationType: parsed.locationType || '',
+            area: parsed.area || '',
+            areaUnit: parsed.areaUnit || 'sqm' as 'sqm' | 'sqft',
+            weight: parsed.weight || '',
+            weightUnit: parsed.weightUnit || 'kg' as 'kg' | 'lbs',
+            bags: parsed.bags || '',
+            hours: parsed.hours || '',
+            minutes: parsed.minutes || '',
+            wasteTypes: parsed.wasteTypes || [] as string[],
+            contributors: parsed.contributors || [] as string[],
+            scopeOfWork: parsed.scopeOfWork || '',
+            rightsAssignment: parsed.rightsAssignment || '' as '' | 'attribution' | 'non-commercial' | 'no-derivatives' | 'share-alike' | 'all-rights-reserved',
+            environmentalChallenges: parsed.environmentalChallenges || '',
+            preventionIdeas: parsed.preventionIdeas || '',
+            additionalNotes: parsed.additionalNotes || '',
+          })
+        }
+      } catch (e) {
+        console.error('Failed to restore enhanced data:', e)
+      }
+    }
+  }, [address, mounted])
+
   // State for contributor resolution (ENS/FID)
   const [contributorResolving, setContributorResolving] = useState<Record<number, boolean>>({})
   const [contributorErrors, setContributorErrors] = useState<Record<number, string>>({})
@@ -371,6 +402,17 @@ function CleanupContent() {
       setEnhancedData(prev => ({ ...prev, scopeOfWork: '' }))
     }
   }, [enhancedData.locationType, enhancedData.wasteTypes])
+
+  // Save enhancedData to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && address && enhancedData) {
+      try {
+        localStorage.setItem(`enhanced_data_${address.toLowerCase()}`, JSON.stringify(enhancedData))
+      } catch (e) {
+        console.error('Failed to save enhanced data:', e)
+      }
+    }
+  }, [enhancedData, address])
 
   // Don't request location automatically - only when user is ready to submit
   // Location will be requested when user clicks "Next" on the before photo step
@@ -1687,19 +1729,19 @@ function CleanupContent() {
             </div>
           ) : (
             <>
-              <div className="mb-6 text-center">
-                <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
-                  Upload Before Photo
-                </h1>
-                <p className="text-sm text-gray-400">
-                  Upload before and after cleanup photos with geotag. Supported formats: JPEG, JPG, HEIC. Maximum size per image: 10 MB.
-                </p>
-                <div className="mt-3 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
-                  <p className="text-xs text-blue-300">
-                    <strong>Note:</strong> Make sure your wallet is connected to Base Sepolia chain to ensure smooth performance and successful transactions.
-                  </p>
-                </div>
-              </div>
+          <div className="mb-6">
+            <h1 className="mb-2 text-center text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
+              Upload Before Photo
+            </h1>
+            <p className="text-center text-sm text-gray-400">
+              Upload before and after cleanup photos with geotag. Supported formats: JPEG, JPG, HEIC. Maximum size per image: 10 MB.
+            </p>
+            <div className="mt-3 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3 text-center">
+              <p className="text-xs text-blue-300">
+                <strong>Note:</strong> Make sure your wallet is connected to Base Sepolia chain to ensure smooth performance and successful transactions.
+              </p>
+            </div>
+          </div>
 
               <div className="mb-6">
             <p className="mb-4 text-sm font-medium text-gray-300">
@@ -1756,11 +1798,11 @@ function CleanupContent() {
                 className="flex h-64 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-700 bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed hover:border-gray-600"
               >
                 <Upload className={`mb-2 h-12 w-12 ${isSubmissionDisabled ? 'text-gray-600' : 'text-gray-500'}`} />
-                <p className={`text-sm ${isSubmissionDisabled ? 'text-gray-600' : 'text-gray-400'}`}>
+                <p className={`text-sm text-center ${isSubmissionDisabled ? 'text-gray-600' : 'text-gray-400'}`}>
                   {isSubmissionDisabled ? 'Submission on cooldown' : isMobile ? 'Tap to take photo or choose from gallery' : 'Click to upload photo'}
                 </p>
                 {isMobile && (
-                  <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                  <div className="mt-2 flex items-center justify-center gap-2 text-xs text-gray-500">
                     <Camera className="h-4 w-4" />
                     <span>Camera or Gallery</span>
                   </div>
@@ -1926,11 +1968,11 @@ function CleanupContent() {
           
           <ReferralNotification />
           
-          <div className="mb-6 text-center">
-            <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
+          <div className="mb-6">
+            <h1 className="mb-2 text-center text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               Upload After Photo
             </h1>
-            <p className="text-sm text-gray-400">
+            <p className="text-center text-sm text-gray-400">
               Upload before and after cleanup photos with geotag. Supported formats: JPEG, JPG, HEIC. Maximum size per image: 10 MB.
             </p>
           </div>
@@ -1988,11 +2030,11 @@ function CleanupContent() {
                 className="flex h-64 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-700 bg-gray-900 hover:border-gray-600"
               >
                 <Upload className="mb-2 h-12 w-12 text-gray-500" />
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-center text-gray-400">
                   {isMobile ? 'Tap to take photo or choose from gallery' : 'Click to upload photo'}
                 </p>
                 {isMobile && (
-                  <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+                  <div className="mt-2 flex items-center justify-center gap-2 text-xs text-gray-500">
                     <Camera className="h-4 w-4" />
                     <span>Camera or Gallery</span>
                   </div>
@@ -2048,14 +2090,14 @@ function CleanupContent() {
           
           <ReferralNotification />
           
-          <div className="mb-6 text-center">
-            <h1 className="mb-2 text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
+          <div className="mb-6">
+            <h1 className="mb-2 text-center text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
               Impact Report
             </h1>
-            <p className="mb-2 text-sm font-medium text-brand-yellow">
+            <p className="mb-2 text-center text-sm font-medium text-brand-yellow">
               +5 DCU Bonus
             </p>
-            <p className="text-sm text-gray-400">
+            <p className="text-center text-sm text-gray-400">
               Provide more details on your cleanup (optional, rewarded with 5 DCU).
             </p>
           </div>
@@ -2628,6 +2670,14 @@ function CleanupContent() {
               {isSubmitting && (
                 <Button
                   onClick={() => {
+                    // Save form state before refresh
+                    if (typeof window !== 'undefined' && address) {
+                      try {
+                        localStorage.setItem(`enhanced_data_${address.toLowerCase()}`, JSON.stringify(enhancedData))
+                      } catch (e) {
+                        console.error('Failed to save enhanced data before refresh:', e)
+                      }
+                    }
                     setIsSubmitting(false)
                     window.location.reload()
                   }}
@@ -2685,7 +2735,17 @@ function CleanupContent() {
           </p>
           <div className="mt-4">
             <Button
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                // Save form state before refresh
+                if (typeof window !== 'undefined' && address) {
+                  try {
+                    localStorage.setItem(`enhanced_data_${address.toLowerCase()}`, JSON.stringify(enhancedData))
+                  } catch (e) {
+                    console.error('Failed to save enhanced data before refresh:', e)
+                  }
+                }
+                window.location.reload()
+              }}
               variant="outline"
               size="sm"
               className="gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800"

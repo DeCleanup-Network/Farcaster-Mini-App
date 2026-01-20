@@ -41,6 +41,18 @@ export async function proxy(request: NextRequest) {
 
     if (isProtectedRoute) {
       try {
+        // Check user agent for legitimate mobile browsers (Safari iOS, Chrome Mobile, etc.)
+        const userAgent = request.headers.get('user-agent') || ''
+        const isSafariIOS = /iPhone|iPad|iPod/i.test(userAgent) && /Safari/i.test(userAgent) && !/CriOS|FxiOS|OPiOS/i.test(userAgent)
+        const isChromeMobile = /Android.*Chrome|CriOS/i.test(userAgent)
+        const isLegitimateMobile = isSafariIOS || isChromeMobile
+
+        // Allow legitimate mobile browsers without bot check
+        if (isLegitimateMobile) {
+          console.log(`[Bot Protection] Allowing legitimate mobile browser: ${userAgent.substring(0, 50)}...`)
+          return NextResponse.next()
+        }
+
         // Verify request using Vercel Bot ID
         // This checks the x-vercel-bot-score header automatically
         const result = await checkBotId({
@@ -49,6 +61,8 @@ export async function proxy(request: NextRequest) {
           },
         })
 
+        // Only block if it's clearly a bot AND not human
+        // Be more lenient - allow if there's any uncertainty or if isHuman is true
         if (result.isBot && !result.isHuman) {
           // Bot detected - block the request
           console.warn(`[Bot Protection] Blocked bot request to ${pathname}`)
@@ -74,8 +88,9 @@ export async function proxy(request: NextRequest) {
         if (process.env.NODE_ENV === 'development') {
           console.warn('[Bot Protection] Allowing request in development mode')
         } else {
-          // In production, be more cautious
-          // You can choose to block or allow based on your security requirements
+          // In production, be more cautious but still allow on error
+          // Better to allow legitimate users than block them
+          console.warn('[Bot Protection] Allowing request due to verification error')
         }
       }
     }
