@@ -83,7 +83,7 @@ The app is already available in Farcaster - you just need to add it to your apps
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 overscroll-contain safe-area-inset">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 overscroll-contain safe-area-inset" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top, 1rem))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }}>
       <div className="relative w-full max-w-md max-h-[calc(100vh-2rem)] rounded-lg bg-background p-6 shadow-xl overscroll-contain overflow-y-auto">
         <button
           onClick={onClose}

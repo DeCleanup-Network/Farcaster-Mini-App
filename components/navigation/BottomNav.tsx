@@ -103,7 +103,7 @@ export function BottomNav() {
   ]
   
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm safe-area-inset-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0.75rem))' }}>
       <div className="container mx-auto">
         <div className={`flex items-center ${navItems.length === 3 ? 'justify-around' : 'justify-evenly'} px-2 py-3`}>
           {navItems.map((item) => {

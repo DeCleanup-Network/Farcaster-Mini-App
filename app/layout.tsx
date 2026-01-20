@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/lib/providers";
 import { FarcasterProvider } from "@/components/farcaster/FarcasterProvider";
 import { NetworkChecker } from "@/components/network/NetworkChecker";
+import { NetworkBlockingScreen } from "@/components/network/NetworkBlockingScreen";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { AppHeader } from "@/components/navigation/AppHeader";
 import { ErrorHandler, ErrorBoundary } from "@/components/ErrorHandler";
@@ -122,6 +123,7 @@ export default function RootLayout({
             <FarcasterProvider>
               <AppHeader />
               <NetworkChecker />
+              <NetworkBlockingScreen />
               <main className="min-h-screen pt-20 pb-20 safe-area-inset-bottom">
                 {children}
               </main>

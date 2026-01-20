@@ -135,12 +135,18 @@
   html {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
   }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
     overflow-y: auto;
+    width: 100%;
+    max-width: 100%;
+    position: relative;
   }
   
   /* Bebas Neue for all headings - ALL CAPS */
@@ -158,9 +164,10 @@
   /* Mobile-first responsive constraints */
   @media (max-width: 640px) {
     body {
-      max-width: 100vw;
+      max-width: 100%;
       overflow-x: hidden;
       position: relative;
+      width: 100%;
     }
     
     /* Prevent horizontal scrolling - but exclude modals and dialogs */
@@ -181,7 +188,7 @@
     
     /* Ensure main content doesn't overflow */
     main {
-      max-width: 100vw;
+      max-width: 100%;
       overflow-x: hidden;
       padding-left: 1rem;
       padding-right: 1rem;
@@ -244,6 +251,18 @@
   }
 }
 
+/* Modal Z-Index Hierarchy */
+/* Base modals */
+[data-slot="dialog-portal"],
+[data-slot="dialog-content"] {
+  z-index: 1000 !important;
+}
+
+/* RainbowKit modals (highest priority) */
+[data-rk] [role="dialog"] {
+  z-index: 1100 !important;
+}
+
 /* Fix RainbowKit modal text overlap - wallet names overlapping */
 /* Target RainbowKit wallet buttons specifically */
 [data-rk] button[data-rk] {
@@ -262,34 +281,57 @@
     padding: 0.875rem 1rem !important;
   }
   
-  /* Ensure wallet modal overlay covers full screen */
+  /* Ensure wallet modal overlay covers full screen with safe area support */
   [data-rk] [role="dialog"] {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
-    max-width: 100vw !important;
-    max-height: 100vh !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+    padding-top: env(safe-area-inset-top, 0) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0) !important;
+    padding-left: env(safe-area-inset-left, 0) !important;
+    padding-right: env(safe-area-inset-right, 0) !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    z-index: 9999 !important;
   }
   
   /* Ensure wallet modal content is properly sized and scrollable */
   [data-rk] [role="dialog"] > div {
-    max-width: calc(100vw - 2rem) !important;
-    max-height: calc(100vh - 2rem) !important;
+    max-width: 92% !important;
+    max-height: calc(100% - 2rem) !important;
     width: 100% !important;
     margin: 1rem !important;
     overflow-y: auto !important;
+    padding-bottom: env(safe-area-inset-bottom, 0) !important;
+  }
+  
+  /* Make wallet list responsive grid on mobile */
+  [data-rk] [role="dialog"] ul,
+  [data-rk] [role="dialog"] > div > div > div > div {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+  
+  /* Ensure wallet buttons fit in grid */
+  [data-rk] [role="dialog"] ul li,
+  [data-rk] [role="dialog"] > div > div > div > div > div {
+    width: 100% !important;
+    margin: 0 !important;
   }
   
   /* Exclude RainbowKit from body overflow constraints */
   body:has([data-rk] [role="dialog"]) {
     overflow: hidden !important;
+    position: fixed !important;
+    width: 100% !important;
   }
 }
 
