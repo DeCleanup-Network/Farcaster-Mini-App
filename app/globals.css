@@ -256,6 +256,18 @@
   width: 100vw !important;
 }
 
+/* Force RainbowKit modal to be full width (bypasses modalSize config) */
+[data-rk] > div {
+  max-width: 420px !important; /* desktop-friendly */
+  width: 100% !important;
+}
+
+@media (min-width: 768px) {
+  [data-rk] > div {
+    max-width: 480px !important;
+  }
+}
+
 [data-rk-modal],
 [data-rk] [role="dialog"],
 [data-rk] [role="dialog"] > * {

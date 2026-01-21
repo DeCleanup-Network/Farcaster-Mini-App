@@ -236,6 +236,15 @@ export function WalletConnect() {
                 return
               }
               
+              // CRITICAL: Skip RainbowKit modal in Farcaster Mini App
+              // RainbowKit modals are not designed for embedded social frames
+              // Farcaster iframe constraints force compact viewport, breaking modal layout
+              if (isMiniApp) {
+                console.log('🔵 Farcaster Mini App detected: skipping modal, using direct connect')
+                handleDirectConnect()
+                return
+              }
+              
               // On mobile, prefer direct connect if connectors are ready
               // RainbowKit modal works on mobile, but direct connect is more reliable
               if (isMobile && hasReadyConnectors) {

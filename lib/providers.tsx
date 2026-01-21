@@ -26,21 +26,30 @@ const RainbowKitProviderWithTheme = dynamic(
     // Mainnet is kept in wagmi config for ENS resolution but hidden from chain switcher
     const rainbowKitChains = getRainbowKitChains()
     
-    const RainbowKitProviderWithCustomTheme = ({ children, ...props }: any) => (
-      <mod.RainbowKitProvider 
-        chains={rainbowKitChains}
-        theme={customTheme}
-        initialChain={undefined}
-        showRecentTransactions={true}
-        appInfo={{
-          appName: 'DeCleanup Rewards',
-          learnMoreUrl: 'https://decleanup.net',
-        }}
-        {...props}
-      >
-        {children}
-      </mod.RainbowKitProvider>
-    )
+    const RainbowKitProviderWithCustomTheme = ({ children, ...props }: any) => {
+      // Debug: Log viewport and provider mount
+      if (typeof window !== 'undefined') {
+        console.log('✅ RainbowKitProviderWithCustomTheme mounted')
+        console.log('Viewport:', window.innerWidth, window.innerHeight)
+        console.log('Is Farcaster:', window.location !== window.parent.location)
+      }
+      
+      return (
+        <mod.RainbowKitProvider 
+          chains={rainbowKitChains}
+          theme={customTheme}
+          initialChain={undefined}
+          showRecentTransactions={true}
+          appInfo={{
+            appName: 'DeCleanup Rewards',
+            learnMoreUrl: 'https://decleanup.net',
+          }}
+          {...props}
+        >
+          {children}
+        </mod.RainbowKitProvider>
+      )
+    }
     RainbowKitProviderWithCustomTheme.displayName = 'RainbowKitProviderWithCustomTheme'
     return RainbowKitProviderWithCustomTheme
   }),
