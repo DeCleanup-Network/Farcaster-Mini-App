@@ -132,19 +132,30 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* CRITICAL: Portal-safe root styles - DO NOT constrain html/body */
+  /* Any constraints here break position:fixed portals (RainbowKit, dialogs, etc) */
   html {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
-    overflow-x: hidden;
     width: 100%;
+    /* NO overflow-x: hidden - breaks portals */
+    /* NO max-width - breaks portals */
   }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
-    overflow-x: hidden;
     overflow-y: auto;
     width: 100%;
     position: relative;
+    /* NO overflow-x: hidden - breaks portals */
+    /* NO max-width - breaks portals */
+  }
+  
+  /* Overflow control moved to app wrapper - preserves portal sanity */
+  #app-root {
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
   }
   
   /* Bebas Neue for all headings - ALL CAPS */
@@ -249,31 +260,8 @@
   }
 }
 
-/* CRITICAL: Neutralize containment for RainbowKit modals */
-/* RainbowKit modals must escape all layout constraints */
-[data-rk] {
-  max-width: 100vw !important;
-  width: 100vw !important;
-}
-
-/* Force RainbowKit modal to be full width (bypasses modalSize config) */
-[data-rk] > div {
-  max-width: 420px !important; /* desktop-friendly */
-  width: 100% !important;
-}
-
-@media (min-width: 768px) {
-  [data-rk] > div {
-    max-width: 480px !important;
-  }
-}
-
-[data-rk-modal],
-[data-rk] [role="dialog"],
-[data-rk] [role="dialog"] > * {
-  max-width: 100vw !important;
-  width: 100vw !important;
-}
+/* RainbowKit Modal Styles - MINIMAL (portal-safe root CSS fixes the issue) */
+/* With portal-safe html/body, RainbowKit works without aggressive overrides */
 
 /* Modal Z-Index Hierarchy */
 /* Base modals */
@@ -285,8 +273,6 @@
 /* RainbowKit modals (highest priority) */
 [data-rk] [role="dialog"] {
   z-index: 1100 !important;
-  max-width: 100vw !important;
-  width: 100vw !important;
 }
 
 /* Fix RainbowKit modal text overlap - wallet names overlapping */
@@ -300,136 +286,11 @@
   text-align: left !important;
 }
 
-/* Mobile-specific RainbowKit fixes */
+/* Mobile-specific: Larger touch targets for wallet buttons */
 @media (max-width: 640px) {
   [data-rk] button[data-rk] {
     min-height: 3.5rem !important;
     padding: 0.875rem 1rem !important;
-  }
-  
-  /* Ensure wallet modal overlay covers full screen with safe area support */
-  [data-rk] [role="dialog"] {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    max-width: 100vw !important;
-    max-height: 100vh !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    padding-top: env(safe-area-inset-top, 0) !important;
-    padding-bottom: env(safe-area-inset-bottom, 0) !important;
-    padding-left: env(safe-area-inset-left, 0) !important;
-    padding-right: env(safe-area-inset-right, 0) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    z-index: 9999 !important;
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-    box-sizing: border-box !important;
-  }
-  
-  /* Ensure wallet modal content is properly sized and scrollable */
-  /* Target the main dialog container */
-  [data-rk] [role="dialog"] > div {
-    max-width: calc(100vw - 2rem - env(safe-area-inset-left, 0) - env(safe-area-inset-right, 0)) !important;
-    max-height: calc(100vh - 2rem - env(safe-area-inset-top, 0) - env(safe-area-inset-bottom, 0)) !important;
-    width: calc(100vw - 2rem - env(safe-area-inset-left, 0) - env(safe-area-inset-right, 0)) !important;
-    margin: 1rem !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    padding-bottom: env(safe-area-inset-bottom, 0) !important;
-    box-sizing: border-box !important;
-  }
-  
-  /* Constrain ALL nested containers within the modal */
-  [data-rk] [role="dialog"] > div > *,
-  [data-rk] [role="dialog"] > div > div,
-  [data-rk] [role="dialog"] > div > div > *,
-  [data-rk] [role="dialog"] > div > div > div,
-  [data-rk] [role="dialog"] > div > div > div > *,
-  [data-rk] [role="dialog"] > div > div > div > div,
-  [data-rk] [role="dialog"] > div > div > div > div > * {
-    max-width: 100% !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
-  }
-  
-  /* Make wallet list responsive grid on mobile */
-  /* Target RainbowKit's wallet list container - be more aggressive */
-  [data-rk] [role="dialog"] ul[role="listbox"],
-  [data-rk] [role="dialog"] ul[role="list"],
-  [data-rk] [role="dialog"] ul,
-  [data-rk] [role="dialog"] > div > div > div[role="listbox"],
-  [data-rk] [role="dialog"] > div > div > div > div[role="listbox"],
-  [data-rk] [role="dialog"] > div > div > div > div > div[role="listbox"],
-  [data-rk] [role="dialog"] > div > div > div > div > div > div[role="listbox"],
-  [data-rk] [role="dialog"] > div > div > div > div > div > div > div[role="listbox"],
-  /* Also target any div that contains wallet buttons */
-  [data-rk] [role="dialog"] > div > div > div > div > div > div,
-  [data-rk] [role="dialog"] > div > div > div > div > div > div > div {
-    display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 0.75rem !important;
-    list-style: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
-  }
-  
-  /* Ensure wallet buttons fit in grid */
-  [data-rk] [role="dialog"] ul li,
-  [data-rk] [role="dialog"] ul > div,
-  [data-rk] [role="dialog"] ul > li,
-  [data-rk] [role="dialog"] > div > div > div > div > div,
-  [data-rk] [role="dialog"] > div > div > div > div > div > div,
-  [data-rk] [role="dialog"] [role="listbox"] > *,
-  [data-rk] [role="dialog"] [role="listbox"] > li,
-  [data-rk] [role="dialog"] [role="listbox"] > div {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    display: flex !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
-  }
-  
-  /* Ensure wallet buttons themselves are full width */
-  [data-rk] [role="dialog"] ul li button,
-  [data-rk] [role="dialog"] ul > div button,
-  [data-rk] [role="dialog"] ul > li button,
-  [data-rk] [role="dialog"] [role="listbox"] button,
-  [data-rk] [role="dialog"] [role="listbox"] > * button,
-  [data-rk] [role="dialog"] > div > div > div > div > div button,
-  [data-rk] [role="dialog"] > div > div > div > div > div > div button {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
-  }
-  
-  /* Exclude RainbowKit from body overflow constraints */
-  /* When modal is open, allow overflow so modal can render properly */
-  body:has([data-rk] [role="dialog"]) {
-    overflow: visible !important;
-    position: relative !important;
-    width: 100% !important;
-    max-width: 100vw !important;
-  }
-  
-  /* Ensure html doesn't clip modals */
-  html:has([data-rk] [role="dialog"]) {
-    overflow: visible !important;
-    max-width: 100vw !important;
   }
 }
 

@@ -119,17 +119,19 @@ export default function RootLayout({
       >
         <ErrorHandler />
         <ErrorBoundary>
-          <Providers>
-            <FarcasterProvider>
-              <AppHeader />
-              <NetworkChecker />
-              <NetworkBlockingScreen />
-              <main className="w-full min-h-screen pt-20 pb-20 safe-area-inset-bottom">
-                {children}
-              </main>
-              <BottomNav />
-            </FarcasterProvider>
-          </Providers>
+          <div id="app-root">
+            <Providers>
+              <FarcasterProvider>
+                <AppHeader />
+                <NetworkChecker />
+                <NetworkBlockingScreen />
+                <main className="w-full min-h-screen pt-20 pb-20 safe-area-inset-bottom">
+                  {children}
+                </main>
+                <BottomNav />
+              </FarcasterProvider>
+            </Providers>
+          </div>
         </ErrorBoundary>
       </body>
     </html>
