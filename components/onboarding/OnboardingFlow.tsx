@@ -159,13 +159,6 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const handleSkip = () => {
     onComplete()
   }
-
-  const currentStepData = steps[currentStep]
-  const Icon = currentStepData.icon
-
-  const handleSkip = () => {
-    onComplete()
-  }
   
   // Register this modal to prevent stacking
   useEffect(() => {
@@ -173,6 +166,9 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     return () => unregisterModal('onboarding')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const currentStepData = steps[currentStep]
+  const Icon = currentStepData.icon
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-sm p-2 sm:p-4 overscroll-contain safe-area-inset" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0.5rem))', paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0.5rem))' }}>
