@@ -251,6 +251,20 @@
   }
 }
 
+/* CRITICAL: Neutralize containment for RainbowKit modals */
+/* RainbowKit modals must escape all layout constraints */
+[data-rk] {
+  max-width: 100vw !important;
+  width: 100vw !important;
+}
+
+[data-rk-modal],
+[data-rk] [role="dialog"],
+[data-rk] [role="dialog"] > * {
+  max-width: 100vw !important;
+  width: 100vw !important;
+}
+
 /* Modal Z-Index Hierarchy */
 /* Base modals */
 [data-slot="dialog-portal"],
@@ -261,6 +275,8 @@
 /* RainbowKit modals (highest priority) */
 [data-rk] [role="dialog"] {
   z-index: 1100 !important;
+  max-width: 100vw !important;
+  width: 100vw !important;
 }
 
 /* Fix RainbowKit modal text overlap - wallet names overlapping */
@@ -392,10 +408,18 @@
   }
   
   /* Exclude RainbowKit from body overflow constraints */
+  /* When modal is open, allow overflow so modal can render properly */
   body:has([data-rk] [role="dialog"]) {
-    overflow: hidden !important;
-    position: fixed !important;
+    overflow: visible !important;
+    position: relative !important;
     width: 100% !important;
+    max-width: 100vw !important;
+  }
+  
+  /* Ensure html doesn't clip modals */
+  html:has([data-rk] [role="dialog"]) {
+    overflow: visible !important;
+    max-width: 100vw !important;
   }
 }
 
