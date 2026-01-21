@@ -29,8 +29,7 @@ const RainbowKitProviderWithTheme = dynamic(
     const RainbowKitProviderWithCustomTheme = ({ children, ...props }: any) => (
       <mod.RainbowKitProvider 
         chains={rainbowKitChains}
-        theme={customTheme} 
-        modalSize="compact"
+        theme={customTheme}
         initialChain={undefined}
         showRecentTransactions={true}
         appInfo={{
