@@ -313,18 +313,36 @@
   }
   
   /* Make wallet list responsive grid on mobile */
-  [data-rk] [role="dialog"] ul,
-  [data-rk] [role="dialog"] > div > div > div > div {
+  /* Target RainbowKit's wallet list container */
+  [data-rk] [role="dialog"] ul[role="listbox"],
+  [data-rk] [role="dialog"] ul[role="list"],
+  [data-rk] [role="dialog"] > div > div > div[role="listbox"],
+  [data-rk] [role="dialog"] > div > div > div > div[role="listbox"],
+  [data-rk] [role="dialog"] > div > div > div > div > div[role="listbox"] {
     display: grid !important;
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 0.75rem !important;
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
   
   /* Ensure wallet buttons fit in grid */
   [data-rk] [role="dialog"] ul li,
-  [data-rk] [role="dialog"] > div > div > div > div > div {
+  [data-rk] [role="dialog"] ul > div,
+  [data-rk] [role="dialog"] > div > div > div > div > div,
+  [data-rk] [role="dialog"] [role="listbox"] > * {
     width: 100% !important;
     margin: 0 !important;
+    display: flex !important;
+  }
+  
+  /* Ensure wallet buttons themselves are full width */
+  [data-rk] [role="dialog"] ul li button,
+  [data-rk] [role="dialog"] ul > div button,
+  [data-rk] [role="dialog"] [role="listbox"] button {
+    width: 100% !important;
+    min-width: 0 !important;
   }
   
   /* Exclude RainbowKit from body overflow constraints */

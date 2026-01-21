@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Leaf, Award, Users, TrendingUp, ArrowRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
+import { useModalManager } from '@/lib/hooks/useModalManager'
 
 interface OnboardingFlowProps {
   onComplete: () => void
@@ -42,6 +43,13 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [imageLoading, setImageLoading] = useState<Record<number, boolean>>({})
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({})
   const [preloadedImages, setPreloadedImages] = useState<Set<number>>(new Set())
+  const { registerModal, unregisterModal } = useModalManager()
+  
+  // Register this modal to prevent stacking
+  useEffect(() => {
+    registerModal('onboarding', true, handleSkip)
+    return () => unregisterModal('onboarding')
+  }, [])
 
   // Onboarding images - supports full URLs (with ?filename=) or IPFS hashes
   const imageSources = [
@@ -154,6 +162,17 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const currentStepData = steps[currentStep]
   const Icon = currentStepData.icon
+
+  const handleSkip = () => {
+    onComplete()
+  }
+  
+  // Register this modal to prevent stacking
+  useEffect(() => {
+    registerModal('onboarding', true, handleSkip)
+    return () => unregisterModal('onboarding')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-sm p-2 sm:p-4 overscroll-contain safe-area-inset" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0.5rem))', paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0.5rem))' }}>

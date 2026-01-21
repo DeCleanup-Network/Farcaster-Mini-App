@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Plus, Pin, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
+import { useModalManager } from '@/lib/hooks/useModalManager'
 
 interface AddAppModalProps {
   isOpen: boolean
@@ -15,6 +16,15 @@ export function AddAppModal({ isOpen, onClose }: AddAppModalProps) {
   const [isBaseApp, setIsBaseApp] = useState(false)
   const [farcasterAdded, setFarcasterAdded] = useState(false)
   const [basePinned, setBasePinned] = useState(false)
+  const { registerModal, unregisterModal } = useModalManager()
+  
+  // Register this modal to prevent stacking
+  useEffect(() => {
+    if (isOpen) {
+      registerModal('addApp', isOpen, onClose)
+    }
+    return () => unregisterModal('addApp')
+  }, [isOpen, onClose])
 
   useEffect(() => {
     // Check if we're in Base app environment
