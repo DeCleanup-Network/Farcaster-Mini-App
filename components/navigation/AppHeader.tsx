@@ -28,8 +28,8 @@ export function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full max-w-full border-b border-border bg-background/95 backdrop-blur-sm safe-area-inset-top">
-      <div className="mx-auto flex items-center justify-between px-3 py-2 sm:px-6 sm:py-3 max-w-full overflow-hidden">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur-sm safe-area-inset-top">
+      <div className="mx-auto flex items-center justify-between px-3 py-2 sm:px-6 sm:py-3 max-w-full">
         {/* Left side - Logo */}
         <Link 
           href="/" 

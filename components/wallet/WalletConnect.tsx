@@ -257,9 +257,19 @@ export function WalletConnect() {
               // Use the hook-provided function for better reliability
               if (openConnectModal) {
                 try {
+                  console.log('🔵 Opening RainbowKit connect modal...')
                   openConnectModal()
-                  // OPTIMIZED: Removed unnecessary timeout check
-                  // RainbowKit modal handles connection state properly
+                  
+                  // On mobile, also set up a fallback check in case modal opens but connection doesn't trigger
+                  // This helps with cases where MetaMask opens but no connection request appears
+                  if (isMobile) {
+                    setTimeout(() => {
+                      // Check if connection happened within 3 seconds
+                      if (!isConnected && !isPending) {
+                        console.warn('⚠️ Modal opened but connection not triggered after 3s, user may need to click wallet again in modal')
+                      }
+                    }, 3000)
+                  }
                 } catch (error) {
                   console.warn('RainbowKit modal failed:', error)
                   // Fallback: Try connecting directly
@@ -429,7 +439,16 @@ export function WalletConnect() {
               }
               
               try {
+                console.log('🔌 Attempting direct connection with:', connectorToUse.name, connectorToUse.id)
+                
+                // For MetaMask on mobile, ensure we wait a bit for the wallet to be ready
+                if (isMobile && (connectorToUse.id === 'metaMask' || connectorToUse.name.toLowerCase().includes('metamask'))) {
+                  // Give MetaMask app time to initialize if it was just opened
+                  await new Promise(resolve => setTimeout(resolve, 500))
+                }
+                
                 await connect({ connector: connectorToUse })
+                console.log('✅ Connection successful')
               } catch (connectError: any) {
                 console.error('Direct connect failed:', connectError)
                 const errorMsg = connectError?.message || String(connectError || 'Unknown error')

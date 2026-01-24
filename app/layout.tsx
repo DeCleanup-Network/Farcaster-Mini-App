@@ -125,7 +125,7 @@ export default function RootLayout({
                 <AppHeader />
                 <NetworkChecker />
                 <NetworkBlockingScreen />
-                <main className="w-full min-h-screen pt-20 pb-20 safe-area-inset-bottom">
+                <main className="w-full min-h-screen pt-20 pb-24 safe-area-inset-bottom" style={{ paddingTop: 'calc(5rem + env(safe-area-inset-top, 0))' }}>
                   {children}
                 </main>
                 <BottomNav />
