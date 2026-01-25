@@ -271,12 +271,13 @@
    RAINBOWKIT PORTAL FIXES FOR iOS SAFARI
    ============================================ */
 
-/* 1️⃣ HARD RESET for RainbowKit portals (temporary test - confirms the cause) */
-/* ONLY FOR WEB - prevents CSS containment issues breaking portals */
+/* HARD RESET for RainbowKit - CSS quarantine for portal content */
+/* Prevents inherited writing-mode, transforms, and containment issues */
+/* This does NOT affect your app or Farcaster - only protects portal content */
 [data-rk],
-[data-rk] *,
-[data-rk] [role="dialog"],
-[data-rk] [role="dialog"] * {
+[data-rk] * {
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
   transform: none !important;
   contain: none !important;
   filter: none !important;
