@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
 import { CheckCircle, XCircle, Clock, MapPin, User, Calendar, ExternalLink, Loader2, Shield, RefreshCw } from 'lucide-react'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
+import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import * as contractsLib from '@/lib/contracts'
 const {
   getCleanupCounter,
@@ -74,6 +75,7 @@ export default function VerifierPage() {
   const { switchChain, isPending: isSwitchingNetwork } = useSwitchChain()
   const router = useRouter()
   const { sendWithBuilderCode } = useBuilderCodeAttribution()
+  const { isMiniApp } = useFarcaster()
   const [mounted, setMounted] = useState(false)
   const [isVerifier, setIsVerifier] = useState(false)
   const [needsSignature, setNeedsSignature] = useState(false)
@@ -246,6 +248,13 @@ export default function VerifierPage() {
 
   const WrongNetworkBanner = () => {
     if (!isWrongNetwork) return null
+    
+    // Detect Farcaster environment (check both hook and window.farcaster as fallback)
+    const isFarcaster = isMiniApp || (
+      typeof window !== 'undefined' &&
+      (window as any).farcaster !== undefined
+    )
+    
     return (
       <div className="mb-4 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-4 text-left">
         <div className="flex flex-col gap-2 text-sm text-gray-200 sm:flex-row sm:items-center sm:justify-between">
@@ -255,33 +264,44 @@ export default function VerifierPage() {
               Please switch to {REQUIRED_CHAIN_NAME} before verifying or rejecting cleanups.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              onClick={handleNetworkBannerSwitch}
-              disabled={isSwitchingNetwork}
-              className="bg-brand-green text-black hover:bg-brand-green/90"
-            >
-              {isSwitchingNetwork ? 'Switching…' : `Switch to ${REQUIRED_CHAIN_NAME}`}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleAddNetwork}
-              disabled={isAddingNetwork}
-              className="bg-black/30 text-white hover:bg-black/60"
-            >
-              {isAddingNetwork ? 'Adding…' : 'Add network'}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCopyNetworkDetails}
-              className="border-gray-600 text-gray-200"
-            >
-              {copiedNetworkDetails ? 'Copied!' : 'Copy details'}
-            </Button>
-          </div>
+          {isFarcaster ? (
+            // Farcaster: Cannot switch chains programmatically - show instructions
+            <div className="mt-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 sm:mt-0">
+              <p className="text-sm text-gray-300">
+                This app requires <b className="text-yellow-400">{REQUIRED_CHAIN_NAME}</b>.<br />
+                Please switch networks in your wallet settings outside of Farcaster, then reopen the app.
+              </p>
+            </div>
+          ) : (
+            // Web: Can switch chains programmatically - show buttons
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                onClick={handleNetworkBannerSwitch}
+                disabled={isSwitchingNetwork}
+                className="bg-brand-green text-black hover:bg-brand-green/90"
+              >
+                {isSwitchingNetwork ? 'Switching…' : `Switch to ${REQUIRED_CHAIN_NAME}`}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleAddNetwork}
+                disabled={isAddingNetwork}
+                className="bg-black/30 text-white hover:bg-black/60"
+              >
+                {isAddingNetwork ? 'Adding…' : 'Add network'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCopyNetworkDetails}
+                className="border-gray-600 text-gray-200"
+              >
+                {copiedNetworkDetails ? 'Copied!' : 'Copy details'}
+              </Button>
+            </div>
+          )}
         </div>
         <p className="mt-2 text-xs font-mono text-gray-400 whitespace-pre-wrap">{NETWORK_DETAILS}</p>
       </div>

@@ -1566,6 +1566,12 @@ function CleanupContent() {
   const CooldownBanner = () => {
     if (checkingPending) return null
     
+    // Detect Farcaster environment (check both hook and window.farcaster as fallback)
+    const isFarcaster = isMiniApp || (
+      typeof window !== 'undefined' &&
+      (window as any).farcaster !== undefined
+    )
+    
     // Show wrong network warning first (higher priority)
     if (isWrongNetwork) {
       return (
@@ -1577,20 +1583,31 @@ function CleanupContent() {
               <p className="mb-3 text-sm text-gray-300">
                 You're on Chain ID {chainId} ({describeChain(chainId)}). Please switch to the required network before submitting a cleanup.
               </p>
-              <Button
-                onClick={async () => {
-                  try {
-                    await switchChain({ chainId: REQUIRED_CHAIN_ID })
-                  } catch {
-                    alert(`Please switch to ${REQUIRED_CHAIN_NAME} manually in MetaMask.`)
-                  }
-                }}
-                disabled={isSwitchingChain}
-                size="sm"
-                className="bg-brand-green text-black hover:bg-brand-green/90"
-              >
-                {isSwitchingChain ? 'Switching…' : `Switch to ${REQUIRED_CHAIN_NAME}`}
-              </Button>
+              {isFarcaster ? (
+                // Farcaster: Cannot switch chains programmatically - show instructions
+                <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3">
+                  <p className="text-sm text-gray-300">
+                    This app requires <b className="text-yellow-400">{REQUIRED_CHAIN_NAME}</b>.<br />
+                    Please switch networks in your wallet settings outside of Farcaster, then reopen the app.
+                  </p>
+                </div>
+              ) : (
+                // Web: Can switch chains programmatically - show button
+                <Button
+                  onClick={async () => {
+                    try {
+                      await switchChain({ chainId: REQUIRED_CHAIN_ID })
+                    } catch {
+                      alert(`Please switch to ${REQUIRED_CHAIN_NAME} manually in MetaMask.`)
+                    }
+                  }}
+                  disabled={isSwitchingChain}
+                  size="sm"
+                  className="bg-brand-green text-black hover:bg-brand-green/90"
+                >
+                  {isSwitchingChain ? 'Switching…' : `Switch to ${REQUIRED_CHAIN_NAME}`}
+                </Button>
+              )}
             </div>
           </div>
         </div>

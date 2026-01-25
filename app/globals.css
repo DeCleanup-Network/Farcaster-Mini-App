@@ -150,9 +150,10 @@
     font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
     overflow-y: auto;
     width: 100%;
-    position: relative;
+    position: static;
     /* NO overflow-x: hidden - breaks portals */
     /* NO max-width - breaks portals */
+    /* NO position: relative - breaks fixed portals on iOS Safari */
   }
   
   /* Overflow control moved to app wrapper - preserves portal sanity */
@@ -183,15 +184,12 @@
     body {
       max-width: 100%;
       /* NO overflow-x: hidden - breaks portals */
-      position: relative;
+      /* NO position: relative - breaks fixed portals on iOS Safari */
       width: 100%;
     }
     
-    /* Prevent horizontal scrolling - but exclude modals and dialogs */
-    *:not([data-rk]):not([role="dialog"]):not([data-slot="dialog-portal"]):not([data-slot="dialog-content"]) {
-      max-width: 100%;
-      box-sizing: border-box;
-    }
+    /* ❌ REMOVED: Global * selector with max-width breaks RainbowKit portals on iOS Safari */
+    /* If you need to prevent horizontal scroll, do it on specific content wrappers, never on * */
     
     /* Fix container widths - exclude modal containers */
     .container:not([data-rk]):not([role="dialog"]), 
@@ -329,14 +327,8 @@
   }
 }
 
-/* Fix wallet button content layout - prevent text overlap */
-[data-rk] [data-rk] button {
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  min-width: 0 !important;
-  width: 100% !important;
-}
+/* ❌ REMOVED: Forcing nowrap/overflow hidden breaks wallet name display on iOS Safari */
+/* RainbowKit handles button layout correctly - don't override it */
 
 /* Fix wallet name text container - ensure proper spacing */
 [data-rk] [data-rk] button > div {
@@ -413,21 +405,8 @@
   gap: 0.75rem !important;
 }
 
-/* Ensure wallet name text has proper spacing and doesn't overlap */
-[data-rk] button span,
-[data-rk] [data-rk] button span,
-[data-rk] button div span,
-[data-rk] [data-rk] button div span {
-  display: inline-block !important;
-  max-width: 100% !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  word-break: break-word !important;
-  line-height: 1.5 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
+/* ❌ REMOVED: Forcing nowrap/overflow hidden/ellipsis cuts wallet names on iOS Safari */
+/* RainbowKit handles text wrapping correctly - don't override it */
 
 /* Fix for wallet icons and text spacing */
 [data-rk] button > *:first-child,

@@ -5,6 +5,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { useChainModal } from '@rainbow-me/rainbowkit'
+import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 
 /**
  * NetworkBlockingScreen - Blocks app usage when on wrong network
@@ -12,11 +13,22 @@ import { useChainModal } from '@rainbow-me/rainbowkit'
  * This component should be used to block app actions when the user
  * is connected but on the wrong network. It provides a clear, focused
  * message to switch networks.
+ * 
+ * IMPORTANT: In Farcaster Mini Apps, programmatic chain switching is NOT allowed.
+ * The wallet_switchEthereumChain method is ignored or rejected silently.
+ * We must show instructions instead of a switch button.
  */
 export function NetworkBlockingScreen() {
   const { isConnected } = useAccount()
   const chainId = useChainId()
   const { openChainModal } = useChainModal()
+  const { isMiniApp } = useFarcaster()
+  
+  // Detect Farcaster environment (check both hook and window.farcaster as fallback)
+  const isFarcaster = isMiniApp || (
+    typeof window !== 'undefined' &&
+    (window as any).farcaster !== undefined
+  )
   
   // Only show if connected and on wrong network
   const isWrongNetwork = isConnected && typeof chainId === 'number' && chainId !== REQUIRED_CHAIN_ID
@@ -54,18 +66,32 @@ export function NetworkBlockingScreen() {
         </div>
         
         <div className="flex flex-col gap-3">
-          <Button
-            onClick={openChainModal}
-            className="w-full bg-brand-green text-black hover:bg-brand-green/90"
-            size="lg"
-          >
-            <RefreshCw className="mr-2 h-5 w-5" />
-            Switch to {REQUIRED_CHAIN_NAME}
-          </Button>
-          
-          <p className="text-xs text-gray-500">
-            You won't be able to use the app until you switch networks.
-          </p>
+          {isFarcaster ? (
+            // Farcaster: Cannot switch chains programmatically - show instructions
+            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4">
+              <p className="text-sm text-gray-300 text-center">
+                This app requires <b className="text-yellow-400">{REQUIRED_CHAIN_NAME}</b>.<br />
+                <br />
+                Please switch networks in your wallet settings outside of Farcaster, then reopen the app.
+              </p>
+            </div>
+          ) : (
+            // Web: Can switch chains programmatically - show button
+            <>
+              <Button
+                onClick={openChainModal}
+                className="w-full bg-brand-green text-black hover:bg-brand-green/90"
+                size="lg"
+              >
+                <RefreshCw className="mr-2 h-5 w-5" />
+                Switch to {REQUIRED_CHAIN_NAME}
+              </Button>
+              
+              <p className="text-xs text-gray-500">
+                You won't be able to use the app until you switch networks.
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>
