@@ -40,6 +40,8 @@ const RainbowKitProviderWithTheme = dynamic(
           theme={customTheme}
           initialChain={undefined}
           showRecentTransactions={true}
+          modalSize="wide"
+          coolMode
           appInfo={{
             appName: 'DeCleanup Rewards',
             learnMoreUrl: 'https://decleanup.net',

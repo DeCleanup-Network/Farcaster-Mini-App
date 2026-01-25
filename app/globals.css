@@ -136,10 +136,14 @@
   /* Any constraints here break position:fixed portals (RainbowKit, dialogs, etc) */
   html {
     scroll-behavior: smooth;
+    /* ⚠️ -webkit-overflow-scrolling: touch can cause issues but is often needed for smooth scrolling */
+    /* Keeping it but aware it's in the problematic list */
     -webkit-overflow-scrolling: touch;
     width: 100%;
     /* NO overflow-x: hidden - breaks portals */
     /* NO max-width - breaks portals */
+    /* NO transform - breaks portals */
+    /* NO contain - breaks portals */
   }
   body {
     @apply bg-background text-foreground;
@@ -152,9 +156,10 @@
   }
   
   /* Overflow control moved to app wrapper - preserves portal sanity */
+  /* BUT: #app-root is an ancestor of body/main, so we can't constrain it either */
+  /* Move overflow control to a more specific wrapper inside #app-root if needed */
   #app-root {
-    overflow-x: hidden;
-    max-width: 100vw;
+    /* NO overflow-x: hidden - it's an ancestor of body/main, breaks portals */
     width: 100%;
   }
   
@@ -171,10 +176,13 @@
   }
   
   /* Mobile-first responsive constraints */
+  /* CRITICAL: Never constrain body, html, or main - breaks portals */
   @media (max-width: 640px) {
+    /* ❌ REMOVED: body overflow-x: hidden - breaks portals */
+    /* ✅ GOOD: Let body/html be visible, constrain content containers instead */
     body {
       max-width: 100%;
-      overflow-x: hidden;
+      /* NO overflow-x: hidden - breaks portals */
       position: relative;
       width: 100%;
     }
@@ -195,10 +203,11 @@
       margin-right: auto;
     }
     
-    /* Ensure main content doesn't overflow */
+    /* ❌ REMOVED: main overflow-x: hidden - breaks portals */
+    /* ✅ GOOD: Constrain content inside main, not main itself */
     main {
       max-width: 100%;
-      overflow-x: hidden;
+      /* NO overflow-x: hidden - breaks portals */
       padding-left: 1rem;
       padding-right: 1rem;
     }
@@ -257,6 +266,32 @@
   
   .border-brand-yellow {
     border-color: var(--color-brand-yellow);
+  }
+}
+
+/* ============================================
+   RAINBOWKIT PORTAL FIXES FOR iOS SAFARI
+   ============================================ */
+
+/* 1️⃣ HARD RESET for RainbowKit portals (temporary test - confirms the cause) */
+/* ONLY FOR WEB - prevents CSS containment issues breaking portals */
+[data-rk],
+[data-rk] *,
+[data-rk] [role="dialog"],
+[data-rk] [role="dialog"] * {
+  transform: none !important;
+  contain: none !important;
+  filter: none !important;
+  perspective: none !important;
+}
+
+/* 3️⃣ iOS Safari-specific viewport fix */
+/* Prevents Safari from mis-reporting viewport width */
+@supports (-webkit-touch-callout: none) {
+  html, body {
+    width: 100vw;
+    min-height: 100dvh;
+    overflow: visible !important;
   }
 }
 
