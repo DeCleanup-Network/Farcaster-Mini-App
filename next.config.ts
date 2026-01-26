@@ -114,11 +114,11 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://static.cloudflareinsights.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https: blob:",
               "font-src 'self' data:",
-              "connect-src 'self' https://api.neynar.com https://api.airstack.xyz https://gateway.pinata.cloud https://ipfs.io https://cloudflare-ipfs.com https://dweb.link https://mainnet.base.org https://sepolia.base.org https://base-mainnet.g.alchemy.com https://base-sepolia.g.alchemy.com https://base-mainnet.infura.io https://base-sepolia.infura.io https://*.walletconnect.com https://*.walletconnect.org https://*.metamask.io https://*.coinbase.com https://*.coinbasewallet.com https://*.rainbow.me https://*.uniswap.org wss: wss://*.walletconnect.com wss://*.walletconnect.org",
+              "connect-src 'self' https://api.neynar.com https://api.airstack.xyz https://gateway.pinata.cloud https://ipfs.io https://cloudflare-ipfs.com https://dweb.link https://mainnet.base.org https://sepolia.base.org https://base-mainnet.g.alchemy.com https://base-sepolia.g.alchemy.com https://base-mainnet.infura.io https://base-sepolia.infura.io https://eth.merkle.io https://*.merkle.io https://*.walletconnect.com https://*.walletconnect.org https://*.metamask.io https://*.coinbase.com https://*.coinbasewallet.com https://*.rainbow.me https://*.uniswap.org https://static.cloudflareinsights.com wss: wss://*.walletconnect.com wss://*.walletconnect.org",
               "frame-src 'self'",
               "frame-ancestors https://warpcast.com https://client.warpcast.com https://farcaster.xyz https://client.farcaster.xyz https://app.farcaster.xyz https://www.farcaster.xyz https://www.warpcast.com https://app.warpcast.com https://base.org https://www.base.org https://base.dev https://www.base.dev https://app.base.org https://app.base.dev",
               "object-src 'none'",
