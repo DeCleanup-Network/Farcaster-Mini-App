@@ -1687,9 +1687,19 @@ export async function getCleanupCounter(): Promise<bigint> {
 
   try {
     // Use retry logic for RPC calls to handle network issues
+    // Force Base Sepolia RPC by using getPublicClient with required chain
+    const requiredChain = getRequiredChain()
+    if (!requiredChain) {
+      throw new Error('Required chain not found in wagmi config')
+    }
+    
     return await retryWithTimeout(
       async () => {
-        return await readContract(getWagmiConfig(), {
+        // Get public client for Base Sepolia to force correct RPC
+        const publicClient = getPublicClient(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID })
+        // Use viem's readContract directly with the public client to force Base Sepolia RPC
+        const { readContract: viemReadContract } = await import('viem')
+        return await viemReadContract(publicClient, {
           address: CONTRACT_ADDRESSES.VERIFICATION,
           abi: VERIFICATION_ABI,
           functionName: 'cleanupCounter',
@@ -3230,9 +3240,20 @@ export async function isUserVerifier(userAddress: Address): Promise<boolean> {
 
   try {
     // Use retry logic for RPC calls to handle network issues
+    // Force Base Sepolia RPC by using getPublicClient with required chain
+    const requiredChain = getRequiredChain()
+    if (!requiredChain) {
+      console.warn('[isUserVerifier] Required chain not found, returning false')
+      return false
+    }
+    
     const isVerifier = await retryWithTimeout(
       async () => {
-        return await readContract(getWagmiConfig(), {
+        // Get public client for Base Sepolia to force correct RPC
+        const publicClient = getPublicClient(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID })
+        // Use viem's readContract directly with the public client to force Base Sepolia RPC
+        const { readContract: viemReadContract } = await import('viem')
+        return await viemReadContract(publicClient, {
           address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
           abi: POINTS_REWARD_DISTRIBUTOR_ABI,
           functionName: 'isVerifier',
