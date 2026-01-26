@@ -1,4 +1,4 @@
-import { Address, encodeFunctionData, parseAbi, parseAbiItem, formatUnits } from 'viem'
+import { Address, encodeFunctionData, parseAbi, parseAbiItem, formatUnits, createPublicClient, http } from 'viem'
 import {
   readContract,
   writeContract,
@@ -1687,7 +1687,7 @@ export async function getCleanupCounter(): Promise<bigint> {
 
   try {
     // Use retry logic for RPC calls to handle network issues
-    // Force Base Sepolia RPC by using getPublicClient with required chain
+    // Force Base Sepolia RPC by creating a viem PublicClient directly
     const requiredChain = getRequiredChain()
     if (!requiredChain) {
       throw new Error('Required chain not found in wagmi config')
@@ -1695,11 +1695,13 @@ export async function getCleanupCounter(): Promise<bigint> {
     
     return await retryWithTimeout(
       async () => {
-        // Get public client for Base Sepolia to force correct RPC
-        const publicClient = getPublicClient(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID })
-        // Use viem's readContract directly with the public client to force Base Sepolia RPC
-        const { readContract: viemReadContract } = await import('viem')
-        return await viemReadContract(publicClient, {
+        // Create a viem PublicClient directly with Base Sepolia RPC to force correct endpoint
+        const sepoliaClient = createPublicClient({
+          chain: requiredChain,
+          transport: http(REQUIRED_RPC_URL),
+        })
+        // Use viem's readContract directly with the Base Sepolia client
+        return await sepoliaClient.readContract({
           address: CONTRACT_ADDRESSES.VERIFICATION,
           abi: VERIFICATION_ABI,
           functionName: 'cleanupCounter',
@@ -3240,7 +3242,7 @@ export async function isUserVerifier(userAddress: Address): Promise<boolean> {
 
   try {
     // Use retry logic for RPC calls to handle network issues
-    // Force Base Sepolia RPC by using getPublicClient with required chain
+    // Force Base Sepolia RPC by creating a viem PublicClient directly
     const requiredChain = getRequiredChain()
     if (!requiredChain) {
       console.warn('[isUserVerifier] Required chain not found, returning false')
@@ -3249,11 +3251,13 @@ export async function isUserVerifier(userAddress: Address): Promise<boolean> {
     
     const isVerifier = await retryWithTimeout(
       async () => {
-        // Get public client for Base Sepolia to force correct RPC
-        const publicClient = getPublicClient(getWagmiConfig(), { chainId: REQUIRED_CHAIN_ID })
-        // Use viem's readContract directly with the public client to force Base Sepolia RPC
-        const { readContract: viemReadContract } = await import('viem')
-        return await viemReadContract(publicClient, {
+        // Create a viem PublicClient directly with Base Sepolia RPC to force correct endpoint
+        const sepoliaClient = createPublicClient({
+          chain: requiredChain,
+          transport: http(REQUIRED_RPC_URL),
+        })
+        // Use viem's readContract directly with the Base Sepolia client
+        return await sepoliaClient.readContract({
           address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
           abi: POINTS_REWARD_DISTRIBUTOR_ABI,
           functionName: 'isVerifier',
