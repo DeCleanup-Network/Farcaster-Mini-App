@@ -16,7 +16,7 @@ DeCleanup Rewards is an onchain application built on Base that enables users to:
 
 - Document environmental cleanups through photo submissions
 - Receive verification of cleanup activities
-- Earn DCU points for various actions (cleanups, streaks, referrals, impact forms, verifications)
+- Earn DCU points for various actions (cleanups, streaks, referrals, verifications)
 - Claim $bDCU tokens using accumulated DCU points
 - Earn Impact Products (dynamic NFTs) that represent verified environmental impact
 - Stake $bDCU tokens to become a verifier
@@ -65,7 +65,6 @@ DeCleanup Rewards uses a points-based reward system:
   - Cleanup submission (verified): 10 points
   - Streak maintenance: 1 point
   - Referral (both parties): 3 points each
-  - Impact form submission: 3 points
   - Verification activity: 1 point
   - Manual/retroactive rewards: Variable (admin-awarded)
 

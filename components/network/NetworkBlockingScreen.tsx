@@ -1,11 +1,17 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useAccount, useChainId } from 'wagmi'
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { getAccount } from 'wagmi/actions'
+import { AlertCircle, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
-import { useChainModal } from '@rainbow-me/rainbowkit'
+import { getWagmiConfig, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
+import { attemptSwitchToRequiredChain } from '@/lib/network'
+
+// #region agent log
+const _log = (m: string, d: Record<string, unknown>, h: string) => { fetch('http://127.0.0.1:7242/ingest/40e39046-eb29-4e48-9a5d-8d66cddb1371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NetworkBlockingScreen.tsx',message:m,data:d,hypothesisId:h,timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix'})}).catch(()=>{}); };
+// #endregion
 
 /**
  * NetworkBlockingScreen - Blocks app usage when on wrong network
@@ -21,22 +27,55 @@ import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 export function NetworkBlockingScreen() {
   const { isConnected } = useAccount()
   const chainId = useChainId()
-  const { openChainModal } = useChainModal()
   const { isMiniApp } = useFarcaster()
-  
+  const [switching, setSwitching] = useState(false)
+
   // Detect Farcaster environment (check both hook and window.farcaster as fallback)
   const isFarcaster = isMiniApp || (
     typeof window !== 'undefined' &&
     (window as any).farcaster !== undefined
   )
-  
+
+  // In iframe/embed, programmatic switch often fails; prioritize "Open in new tab"
+  const inIframe = typeof window !== 'undefined' && window.self !== window.top
+
   // Only show if connected and on wrong network
   const isWrongNetwork = isConnected && typeof chainId === 'number' && chainId !== REQUIRED_CHAIN_ID
-  
+
+  // #region agent log
+  useEffect(() => {
+    if (!isWrongNetwork) return
+    _log('BlockingScreen visible', { chainId, REQUIRED_CHAIN_ID, inIframe }, 'A')
+  }, [isWrongNetwork, inIframe])
+  useEffect(() => {
+    if (!isWrongNetwork) return
+    _log('chainId changed while blocking', { chainId, REQUIRED_CHAIN_ID, isRequired: chainId === REQUIRED_CHAIN_ID }, 'D')
+  }, [chainId, isWrongNetwork])
+  // #endregion
+
   if (!isWrongNetwork) {
     return null
   }
-  
+
+  const handleSwitchClick = async () => {
+    // #region agent log
+    _log('SwitchToBaseSepolia clicked', { inIframe }, 'A')
+    // #endregion
+    console.warn('[NetworkBlockingScreen] handleSwitchClick: isFarcaster=', isFarcaster, 'inIframe=', inIframe)
+    setSwitching(true)
+    try {
+      const account = await getAccount(getWagmiConfig())
+      const conn = (account as any)?.connector
+      console.warn('[NetworkBlockingScreen] hasWindowEthereum=', !!(typeof window !== 'undefined' && (window as any)?.ethereum), 'connectorId=', conn?.id ?? conn?.name)
+      const { success } = await attemptSwitchToRequiredChain()
+      // only reached when we did not reload
+      _log('attemptSwitchToRequiredChain returned', { success }, 'C')
+      console.warn('[NetworkBlockingScreen] attemptSwitchToRequiredChain returned', { success })
+    } finally {
+      setSwitching(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/95 backdrop-blur-sm safe-area-inset">
       <div className="mx-4 w-full max-w-md rounded-lg border-2 border-yellow-500/50 bg-gray-900 p-6 text-center shadow-2xl">
@@ -76,20 +115,74 @@ export function NetworkBlockingScreen() {
               </p>
             </div>
           ) : (
-            // Web: Can switch chains programmatically - show button
+            // Web: Can switch chains programmatically - show button(s)
             <>
-              <Button
-                onClick={openChainModal}
-                className="w-full bg-brand-green text-black hover:bg-brand-green/90"
-                size="lg"
-              >
-                <RefreshCw className="mr-2 h-5 w-5" />
-                Switch to {REQUIRED_CHAIN_NAME}
-              </Button>
-              
-              <p className="text-xs text-gray-500">
-                You won't be able to use the app until you switch networks.
-              </p>
+              {inIframe ? (
+                // In iframe/embed: prioritize "Open in new tab" (switch often fails here)
+                <>
+                  <p className="text-xs text-gray-500">
+                    Opening in a new tab often works when this app is embedded.
+                  </p>
+                  <Button
+                    onClick={() => { try { window.open(window.location.href, '_blank') } catch (_) {} }}
+                    className="w-full bg-brand-green text-black hover:bg-brand-green/90"
+                    size="lg"
+                  >
+                    <ExternalLink className="mr-2 h-5 w-5" />
+                    Open in new tab
+                  </Button>
+                  <Button
+                    onClick={handleSwitchClick}
+                    disabled={switching}
+                    variant="outline"
+                    className="w-full border-gray-600 text-gray-200 hover:bg-gray-800"
+                    size="lg"
+                  >
+                    {switching ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Switching…
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-5 w-5" />
+                        Try switch here
+                      </>
+                    )}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    onClick={handleSwitchClick}
+                    disabled={switching}
+                    className="w-full bg-brand-green text-black hover:bg-brand-green/90"
+                    size="lg"
+                  >
+                    {switching ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Switching…
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-5 w-5" />
+                        Switch to {REQUIRED_CHAIN_NAME}
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-gray-500">
+                    You won't be able to use the app until you switch networks.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { try { window.open(window.location.href, '_blank') } catch (_) {} }}
+                    className="text-xs text-yellow-400/90 underline hover:text-yellow-300"
+                  >
+                    Open in new tab
+                  </button>
+                </>
+              )}
             </>
           )}
         </div>

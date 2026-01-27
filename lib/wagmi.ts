@@ -250,6 +250,13 @@ export function getWagmiConfig() {
     isFarcasterEnv = false
   }
 
+  // In Farcaster: exclude injectedWallet (id 'injected' / "Browser Wallet") so Phantom and
+  // other injected wallets that can conflict (e.g. Phantom vs MetaMask) are not offered.
+  // Users get: MetaMask, WalletConnect, Coinbase, Safe, and Farcaster Mini App.
+  if (isFarcasterEnv) {
+    defaultConnectors = defaultConnectors.filter((c) => (c as any).id !== 'injected')
+  }
+
   // Add Farcaster Mini App connector ONLY when in Farcaster environment
   // MUST be last in array to prevent auto-selection outside Farcaster
   // Note: RPC URL is configured via transports in createConfig below
