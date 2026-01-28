@@ -1,8 +1,25 @@
-# DeCleanup Rewards - Production Ready
+# DeCleanup Rewards
 
-> **A production-ready Farcaster Mini App that gamifies environmental cleanup through Impact Product NFTs, DCU points, and $bDCU token rewards on Base.**
+> **Farcaster Mini App that gamifies environmental cleanup through Impact Product NFTs, DCU points, and $bDCU token rewards on Base.**
 
-**🌐 [Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** | **🌍 [Web App](https://decleanup.net)** | **📖 [Admin Guide](ADMIN_GUIDE.md)** | **🏗️ [Deployment Guide](DEPLOYMENT.md)** | **👨‍💻 [Developer Specs](DEVELOPER_SPECS.md)** | **🔐 [Security Audit](SECURITY_AUDIT.md)** | **🔐 [Security Audit](SECURITY_AUDIT.md)**
+## Live on Mainnet
+
+**🌐 [Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** · **🌍 [Web App](https://decleanup.net)** · **👨‍💻 [Developer Specs](DEVELOPER_SPECS.md)** · **🔐 [Security Audit](SECURITY_AUDIT.md)** · **📄 [Terms of Service](TERMS_OF_SERVICE.md)**
+
+**Base Mainnet** (Chain ID 8453). Contracts are verified on [Basescan](https://basescan.org):
+
+| Contract | Proxy (use in app) | Basescan |
+|----------|--------------------|----------|
+| **PointsRewardDistributor** | [`0x492065137E07c660DCfAe4dC335A3Fa9C1203dd9`](https://basescan.org/address/0x492065137E07c660DCfAe4dC335A3Fa9C1203dd9) | [Read as Proxy](https://basescan.org/address/0x492065137E07c660DCfAe4dC335A3Fa9C1203dd9#readProxyContract) |
+| **ImpactProductNFT** | [`0x8D71Cd7445423CD42293E196B91E47f085E81BCf`](https://basescan.org/address/0x8D71Cd7445423CD42293E196B91E47f085E81BCf) | [Read as Proxy](https://basescan.org/address/0x8D71Cd7445423CD42293E196B91E47f085E81BCf#readProxyContract) |
+| **VerificationContract** | [`0x69715d43EA6D46F65045FCe2391D9B7F89ec819F`](https://basescan.org/address/0x69715d43EA6D46F65045FCe2391D9B7F89ec819F) | [Read as Proxy](https://basescan.org/address/0x69715d43EA6D46F65045FCe2391D9B7F89ec819F#readProxyContract) |
+| **bDCU Token** | `0x30171b7014c02229497cde6745dd3ad821f12b07` | [Basescan](https://basescan.org/address/0x30171b7014c02229497cde6745dd3ad821f12b07) |
+
+Implementations are verified so proxy pages support “Read as Proxy” / “Write as Proxy”. Deploy and upgrade: [contracts/DEPLOY_MAINNET.md](contracts/DEPLOY_MAINNET.md).
+
+### $bDCU — Buy & support the movement
+
+$bDCU is DeCleanup’s liquid action token on Base, deployed via [**Clanker**](https://www.clanker.world/clanker/0x30171b7014c02229497CdE6745DD3aD821F12b07). You can **earn** it by doing cleanups in the Mini App — or **buy** it to back the project: early investors directly support the cleanup movement and rewards for on-the-ground action. Trade $bDCU on [Clanker](https://www.clanker.world/clanker/0x30171b7014c02229497CdE6745DD3aD821F12b07), in the [Base app](https://base.org), or via Farcaster — turn trash into treasure while cleaning the planet.
 
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
@@ -15,7 +32,7 @@
 
 DeCleanup Rewards is a fully functional, production-ready Farcaster Mini App that incentivizes environmental cleanup through:
 
-- **DCU Points System**: Users earn points for cleanups, streaks, referrals, impact forms, and verifications
+- **DCU Points System**: Users earn points for cleanups, streaks, referrals, and verifications
 - **Token Rewards**: Points can be claimed for $bDCU tokens based on current market price
 - **Impact Product NFTs**: Dynamic NFTs that evolve as users progress through 10 levels
 - **Verifier System**: Users can stake tokens to become verifiers (51% of balance required)
@@ -30,8 +47,8 @@ DeCleanup Rewards is a fully functional, production-ready Farcaster Mini App tha
 - **Verification System**: Team and community verifiers can approve/reject cleanups
 - **Impact Products**: 10 progressive NFT levels (Newbie → Guardian)
 - **DCU Points**: Earn points for various actions (cleanup: 10 pts, streak: 1 pt, referral: 3 pts, etc.)
-- **Token Claims**: Convert DCU points to $bDCU tokens (requires Level 10 and minimum 100 points)
-- **Staking**: Stake tokens to become a verifier (requires ≥51% of balance and Level 10)
+- **Token Claims**: Convert DCU points to $bDCU tokens (requires Level 3 and minimum 100 points)
+- **Staking**: Stake tokens to become a verifier (requires ≥51% of balance and Level 3)
 - **Add App Modal**: Prompts users to add app to Farcaster or pin to Base after onboarding
 - **Bot Protection**: Vercel Bot ID protection on sensitive routes (Edge-level, no user friction)
 - **Security Headers**: Comprehensive CORS, CSP, and security headers for production
@@ -65,7 +82,6 @@ DeCleanup Rewards is a fully functional, production-ready Farcaster Mini App tha
 - **Cleanup (Level)**: 10 points
 - **Streak**: 1 point
 - **Referral**: 3 points (both parties)
-- **Impact Form**: 3 points
 - **Verifier**: 1 point
 - **Manual/Retroactive**: Variable (admin-awarded)
 
@@ -79,10 +95,10 @@ tokens = (usdValue × 1e18 × 1e8) / currentTokenPriceUSD
 
 **Minimum Requirements:**
 - Minimum 100 DCU points required to claim tokens
-- User must reach Level 10 to claim tokens
+- User must reach Level 3 to claim tokens
 
 **Staking Rules:**
-- Users must reach **level 10** to stake or claim tokens
+- Users must reach **Level 3** to stake or claim tokens
 - To become verifier: stake **≥51% of available token balance** at time of staking
 - Verifier status lost if unstaking reduces balance below 50% of original stake (unless manually added)
 - Admin can manually add verifiers (bypasses staking requirement and persists after unstaking)
@@ -96,7 +112,7 @@ tokens = (usdValue × 1e18 × 1e8) / currentTokenPriceUSD
 - Node.js 18+
 - A Farcaster account
 - A Base-compatible wallet
-- Base Sepolia ETH for testing
+- Base ETH (for mainnet)
 
 ### Installation
 
@@ -114,15 +130,11 @@ cp .env.example .env.local
 ```
 
 Edit `.env.local` with:
-- Contract addresses (see [DEPLOYMENT.md](DEPLOYMENT.md))
-- RPC URLs (Base Sepolia for testing, Base Mainnet for production)
-- **Pinata API keys** (server-side only: `PINATA_API_KEY` and `PINATA_SECRET_KEY`)
-- WalletConnect Project ID
-- Farcaster Neynar API key
-- Base App ID
-- **Bot Protection**: Enabled via Vercel Bot ID (no environment variables needed - configured in Vercel dashboard)
-
-See [VERCEL_ENV_SETUP.md](VERCEL_ENV_SETUP.md) for complete environment variables guide.
+- Contract addresses (mainnet proxies in table above; see [.env.example](.env.example))
+- `NEXT_PUBLIC_CHAIN_ID=8453` (Base mainnet)
+- `NEXT_PUBLIC_RPC_URL` for mainnet (e.g. `https://mainnet.base.org` or your own RPC)
+- **Pinata API keys** (server-side: `PINATA_API_KEY`, `PINATA_SECRET_KEY`)
+- WalletConnect Project ID, Farcaster Neynar API key, Base App ID
 
 3. **Run locally:**
 ```bash
@@ -131,31 +143,21 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) and connect your wallet.
 
+*Optional: to run against **Base Sepolia** for local or CI testing, set `NEXT_PUBLIC_CHAIN_ID=84532`, deploy with `npm run deploy:baseSepolia` in `contracts/`, and copy the deploy output addresses into `.env.local`. See [.env.example](.env.example) for the Base Sepolia section.*
+
 ---
 
 ## 📚 Documentation
 
-### For Administrators
-- **[ADMIN_GUIDE.md](ADMIN_GUIDE.md)** - Complete guide to managing the system
-  - Verifier management
-  - Fee configuration
-  - Point multiplier adjustments
-  - Emergency procedures
-
-### For Developers
-- **[DEVELOPER_SPECS.md](DEVELOPER_SPECS.md)** - Complete technical specifications
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment and setup guide
-- **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)** - Technical architecture
-- **[LOCAL_TESTING.md](LOCAL_TESTING.md)** - Local testing guide
-- **[VERCEL_ENV_SETUP.md](VERCEL_ENV_SETUP.md)** - Quick Vercel environment variables setup
-- **[SECURITY_AUDIT.md](SECURITY_AUDIT.md)** - Comprehensive security audit and compliance
-- **[ANALYSIS_SUMMARY.md](ANALYSIS_SUMMARY.md)** - Recent improvements and fixes summary
-- **[CHANGELOG.md](CHANGELOG.md)** - Changelog of recent updates
-- **[docs/](docs/)** - Additional technical documentation
-
-### For Users
-- **[docs/user-guide.md](docs/user-guide.md)** - User guide
+- **[DEVELOPER_SPECS.md](DEVELOPER_SPECS.md)** - Technical specs, contracts, env
+- **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)** - Architecture
+- **[DEV_DOCS.md](DEV_DOCS.md)** - Development guide
+- **[LOCAL_TESTING.md](LOCAL_TESTING.md)** - Local testing
+- **[CONTRACTS_RECHECK.md](CONTRACTS_RECHECK.md)** - Contract reference (treasury, verifiers, funding)
+- **[contracts/DEPLOY_MAINNET.md](contracts/DEPLOY_MAINNET.md)** - Deploy and upgrade contracts
+- **[SECURITY_AUDIT.md](SECURITY_AUDIT.md)** - Security audit
 - **[TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)** - Terms of Service
+- **[CHANGELOG.md](CHANGELOG.md)** - Changelog
 
 ---
 
@@ -163,38 +165,20 @@ Open [http://localhost:3000](http://localhost:3000) and connect your wallet.
 
 ### Quick Admin Commands
 
-**Check contract status:**
+From `contracts/` (use `--network base` for mainnet, `--network baseSepolia` for testnet):
+
 ```bash
-cd contracts
-npx hardhat run scripts/checkUserStatus.js --network baseSepolia <user_address>
-npx hardhat run scripts/checkDistributorBalance.js --network baseSepolia
+# Check user status / distributor balance
+npx hardhat run scripts/checkUserStatus.js --network base <address>
+npx hardhat run scripts/checkDistributorBalance.js --network base
+
+# Add verifier, update token price, transfer tokens to PointsRewardDistributor
+npx hardhat run scripts/addVerifierToPointsDistributor.js --network base <address>
+TOKEN_PRICE=77 npx hardhat run scripts/updateTokenPrice.js --network base
+TRANSFER_AMOUNT=1000000 npx hardhat run scripts/transferTokensToPointsDistributor.js --network base
 ```
 
-**Manage verifiers:**
-```bash
-# Add verifier manually
-npx hardhat run scripts/addVerifierToPointsDistributor.js --network baseSepolia <address>
-
-# Check verifier status
-npx hardhat run scripts/checkUserStatus.js --network baseSepolia <address>
-```
-
-**Update prices:**
-```bash
-# Update token price (8 decimals, e.g., 77 = $0.00000077)
-TOKEN_PRICE=77 npx hardhat run scripts/updateTokenPrice.js --network baseSepolia
-
-# Update target reward value (cents, e.g., 50 = $0.50)
-TARGET_REWARD_VALUE=50 npx hardhat run scripts/updateTargetRewardValue.js --network baseSepolia
-```
-
-**Transfer tokens:**
-```bash
-# Transfer from deployer wallet to contract
-TRANSFER_AMOUNT=1000000 npx hardhat run scripts/transferFromDeployer.js --network baseSepolia
-```
-
-See [ADMIN_GUIDE.md](ADMIN_GUIDE.md) for complete admin documentation.
+See [CONTRACTS_RECHECK.md](CONTRACTS_RECHECK.md) and [contracts/DEPLOY_MAINNET.md](contracts/DEPLOY_MAINNET.md) for more.
 
 ---
 
@@ -206,28 +190,6 @@ See [ADMIN_GUIDE.md](ADMIN_GUIDE.md) for complete admin documentation.
 - **Styling**: Tailwind CSS + shadcn/ui
 - **Storage**: IPFS (Pinata)
 - **Smart Contracts**: Solidity 0.8.20, Hardhat
-
----
-
-## 📋 Contract Addresses
-
-### Base Sepolia (Testnet) - Upgradeable Contracts (UUPS)
-
-**Proxy Addresses** (use these in frontend):
-- **PointsRewardDistributor**: `0x3adf82A2e4998938B87C885d1D11011851cBeCc4` ✅ **ACTIVE**
-- **VerificationContract**: `0x390bDa64D1523075E74673ed957B9Ed67a3D34aD` ✅ **ACTIVE**
-- **ImpactProductNFT**: `0x45417FFD32986DA5Ba232cb3FdFB9b21aE6D3539` ✅ **ACTIVE**
-- **bDCU Token**: `0x85162f919Bf8cd09B8046F8EAd2ecD434841e044`
-
-**Implementation Addresses** (for upgrades only):
-- **PointsRewardDistributor Impl**: `0x8f29111f7BA8D2D5345Ea683822cd0E37C6a15B6`
-- **VerificationContract Impl**: `0x74dc3CE94069027520C060FA2e94479a446c84B7`
-- **ImpactProductNFT Impl**: `0xdA614b090d26dd2e68cC1A8c5601D8f38eA6E96A`
-
-**Note:** All contracts use UUPS (Universal Upgradeable Proxy Standard) pattern for future upgrades.
-
-### Base Mainnet
-*See [DEPLOYMENT.md](DEPLOYMENT.md) for mainnet addresses*
 
 ---
 

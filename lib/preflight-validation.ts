@@ -94,7 +94,7 @@ export async function validateChain(forceRefresh = false): Promise<ValidationRes
  * Checks if the PointsRewardDistributor has sufficient token balance for claims
  * 
  * Note: This should ONLY be called when user is actually claiming tokens (not when earning points).
- * Users earn DCU points first, then claim tokens after reaching level 10.
+ * Users earn DCU points first, then claim tokens after reaching level 3.
  * 
  * Tokens are funded from multisig directly to the PointsRewardDistributor contract.
  */

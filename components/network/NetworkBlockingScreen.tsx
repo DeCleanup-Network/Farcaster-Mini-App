@@ -59,7 +59,7 @@ export function NetworkBlockingScreen() {
 
   const handleSwitchClick = async () => {
     // #region agent log
-    _log('SwitchToBaseSepolia clicked', { inIframe }, 'A')
+    _log('SwitchToRequiredChain clicked', { inIframe }, 'A')
     // #endregion
     console.warn('[NetworkBlockingScreen] handleSwitchClick: isFarcaster=', isFarcaster, 'inIframe=', inIframe)
     setSwitching(true)

@@ -71,11 +71,10 @@ const allChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet, mainnet]
 
 // Chains to show in RainbowKit chain switcher (excludes mainnet)
 const configuredChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet]
-// Default to Base Sepolia (84532) since contracts are deployed there
-// Change to baseMainnet.id (8453) after deploying contracts to mainnet
-const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || baseSepoliaChain.id)
+// Default to Base Mainnet (8453). Set NEXT_PUBLIC_CHAIN_ID=84532 for Base Sepolia testnet.
+const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || baseMainnet.id)
 const requiredChain =
-  configuredChains.find((chain) => chain.id === requiredChainId) ?? baseSepoliaChain
+  configuredChains.find((chain) => chain.id === requiredChainId) ?? baseMainnet
 const requiredChainLabel = requiredChain.testnet ? 'Base Sepolia Testnet' : 'Base Mainnet'
 const requiredBlockExplorerUrl = requiredChain.testnet
   ? 'https://sepolia.basescan.org'

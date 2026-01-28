@@ -67,7 +67,7 @@ This document mirrors the level of depth and structure we admire in Green Goodsâ
   - Level claims: 10 $bDCU
   - Streak maintenance: 2 $bDCU
   - Referrals: 3 $bDCU (both referrer and referee)
-  - Impact forms: 5 $bDCU
+  - Impact forms: 5 $bDCU *(deprecated; app no longer submits impact report, so this is unused)*
   - Verifier rewards: 1 $bDCU per verification
 
 ---

@@ -18,7 +18,6 @@ import {
   RefreshCw,
   ExternalLink,
   Users,
-  FileText,
   ChevronDown,
   ChevronUp,
   AlertCircle,
@@ -1149,7 +1148,7 @@ function ProfileContent() {
               </h3>
             </div>
             <p className="mb-4 text-sm text-gray-300">
-              Convert your DCU to $bDCU tokens. You need to reach level 10 first. The amount of tokens you receive depends on the DCU you have.
+              Convert your DCU to $bDCU tokens. You need to reach level 3 first. The amount of tokens you receive depends on the DCU you have.
             </p>
             
             <div className="mb-4 space-y-3">
@@ -1163,7 +1162,7 @@ function ProfileContent() {
             <Button
               onClick={async () => {
                 if (!profileData.hasMinimumLevel) {
-                  alert('You need to reach level 10 before you can claim tokens')
+                  alert('You need to reach level 3 before you can claim tokens')
                   return
                 }
                 if (isClaimingPoints) return
@@ -1197,7 +1196,7 @@ function ProfileContent() {
               </h3>
             </div>
             <p className="mb-4 text-sm text-gray-300">
-              Stake your $bDCU tokens to become a verifier and help review cleanup submissions. You need to reach level 10 first.
+              Stake your $bDCU tokens to become a verifier and help review cleanup submissions. You need to reach level 3 first.
             </p>
             
             {profileData.isVerifier ? (
@@ -1427,10 +1426,10 @@ function ProfileContent() {
           </div>
         )}
 
-        {profileData.level < 10 && (
+        {profileData.level < 3 && (
           <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800/50 p-4">
             <p className="text-sm text-gray-400">
-              Reach level 10 to unlock staking and token claiming features.
+              Reach level 3 to unlock staking and token claiming features.
             </p>
           </div>
         )}
@@ -1502,19 +1501,6 @@ function ProfileContent() {
                 </div>
                 <span className="text-lg font-mono font-bold text-white">
                   {Math.floor(profileData.rewardsBreakdown.streakRewards / 1) * 1} DCU
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/30 p-3">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-brand-green" />
-                  <div>
-                    <span className="text-sm font-medium text-white">Impact Reports</span>
-                    <p className="text-xs text-gray-400">Submission of impact reports (3 DCU each)</p>
-                  </div>
-                </div>
-                <span className="text-lg font-mono font-bold text-white">
-                  {Math.floor(profileData.rewardsBreakdown.impactFormRewards / 3) * 3} DCU
                 </span>
               </div>
 

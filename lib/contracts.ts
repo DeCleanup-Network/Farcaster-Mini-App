@@ -563,13 +563,8 @@ export const CONTRACT_ADDRESSES = {
   // Token flow: Clanker (locked) → Unlock → Multisig → Reward Distributor (manual) → Users (automated)
   BDCU_TOKEN:
     (process.env.NEXT_PUBLIC_BDCU_TOKEN_ADDRESS || '') as Address,
-  // bDCU Reward Distributor contract (for automatic token distributions)
-  // Funding: Tokens are sent from multisig directly to this contract
-  // The contract holds locked bDCU tokens and distributes them to users on-chain
-  BDCU_REWARD_DISTRIBUTOR:
-    (process.env.NEXT_PUBLIC_BDCU_REWARD_DISTRIBUTOR_ADDRESS ||
-      process.env.NEXT_PUBLIC_BDCU_DISTRIBUTOR_ADDRESS ||
-      '') as Address,
+  // PointsRewardDistributor: users earn DCU points and claim bDCU via claimTokens(points).
+  // bDCURewardDistributor is no longer used by the app.
   POINTS_REWARD_DISTRIBUTOR:
     (process.env.NEXT_PUBLIC_POINTS_REWARD_DISTRIBUTOR_ADDRESS ||
       '') as Address,
@@ -591,9 +586,7 @@ export const IMPACT_PRODUCT_ABI = parseAbi([
   'function setVerificationContract(address _verificationContract) external',
 ])
 
-// $bDCU Token Integration Strategy:
-// 1. Direct ERC20 token balance from Clanker token contract
-// 2. bDCURewardDistributor contract automatically distributes tokens on user actions
+// $bDCU Token: ERC20 from Clanker. Users earn DCU points in PointsRewardDistributor and claim bDCU via claimTokens(points).
 
 // Verification Contract ABI
 export const VERIFICATION_ABI = parseAbi([
@@ -610,6 +603,7 @@ export const VERIFICATION_ABI = parseAbi([
   'function getClaimFee() external view returns (uint256 fee, bool enabled)',
   'function isRejected(uint256 cleanupId) external view returns (bool)',
   'function hasSubmittedCleanup(address user) external view returns (bool)',
+  'function rewardDistributor() external view returns (address)',
 ])
 
 // ERC20 Token ABI (for Clanker $bDCU token)
@@ -619,23 +613,6 @@ export const ERC20_ABI = parseAbi([
   'function symbol() external view returns (string)',
   'function name() external view returns (string)',
   'function totalSupply() external view returns (uint256)',
-])
-
-// bDCU Reward Distributor ABI (contract for automatic token distributions)
-export const BDCU_REWARD_DISTRIBUTOR_ABI = parseAbi([
-  'function bDCUToken() external view returns (address)',
-  'function getContractBalance() external view returns (uint256)',
-  'function getTotalDistributed(address user) external view returns (uint256)',
-  'function globalTotalDistributed() external view returns (uint256)',
-  'function totalDistributed(address user) external view returns (uint256)', // Mapping for verifier earnings
-  'function getStreakCount(address user) external view returns (uint256)',
-  'function hasActiveStreak(address user) external view returns (bool)',
-  'function hasReceivedReferralReward(address user) external view returns (bool)',
-  'function verificationContract() external view returns (address)',
-  'event LevelRewardDistributed(address indexed user, uint256 amount)',
-  'event StreakRewardDistributed(address indexed user, uint256 amount)',
-  'event ReferralRewardDistributed(address indexed referrer, address indexed referee, uint256 amount)',
-  'event ImpactFormRewardDistributed(address indexed user, uint256 cleanupId, uint256 amount)',
 ])
 
 // Impact Product Functions
@@ -758,29 +735,19 @@ export async function claimImpactProduct(cleanupId: bigint, level: number): Prom
  * @returns Total rewards distributed to user (in $bDCU tokens)
  */
 export async function getPointsBalance(userAddress: Address): Promise<number> {
-  // Priority 1: Read from Reward Distributor's totalDistributed mapping
-  // This shows the cumulative tokens distributed to the user
-  if (CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+  if (CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
     try {
-      const totalDistributed = await readContract(getWagmiConfig(), {
-        address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
-        abi: BDCU_REWARD_DISTRIBUTOR_ABI,
-        functionName: 'totalDistributed',
+      const points = await readContract(getWagmiConfig(), {
+        address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+        abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+        functionName: 'getPointsBalance',
         args: [userAddress],
       })
-      
-      // Convert from wei (18 decimals) to tokens
-      const { formatUnits } = await import('viem')
-      const balance = parseFloat(formatUnits(totalDistributed as bigint, 18))
-      console.log(`Read $bDCU total distributed from Reward Distributor: ${balance}`)
-      return balance
+      return Number(points)
     } catch (error) {
-      console.warn('Error reading from Reward Distributor, falling back to local storage:', error)
-      // Fall through to local storage fallback
+      console.warn('Error reading from PointsRewardDistributor, falling back to local storage:', error)
     }
   }
-
-  // Fallback to local storage for development if Reward Distributor not configured
   return pointsLib.getPointsBalance(userAddress)
 }
 
@@ -904,14 +871,16 @@ export async function getClaimFee(): Promise<{ fee: bigint; enabled: boolean }> 
   }
 }
 
+/**
+ * Submit a cleanup. Impact report is not used: the contract still accepts hasImpactForm and
+ * impactReportHash for backward compatibility; we always pass false and ''.
+ */
 export async function submitCleanup(
   beforePhotoHash: string,
   afterPhotoHash: string,
   latitude: number,
   longitude: number,
   referrerAddress: Address | null,
-  hasImpactForm: boolean,
-  impactReportHash: string,
   value?: bigint, // Optional fee value
   providedChainId?: number | null, // Optional chainId from useChainId hook to avoid detection issues
   sendTransaction?: (params: {
@@ -965,7 +934,6 @@ export async function submitCleanup(
   // Log transaction attempt
   await logTransactionAttempt('submitCleanup', {
     referrerAddress: referrerAddress || null,
-    hasImpactForm,
     latitude,
     longitude,
   })
@@ -989,7 +957,7 @@ export async function submitCleanup(
     // If chain check fails, throw error to prevent transaction on wrong chain
     // This ensures user gets clear feedback before attempting transaction
     throw new Error(
-      `Network Error: ${chainError?.message || 'Please switch to Base Sepolia Testnet in your wallet before submitting.'}`
+      `Network Error: ${chainError?.message || `Please switch to ${REQUIRED_CHAIN_NAME} in your wallet before submitting.`}`
     )
   }
 
@@ -1046,8 +1014,8 @@ export async function submitCleanup(
         latScaled,
         lngScaled,
         referrerAddress || '0x0000000000000000000000000000000000000000',
-        hasImpactForm,
-        impactReportHash,
+        false, // hasImpactForm: impact report removed from app flow
+        '', // impactReportHash
       ],
       value: value || BigInt(0),
     })
@@ -1061,7 +1029,7 @@ export async function submitCleanup(
   }
 
   // Submit the actual transaction
-  // Explicitly set chain object to ensure transaction is sent to Base Sepolia
+  // Explicitly set chain object to ensure transaction is sent to the required chain (Base)
   const targetChain = getRequiredChain()
   if (!targetChain) {
     throw new Error(`${REQUIRED_CHAIN_NAME} chain is not configured.`)
@@ -1177,8 +1145,8 @@ export async function submitCleanup(
           latScaled,
           lngScaled,
           referrerAddress || '0x0000000000000000000000000000000000000000',
-          hasImpactForm,
-          impactReportHash,
+          false, // hasImpactForm: impact report removed from app flow
+          '', // impactReportHash
         ],
         value: value || BigInt(0),
       })
@@ -1194,8 +1162,8 @@ export async function submitCleanup(
           latScaled,
           lngScaled,
           referrerAddress || '0x0000000000000000000000000000000000000000',
-          hasImpactForm,
-          impactReportHash,
+          false, // hasImpactForm: impact report removed from app flow
+          '', // impactReportHash
         ],
         value: value || BigInt(0), // Include fee if provided
         chain: targetChain,
@@ -1368,7 +1336,7 @@ export async function claimImpactProductFromVerification(
   }
 
   // Pre-flight validation (NO token balance check - we're only awarding DCU points, not tokens)
-  // Users earn DCU points first, then claim tokens separately after reaching level 10
+  // Users earn DCU points first, then claim tokens separately after reaching minimum level (3)
   const validation = await validatePreFlight({
     checkWallet: true,
     checkChain: true,
@@ -1390,7 +1358,7 @@ export async function claimImpactProductFromVerification(
   // Log transaction attempt
   await logTransactionAttempt('claimImpactProduct', { cleanupId: cleanupId.toString() })
 
-  // Note: Chain switching is handled by wallet - user should ensure they're on Base Sepolia
+  // Note: Chain switching is handled by wallet - user should ensure they're on the required chain (Base)
   try {
     await ensureWalletOnRequiredChain('claim impact product', providedChainId)
   } catch (chainError: any) {
@@ -1594,6 +1562,10 @@ export async function getCleanupStatus(cleanupId: bigint): Promise<{
 /**
  * Get full cleanup details (for verifiers)
  */
+/**
+ * Fetch cleanup details from chain. Note: hasImpactForm and impactReportHash are still returned
+ * by the contract but are unused in the app (impact report removed from flow).
+ */
 export async function getCleanupDetails(cleanupId: bigint): Promise<{
   user: `0x${string}`
   beforePhotoHash: string
@@ -1606,17 +1578,29 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
   rejected: boolean
   level: number
   referrer: `0x${string}`
+  /** @deprecated Unused; app no longer submits impact report. */
   hasImpactForm: boolean
+  /** @deprecated Unused; app no longer submits impact report. */
   impactReportHash: string
 }> {
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
     throw new Error('Verification contract address not set')
   }
 
-  // Use retry logic for RPC calls to handle network issues
+  // Use retry logic for RPC calls to handle network issues.
+  // Use required chain RPC via viem PublicClient for correct endpoint (Base mainnet or Base Sepolia).
+  const requiredChain = getRequiredChain()
+  if (!requiredChain) {
+    throw new Error('Required chain not found in wagmi config')
+  }
+
   const result = await retryWithTimeout(
     async () => {
-      return await readContract(getWagmiConfig(), {
+      const publicClient = createPublicClient({
+        chain: requiredChain,
+        transport: http(REQUIRED_RPC_URL),
+      })
+      return await publicClient.readContract({
         address: CONTRACT_ADDRESSES.VERIFICATION,
         abi: VERIFICATION_ABI,
         functionName: 'getCleanup',
@@ -1686,8 +1670,8 @@ export async function getCleanupCounter(): Promise<bigint> {
   }
 
   try {
-    // Use retry logic for RPC calls to handle network issues
-    // Force Base Sepolia RPC by creating a viem PublicClient directly
+    // Use retry logic for RPC calls to handle network issues.
+    // Use required chain RPC via viem PublicClient (Base mainnet or Base Sepolia).
     const requiredChain = getRequiredChain()
     if (!requiredChain) {
       throw new Error('Required chain not found in wagmi config')
@@ -1695,13 +1679,11 @@ export async function getCleanupCounter(): Promise<bigint> {
     
     return await retryWithTimeout(
       async () => {
-        // Create a viem PublicClient directly with Base Sepolia RPC to force correct endpoint
-        const sepoliaClient = createPublicClient({
+        const publicClient = createPublicClient({
           chain: requiredChain,
           transport: http(REQUIRED_RPC_URL),
         })
-        // Use viem's readContract directly with the Base Sepolia client
-        return await sepoliaClient.readContract({
+        return await publicClient.readContract({
           address: CONTRACT_ADDRESSES.VERIFICATION,
           abi: VERIFICATION_ABI,
           functionName: 'cleanupCounter',
@@ -2097,7 +2079,7 @@ export async function rejectCleanup(
 }
 
 // Streak Functions
-// Streak tracking is implemented in bDCURewardDistributor
+// Streak tracking is in PointsRewardDistributor
 
 /**
  * Get user's streak count
@@ -2105,18 +2087,14 @@ export async function rejectCleanup(
  * @returns Current streak count (in weeks)
  */
 export async function getStreakCount(userAddress: Address): Promise<number> {
-  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
-    return 0
-  }
-
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) return 0
   try {
     const count = await readContract(getWagmiConfig(), {
-      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
-      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
       functionName: 'getStreakCount',
       args: [userAddress],
     })
-
     return Number(count)
   } catch (error: any) {
     console.error('Error getting streak count:', error)
@@ -2130,18 +2108,14 @@ export async function getStreakCount(userAddress: Address): Promise<number> {
  * @returns True if user has an active streak (last cleanup within 7 days)
  */
 export async function hasActiveStreak(userAddress: Address): Promise<boolean> {
-  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
-    return false
-  }
-
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) return false
   try {
     const hasStreak = await readContract(getWagmiConfig(), {
-      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
-      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
       functionName: 'hasActiveStreak',
       args: [userAddress],
     })
-
     return Boolean(hasStreak)
   } catch (error: any) {
     console.error('Error checking active streak:', error)
@@ -2154,18 +2128,14 @@ export async function hasActiveStreak(userAddress: Address): Promise<boolean> {
  * Returns true if user already received referral reward (cannot use referral link again)
  */
 export async function hasReceivedReferralReward(userAddress: Address): Promise<boolean> {
-  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
-    return false
-  }
-
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) return false
   try {
     const hasReceived = await readContract(getWagmiConfig(), {
-      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
-      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
       functionName: 'hasReceivedReferralReward',
       args: [userAddress],
     })
-
     return Boolean(hasReceived)
   } catch (error: any) {
     console.error('Error checking referral reward status:', error)
@@ -2230,41 +2200,18 @@ export async function checkReferralEligibility(userAddress: Address): Promise<{ 
 }
 
 /**
- * Get verifier's actual $bDCU token earnings from bDCURewardDistributor
- * Returns the total tokens distributed to the verifier address
+ * Get verifier's $bDCU token equivalent from PointsRewardDistributor.
+ * Sums verifier PointsAwarded events, converts to bDCU via calculateClaimAmount.
  */
 export async function getVerifierTokenEarnings(verifierAddress: Address): Promise<string> {
-  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
-    console.warn('getVerifierTokenEarnings: BDCU_REWARD_DISTRIBUTOR address not set')
-    return '0'
-  }
-
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) return '0'
   try {
-    console.log('Fetching verifier token earnings for:', verifierAddress)
-    console.log('Using contract address:', CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR)
-    
-    const totalDistributed = await readContract(getWagmiConfig(), {
-      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
-      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
-      functionName: 'totalDistributed',
-      args: [verifierAddress],
-    })
-    
-    console.log('Raw totalDistributed value:', totalDistributed)
-    
-    // Convert from wei (18 decimals) to tokens
-    const { formatUnits } = await import('viem')
-    const formatted = formatUnits(totalDistributed as bigint, 18)
-    console.log('Formatted verifier earnings:', formatted)
-    return formatted
+    const breakdown = await getRewardsBreakdown(verifierAddress)
+    if (breakdown.verifierRewards <= 0) return '0'
+    const amt = await calculateClaimAmount(breakdown.verifierRewards)
+    return formatUnits(amt, 18)
   } catch (error: any) {
     console.error('Error fetching verifier token earnings:', error)
-    console.error('Error details:', {
-      message: error?.message,
-      code: error?.code,
-      name: error?.name,
-      cause: error?.cause,
-    })
     return '0'
   }
 }
@@ -2303,29 +2250,11 @@ export async function getTotalRewardsDistributed(userAddress: Address): Promise<
     }
   }
 
-  // Fallback to old token system
-  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
-    console.warn('getTotalRewardsDistributed: Neither POINTS_REWARD_DISTRIBUTOR nor BDCU_REWARD_DISTRIBUTOR address set')
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    console.warn('getTotalRewardsDistributed: POINTS_REWARD_DISTRIBUTOR address not set')
     return 0
   }
-
-  try {
-    const totalDistributed = await readContract(getWagmiConfig(), {
-      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
-      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
-      functionName: 'totalDistributed',
-      args: [userAddress],
-    })
-    
-    // Convert from wei (18 decimals) to tokens
-    const { formatUnits } = await import('viem')
-    const formatted = parseFloat(formatUnits(totalDistributed as bigint, 18))
-    console.log(`Total rewards distributed to ${userAddress}: ${formatted} $bDCU (from old contract)`)
-    return formatted
-  } catch (error: any) {
-    console.error('Error fetching total rewards distributed:', error)
-    return 0
-  }
+  return 0
 }
 
 /**
@@ -2416,415 +2345,30 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
         total,
       }
     } catch (error) {
-      console.warn('Error querying points system, falling back to old system:', error)
-      // Fall through to old system
+      console.warn('Error querying points system:', error)
     }
   }
 
-  // Fallback to old system
-  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
-    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, retroRewards: 0, total: 0 }
-  }
-
-  try {
-    const { createPublicClient, http } = await import('viem')
-    const { baseSepolia, base } = await import('viem/chains')
-    
-    const chain = REQUIRED_CHAIN_ID === 84532 ? baseSepolia : base
-    const publicClient = createPublicClient({
-      chain,
-      transport: http(REQUIRED_RPC_URL),
-    })
-
-    const distributorAddress = CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR
-    
-    // RPC has max block range of 100,000 blocks
-    // Query from the last 50,000 blocks to stay well within limits
-    // IMPORTANT: For new contracts, we need to query from deployment block
-    // Try to get deployment block from environment or use a safe range
-    let fromBlock = BigInt(0)
-    try {
-      const currentBlock = await publicClient.getBlockNumber()
-      
-      // Try to get deployment block from environment (if set)
-      const deploymentBlock = process.env.NEXT_PUBLIC_BDCU_DISTRIBUTOR_DEPLOYMENT_BLOCK
-      if (deploymentBlock) {
-        fromBlock = BigInt(deploymentBlock)
-        console.log(`Using deployment block from env: ${fromBlock}`)
-      } else {
-        // Use last 50k blocks as safe margin
-        const blockRange = BigInt(50000)
-        fromBlock = currentBlock > blockRange ? currentBlock - blockRange : BigInt(0)
-        console.log(`Current block: ${currentBlock}, querying from block: ${fromBlock} (last ${blockRange} blocks)`)
-      }
-    } catch (error) {
-      console.warn('Could not get current block number:', error)
-      fromBlock = BigInt(0)
-    }
-    
-    console.log(`Querying reward events for ${userAddress} from block ${fromBlock}...`)
-    console.log(`Contract address: ${distributorAddress}`)
-    
-    // Query all reward events (try with args filter first, fallback to no filter if that fails)
-    let levelLogs: any[] = []
-    let streakLogs: any[] = []
-    let referralLogs: any[] = []
-    let impactFormLogs: any[] = []
-    let verifierLogs: any[] = []
-    
-    try {
-      // Try with indexed args filter (more efficient)
-      const [levelLogsFiltered, streakLogsFiltered, referralLogsAll, impactFormLogsFiltered, verifierLogsFiltered] = await Promise.all([
-        publicClient.getLogs({
-          address: distributorAddress,
-          event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
-          args: { user: userAddress },
-          fromBlock,
-        }).catch((error: any) => {
-          if (error?.message?.includes('max block range')) {
-            console.warn('Block range too large for LevelRewardDistributed, trying from latest block only')
-            // Try from latest block only as fallback
-            return publicClient.getBlockNumber().then(async (currentBlock) => {
-              return publicClient.getLogs({
-                address: distributorAddress,
-                event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
-                args: { user: userAddress },
-                fromBlock: currentBlock - BigInt(50000), // Last 50k blocks
-              }).catch(() => [])
-            })
-          }
-          throw error
-        }),
-        publicClient.getLogs({
-          address: distributorAddress,
-          event: parseAbiItem('event StreakRewardDistributed(address indexed user, uint256 amount)'),
-          args: { user: userAddress },
-          fromBlock,
-        }).catch((error: any) => {
-          if (error?.message?.includes('max block range')) {
-            return publicClient.getBlockNumber().then(async (currentBlock) => {
-              return publicClient.getLogs({
-                address: distributorAddress,
-                event: parseAbiItem('event StreakRewardDistributed(address indexed user, uint256 amount)'),
-                args: { user: userAddress },
-                fromBlock: currentBlock - BigInt(50000),
-              }).catch(() => [])
-            })
-          }
-          throw error
-        }),
-        publicClient.getLogs({
-          address: distributorAddress,
-          event: parseAbiItem('event ReferralRewardDistributed(address indexed referrer, address indexed referee, uint256 amount)'),
-          fromBlock,
-        }).catch((error: any) => {
-          if (error?.message?.includes('max block range')) {
-            return publicClient.getBlockNumber().then(async (currentBlock) => {
-              return publicClient.getLogs({
-                address: distributorAddress,
-                event: parseAbiItem('event ReferralRewardDistributed(address indexed referrer, address indexed referee, uint256 amount)'),
-                fromBlock: currentBlock - BigInt(50000),
-              }).catch(() => [])
-            })
-          }
-          throw error
-        }),
-        publicClient.getLogs({
-          address: distributorAddress,
-          event: parseAbiItem('event ImpactFormRewardDistributed(address indexed user, uint256 cleanupId, uint256 amount)'),
-          args: { user: userAddress },
-          fromBlock,
-        }).catch((error: any) => {
-          if (error?.message?.includes('max block range')) {
-            return publicClient.getBlockNumber().then(async (currentBlock) => {
-              return publicClient.getLogs({
-                address: distributorAddress,
-                event: parseAbiItem('event ImpactFormRewardDistributed(address indexed user, uint256 cleanupId, uint256 amount)'),
-                args: { user: userAddress },
-                fromBlock: currentBlock - BigInt(50000),
-              }).catch(() => [])
-            })
-          }
-          throw error
-        }),
-        publicClient.getLogs({
-          address: distributorAddress,
-          event: parseAbiItem('event VerifierRewardDistributed(address indexed verifier, uint256 cleanupId, uint256 amount)'),
-          args: { verifier: userAddress },
-          fromBlock,
-        }).catch((error: any) => {
-          if (error?.message?.includes('max block range')) {
-            return publicClient.getBlockNumber().then(async (currentBlock) => {
-              return publicClient.getLogs({
-                address: distributorAddress,
-                event: parseAbiItem('event VerifierRewardDistributed(address indexed verifier, uint256 cleanupId, uint256 amount)'),
-                args: { verifier: userAddress },
-                fromBlock: currentBlock - BigInt(50000),
-              }).catch(() => [])
-            })
-          }
-          throw error
-        }),
-      ])
-      
-      levelLogs = levelLogsFiltered
-      streakLogs = streakLogsFiltered
-      impactFormLogs = impactFormLogsFiltered
-      verifierLogs = verifierLogsFiltered
-      
-      // Filter referral logs client-side (user can be referrer or referee)
-      const userLower = userAddress.toLowerCase()
-      referralLogs = referralLogsAll.filter((log: any) => {
-        const referrer = log.args?.referrer?.toLowerCase()
-        const referee = log.args?.referee?.toLowerCase()
-        return referrer === userLower || referee === userLower
-      })
-      
-      console.log(`Query with args filter succeeded`)
-    } catch (error: any) {
-      console.warn('Query with args filter failed:', error?.message)
-      
-      // If it's a block range error, try querying from a more recent block
-      // Also try querying ALL events (no user filter) and filter client-side as fallback
-      if (error?.message?.includes('max block range')) {
-        try {
-          const currentBlock = await publicClient.getBlockNumber()
-          const recentFromBlock = currentBlock > BigInt(50000) ? currentBlock - BigInt(50000) : BigInt(0)
-          console.log(`Retrying from recent block ${recentFromBlock} (last 50k blocks)`)
-          
-          // Try querying without user filter first (more likely to succeed, then filter client-side)
-          const [allLevelLogs, allStreakLogs, allReferralLogs, allImpactFormLogs, allVerifierLogs] = await Promise.all([
-            publicClient.getLogs({
-              address: distributorAddress,
-              event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
-              fromBlock: recentFromBlock,
-            }).catch((queryError: any) => {
-              // If that fails, try from block 0 (will handle max range in next catch)
-              console.log('Query without user filter failed, trying from block 0...', queryError?.message)
-              return publicClient.getLogs({
-                address: distributorAddress,
-                event: parseAbiItem('event LevelRewardDistributed(address indexed user, uint256 amount)'),
-                fromBlock: BigInt(0),
-              }).catch(() => {
-                console.warn('Query from block 0 also failed, returning empty array')
-                return []
-              })
-            }),
-            publicClient.getLogs({
-              address: distributorAddress,
-              event: parseAbiItem('event StreakRewardDistributed(address indexed user, uint256 amount)'),
-              fromBlock: recentFromBlock,
-            }),
-            publicClient.getLogs({
-              address: distributorAddress,
-              event: parseAbiItem('event ReferralRewardDistributed(address indexed referrer, address indexed referee, uint256 amount)'),
-              fromBlock: recentFromBlock,
-            }),
-            publicClient.getLogs({
-              address: distributorAddress,
-              event: parseAbiItem('event ImpactFormRewardDistributed(address indexed user, uint256 cleanupId, uint256 amount)'),
-              fromBlock: recentFromBlock,
-            }),
-            publicClient.getLogs({
-              address: distributorAddress,
-              event: parseAbiItem('event VerifierRewardDistributed(address indexed verifier, uint256 cleanupId, uint256 amount)'),
-              fromBlock: recentFromBlock,
-            }),
-          ])
-          
-          // Filter client-side
-          const userLower = userAddress.toLowerCase()
-          levelLogs = allLevelLogs.filter((log: any) => {
-            const logUser = log.args?.user?.toLowerCase()
-            const matches = logUser === userLower
-            if (matches) {
-              console.log('✅ Found level reward event in fallback query:', {
-                user: log.args?.user,
-                amount: log.args?.amount?.toString(),
-                blockNumber: log.blockNumber,
-                transactionHash: log.transactionHash,
-              })
-            }
-            return matches
-          })
-          streakLogs = allStreakLogs.filter((log: any) => log.args?.user?.toLowerCase() === userLower)
-          referralLogs = allReferralLogs.filter((log: any) => {
-            const referrer = log.args?.referrer?.toLowerCase()
-            const referee = log.args?.referee?.toLowerCase()
-            return referrer === userLower || referee === userLower
-          })
-          impactFormLogs = allImpactFormLogs.filter((log: any) => log.args?.user?.toLowerCase() === userLower)
-          verifierLogs = allVerifierLogs.filter((log: any) => log.args?.verifier?.toLowerCase() === userLower)
-          
-          console.log(`Query from recent block succeeded, found ${levelLogs.length} level reward events after filtering`)
-        } catch (recentError: any) {
-          console.error('Query from recent block also failed:', recentError)
-          // Return empty arrays - we'll show 0 but at least the page won't crash
-          levelLogs = []
-          streakLogs = []
-          referralLogs = []
-          impactFormLogs = []
-          verifierLogs = []
-        }
-      } else {
-        // Other error, throw it
-        throw error
-      }
-    }
-    
-    console.log(`Found events:`, {
-      levelLogs: levelLogs.length,
-      streakLogs: streakLogs.length,
-      referralLogs: referralLogs.length,
-      impactFormLogs: impactFormLogs.length,
-      verifierLogs: verifierLogs.length,
-    })
-    
-    // Debug: Log actual event data to help diagnose missing level rewards
-    if (levelLogs.length > 0) {
-      console.log('✅ Level reward events found:', levelLogs.map((log: any) => ({
-        user: log.args?.user,
-        amount: log.args?.amount?.toString(),
-        blockNumber: log.blockNumber,
-        transactionHash: log.transactionHash,
-      })))
-    } else {
-      console.warn('⚠️ No LevelRewardDistributed events found for user:', userAddress)
-      console.warn('Contract address:', distributorAddress)
-      console.warn('Query from block:', fromBlock.toString())
-      console.warn('This could mean:')
-      console.warn('1. Events were emitted from a different contract address')
-      console.warn('2. Events were emitted before the query block range')
-      console.warn('3. Contract address might be incorrect')
-    }
-    
-
-    // Calculate totals
-    // Each LevelRewardDistributed event = 1 cleanup that was claimed
-    const cleanupCount = levelLogs.length
-    const levelRewards = levelLogs.reduce((sum, log) => {
-      const amount = log.args.amount as bigint
-      return sum + parseFloat(formatUnits(amount, 18))
-    }, 0)
-
-    const streakRewards = streakLogs.reduce((sum, log) => {
-      const amount = log.args.amount as bigint
-      return sum + parseFloat(formatUnits(amount, 18))
-    }, 0)
-
-    const referralRewards = referralLogs.reduce((sum, log) => {
-      const amount = log.args.amount as bigint
-      return sum + parseFloat(formatUnits(amount, 18))
-    }, 0)
-
-    const impactFormRewards = impactFormLogs.reduce((sum, log) => {
-      const amount = log.args.amount as bigint
-      return sum + parseFloat(formatUnits(amount, 18))
-    }, 0)
-
-    const verifierRewards = verifierLogs.reduce((sum, log) => {
-      const amount = log.args.amount as bigint
-      return sum + parseFloat(formatUnits(amount, 18))
-    }, 0)
-
-    // If level rewards are missing but we have other rewards, try to calculate from totalDistributed
-    // This handles cases where level rewards were distributed from the old contract
-    let calculatedLevelRewards = levelRewards
-    if (levelRewards === 0 && (streakRewards > 0 || referralRewards > 0 || impactFormRewards > 0)) {
-      try {
-        const totalDistributed = await getTotalRewardsDistributed(userAddress)
-        const calculatedFromTotal = totalDistributed - streakRewards - referralRewards - impactFormRewards
-        if (calculatedFromTotal > 0) {
-          calculatedLevelRewards = calculatedFromTotal
-          // Note: getTotalRewardsDistributed returns DCU points from new system, or $bDCU tokens from old system
-          const rewardUnit = CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR ? 'DCU points' : '$bDCU'
-          console.log(`⚠️ Level rewards not found in events, but calculated from totalDistributed: ${calculatedLevelRewards} ${rewardUnit}`)
-          console.log(`   Total distributed: ${totalDistributed}, Other rewards: ${streakRewards + referralRewards + impactFormRewards}`)
-        }
-      } catch (error) {
-        console.warn('Could not calculate level rewards from totalDistributed:', error)
-      }
-    }
-
-    const total = calculatedLevelRewards + streakRewards + referralRewards + impactFormRewards + verifierRewards
-
-    console.log(`Rewards breakdown for ${userAddress}:`, {
-      cleanupCount,
-      levelLogs: levelLogs.length,
-      streakLogs: streakLogs.length,
-      referralLogs: referralLogs.length,
-      impactFormLogs: impactFormLogs.length,
-      verifierLogs: verifierLogs.length,
-      levelRewards,
-      streakRewards,
-      referralRewards,
-      impactFormRewards,
-      verifierRewards,
-      total,
-    })
-
-    // If no events found but we have a total from contract, log a warning
-    if (total === 0) {
-      console.warn(`No reward events found for ${userAddress}. This could mean:`)
-      console.warn(`1. Events weren't emitted (check contract)`)
-      console.warn(`2. RPC doesn't support querying from block 0`)
-      console.warn(`3. Contract address might be wrong: ${distributorAddress}`)
-    }
-
-    // Use calculated level rewards if we had to calculate them
-    const finalLevelRewards = calculatedLevelRewards
-    // Estimate cleanup count from level rewards (10 DCU points per cleanup)
-    const estimatedCleanupCount = calculatedLevelRewards > 0 && cleanupCount === 0 
-      ? Math.floor(calculatedLevelRewards / 10) 
-      : cleanupCount
-
-    return {
-      levelRewards: finalLevelRewards,
-      cleanupCount: estimatedCleanupCount,
-      streakRewards,
-      referralRewards,
-      impactFormRewards,
-      verifierRewards,
-      retroRewards: 0, // Old system doesn't have retro rewards
-      total,
-    }
-  } catch (error: any) {
-    console.error('Error fetching rewards breakdown:', error)
-    console.error('Error details:', {
-      message: error?.message,
-      code: error?.code,
-      name: error?.name,
-    })
-    return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, retroRewards: 0, total: 0 }
-  }
+  return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, retroRewards: 0, total: 0 }
 }
 
+
 /**
- * Check if VerificationContract is linked to bDCURewardDistributor
+ * Check if VerificationContract.rewardDistributor is set to PointsRewardDistributor
  */
 export async function checkVerificationContractLinked(): Promise<{ linked: boolean; verificationContractAddress: Address | null }> {
-  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+  if (!CONTRACT_ADDRESSES.VERIFICATION || !CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
     return { linked: false, verificationContractAddress: null }
   }
-
   try {
-    const verificationContractAddress = await readContract(getWagmiConfig(), {
-      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
-      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
-      functionName: 'verificationContract',
+    const rd = await readContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.VERIFICATION,
+      abi: VERIFICATION_ABI,
+      functionName: 'rewardDistributor',
     }) as Address
-
-    const isLinked = verificationContractAddress !== '0x0000000000000000000000000000000000000000' &&
-      verificationContractAddress.toLowerCase() === CONTRACT_ADDRESSES.VERIFICATION?.toLowerCase()
-
-    console.log('VerificationContract linking check:', {
-      linked: isLinked,
-      distributorAddress: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
-      verificationContractInDistributor: verificationContractAddress,
-      expectedVerificationContract: CONTRACT_ADDRESSES.VERIFICATION,
-    })
-
-    return { linked: isLinked, verificationContractAddress }
+    const isLinked = rd !== '0x0000000000000000000000000000000000000000' &&
+      rd.toLowerCase() === CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR.toLowerCase()
+    return { linked: isLinked, verificationContractAddress: CONTRACT_ADDRESSES.VERIFICATION }
   } catch (error) {
     console.error('Error checking VerificationContract link:', error)
     return { linked: false, verificationContractAddress: null }
@@ -2832,34 +2376,21 @@ export async function checkVerificationContractLinked(): Promise<{ linked: boole
 }
 
 /**
- * Check if bDCURewardDistributor has tokens (is funded)
- * 
- * Note: On mainnet, tokens are sent from multisig directly to this contract.
- * This function checks the contract's token balance.
+ * Check if PointsRewardDistributor has bDCU tokens (is funded).
+ * Tokens are sent from multisig to this contract.
  */
 export async function checkRewardDistributorFunded(): Promise<{ funded: boolean; balance: string }> {
-  if (!CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR) {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
     return { funded: false, balance: '0' }
   }
-
   try {
     const balance = await readContract(getWagmiConfig(), {
-      address: CONTRACT_ADDRESSES.BDCU_REWARD_DISTRIBUTOR,
-      abi: BDCU_REWARD_DISTRIBUTOR_ABI,
+      address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+      abi: POINTS_REWARD_DISTRIBUTOR_ABI,
       functionName: 'getContractBalance',
     }) as bigint
-
-    const { formatUnits } = await import('viem')
     const formattedBalance = formatUnits(balance, 18)
-    const isFunded = balance > BigInt(0)
-
-    console.log('Reward distributor funding check:', {
-      funded: isFunded,
-      balance: formattedBalance,
-      rawBalance: balance.toString(),
-    })
-
-    return { funded: isFunded, balance: formattedBalance }
+    return { funded: balance > BigInt(0), balance: formattedBalance }
   } catch (error) {
     console.error('Error checking reward distributor funding:', error)
     return { funded: false, balance: '0' }
@@ -2903,8 +2434,7 @@ export const POINTS_REWARD_DISTRIBUTOR_ABI = parseAbi([
  */
 export async function getDCUPointsBalance(userAddress: Address): Promise<number> {
   if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
-    console.warn('PointsRewardDistributor address not set, falling back to old system')
-    // Fallback to old system if new contract not deployed
+    console.warn('PointsRewardDistributor address not set, falling back to getPointsBalance (Points or localStorage)')
     return getPointsBalance(userAddress)
   }
 
@@ -3241,8 +2771,8 @@ export async function isUserVerifier(userAddress: Address): Promise<boolean> {
   }
 
   try {
-    // Use retry logic for RPC calls to handle network issues
-    // Force Base Sepolia RPC by creating a viem PublicClient directly
+    // Use retry logic for RPC calls to handle network issues.
+    // Use required chain RPC via viem PublicClient (Base mainnet or Base Sepolia).
     const requiredChain = getRequiredChain()
     if (!requiredChain) {
       console.warn('[isUserVerifier] Required chain not found, returning false')
@@ -3251,13 +2781,11 @@ export async function isUserVerifier(userAddress: Address): Promise<boolean> {
     
     const isVerifier = await retryWithTimeout(
       async () => {
-        // Create a viem PublicClient directly with Base Sepolia RPC to force correct endpoint
-        const sepoliaClient = createPublicClient({
+        const publicClient = createPublicClient({
           chain: requiredChain,
           transport: http(REQUIRED_RPC_URL),
         })
-        // Use viem's readContract directly with the Base Sepolia client
-        return await sepoliaClient.readContract({
+        return await publicClient.readContract({
           address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
           abi: POINTS_REWARD_DISTRIBUTOR_ABI,
           functionName: 'isVerifier',
@@ -3295,7 +2823,7 @@ export async function isUserVerifier(userAddress: Address): Promise<boolean> {
 
 /**
  * Get minimum level required for staking/claiming
- * @returns Minimum level (10)
+ * @returns Minimum level (3; was 10 before upgrade)
  */
 export async function getMinimumLevelForStaking(): Promise<number> {
   if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
@@ -3319,7 +2847,7 @@ export async function getMinimumLevelForStaking(): Promise<number> {
 /**
  * Check if user has minimum level to stake/claim
  * @param userAddress User's wallet address
- * @returns True if user has reached level 10
+ * @returns True if user has reached minimum level (3) for staking/claiming
  */
 export async function hasMinimumLevelForStaking(userAddress: Address): Promise<boolean> {
   if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {

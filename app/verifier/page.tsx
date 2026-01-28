@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, useSignMessage, useChainId, useSwitchChain } from 'wagmi'
+import { useAccount, useSignMessage, useChainId } from 'wagmi'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
@@ -26,7 +26,7 @@ import { getWagmiConfig, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUI
 import { WalletConnect } from '@/components/wallet/WalletConnect'
 import { getIPFSUrl, getIPFSFallbackUrls } from '@/lib/ipfs'
 import { findCleanupsByWallet } from '@/lib/find-cleanup-by-wallet'
-import { tryAddRequiredChain } from '@/lib/network'
+import { tryAddRequiredChain, attemptSwitchToRequiredChain as attemptSwitchToRequiredChainLib } from '@/lib/network'
 import { getCurrentChainIdCached } from '@/lib/chain-detection'
 
 const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.pinata.cloud/ipfs/'
@@ -55,8 +55,10 @@ interface CleanupItem {
   rejected: boolean
   level: number
   referrer: Address
-  hasImpactForm: boolean
-  impactReportHash: string
+  /** @deprecated Unused; impact report removed from app. Kept for getCleanup return shape. */
+  hasImpactForm?: boolean
+  /** @deprecated Unused; impact report removed from app. Kept for getCleanup return shape. */
+  impactReportHash?: string
 }
 
 
@@ -72,7 +74,6 @@ export default function VerifierPage() {
   
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
-  const { switchChain, isPending: isSwitchingNetwork } = useSwitchChain()
   const router = useRouter()
   const { sendWithBuilderCode } = useBuilderCodeAttribution()
   const { isMiniApp } = useFarcaster()
@@ -89,19 +90,19 @@ export default function VerifierPage() {
   const [signingAddress, setSigningAddress] = useState<Address | null>(null)
   const [pollingStatus, setPollingStatus] = useState<{ cleanupId: bigint | null; count: number } | null>(null)
   const [expandedForms, setExpandedForms] = useState<Set<string>>(new Set())
-  const [impactDataMap, setImpactDataMap] = useState<Map<string, any>>(new Map())
   const [activeTx, setActiveTx] = useState<{ cleanupId: bigint; hash: `0x${string}` } | null>(null)
   const [searchWallet, setSearchWallet] = useState<string>('')
   const [searching, setSearching] = useState(false)
   const [searchResults, setSearchResults] = useState<Array<{ cleanupId: bigint; verified: boolean; claimed: boolean; level: number; user: Address }>>([])
   const [isLoadingCleanups, setIsLoadingCleanups] = useState(false)
   const [isAddingNetwork, setIsAddingNetwork] = useState(false)
+  const [switchingNetwork, setSwitchingNetwork] = useState(false)
   const [copiedNetworkDetails, setCopiedNetworkDetails] = useState(false)
   const [ensNames, setEnsNames] = useState<Map<string, string>>(new Map())
   const [verifierStats, setVerifierStats] = useState<{
     totalVerified: number
     verifierEarned: string
-    totalEarnings: string // All rewards combined (verifier + level + impact form + referral + streak)
+    totalEarnings: string // All rewards combined (verifier + level + referral + streak)
     isLoading: boolean
   }>({
     totalVerified: 0,
@@ -119,61 +120,9 @@ export default function VerifierPage() {
       chainId !== REQUIRED_CHAIN_ID
   )
 
-  const attemptSwitchToRequiredChain = async (context: string) => {
-    if (!switchChain) {
-      throw new Error(
-        `Automatic network switching is not supported by this wallet. Please switch to ${REQUIRED_CHAIN_NAME} manually:\n\n${NETWORK_DETAILS}`
-      )
-    }
-
-    try {
-      // Clear cache before switch
-      const { clearChainIdCache } = await import('@/lib/chain-detection')
-      clearChainIdCache()
-      
-      await switchChain({ chainId: REQUIRED_CHAIN_ID })
-      
-      // Wait longer on Safari iOS for chain switch to complete
-      const isSafariIOS = typeof window !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent) && /Safari/i.test(navigator.userAgent)
-      const waitTime = isSafariIOS ? 1500 : 800
-      await new Promise(resolve => setTimeout(resolve, waitTime))
-      
-      // Clear cache again after switch
-      clearChainIdCache()
-    } catch (error: any) {
-      console.warn(`[${context}] switchChain failed:`, error)
-      const message = (error?.message || '').toLowerCase()
-      const requiresImport =
-        message.includes('not configured') ||
-        message.includes('unrecognized chain') ||
-        message.includes('unknown chain') ||
-        error?.code === 4902
-
-      if (requiresImport) {
-        const added = await tryAddRequiredChain()
-        if (added) {
-          await new Promise(resolve => setTimeout(resolve, 1200))
-          try {
-            await switchChain({ chainId: REQUIRED_CHAIN_ID })
-            await new Promise(resolve => setTimeout(resolve, 500))
-            return
-          } catch (retryError) {
-            console.warn(`[${context}] Retry switch after add failed:`, retryError)
-          }
-        }
-        throw new Error(
-          `${REQUIRED_CHAIN_NAME} is not configured in your wallet. Please add it manually:\n\n${NETWORK_DETAILS}`
-        )
-      }
-
-      if (message.includes('rejected')) {
-        throw new Error('Network switch was rejected. Approve the prompt in your wallet or switch manually.')
-      }
-
-      throw new Error(
-        `Unable to switch to ${REQUIRED_CHAIN_NAME}. Please switch manually and try again.\n\n${NETWORK_DETAILS}`
-      )
-    }
+  const attemptSwitchToRequiredChain = async (_context: string) => {
+    const { success } = await attemptSwitchToRequiredChainLib()
+    if (!success) throw new Error('Could not switch to required chain. Please switch manually in your wallet.')
   }
 
   const ensureCorrectNetwork = async (context: string) => {
@@ -239,10 +188,13 @@ export default function VerifierPage() {
   }
 
   const handleNetworkBannerSwitch = async () => {
+    setSwitchingNetwork(true)
     try {
       await ensureCorrectNetwork('network banner')
     } catch (error: any) {
       alert(error?.message || String(error))
+    } finally {
+      setSwitchingNetwork(false)
     }
   }
 
@@ -278,10 +230,10 @@ export default function VerifierPage() {
               <Button
                 size="sm"
                 onClick={handleNetworkBannerSwitch}
-                disabled={isSwitchingNetwork}
+                disabled={switchingNetwork}
                 className="bg-brand-green text-black hover:bg-brand-green/90"
               >
-                {isSwitchingNetwork ? 'Switching…' : `Switch to ${REQUIRED_CHAIN_NAME}`}
+                {switchingNetwork ? 'Switching…' : `Switch to ${REQUIRED_CHAIN_NAME}`}
               </Button>
               <Button
                 size="sm"
@@ -340,45 +292,6 @@ export default function VerifierPage() {
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVerifier])
-
-  // Preload impact data for all cleanups with impact reports (so permissions are visible)
-  useEffect(() => {
-    if (cleanups.length === 0) return
-
-    async function preloadImpactData() {
-      for (const cleanup of cleanups) {
-        if (cleanup.impactReportHash && !impactDataMap.has(cleanup.impactReportHash)) {
-          try {
-            // Clean the hash - remove ipfs:// prefix if present
-            const cleanHash = cleanup.impactReportHash.replace(/^ipfs:\/\//, '').trim()
-            if (!cleanHash || cleanHash.length === 0) continue
-            
-            const url = getIPFSUrl(cleanHash)
-            if (!url) continue // Skip if URL is null
-            
-            const response = await fetch(url, {
-              mode: 'cors',
-              cache: 'no-cache',
-            })
-            if (response.ok) {
-              const data = await response.json()
-              setImpactDataMap(prev => {
-                const newMap = new Map(prev)
-                newMap.set(cleanup.impactReportHash, data)
-                return newMap
-              })
-            }
-          } catch (error) {
-            // Silently fail - will load when form is expanded
-            console.debug('Could not preload impact data for cleanup', cleanup.id.toString(), error)
-          }
-        }
-      }
-    }
-
-    preloadImpactData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cleanups]) // Only depend on isVerifier, not loading
 
   // Fetch ENS names for all unique addresses in cleanups
   useEffect(() => {
@@ -448,7 +361,7 @@ export default function VerifierPage() {
         const verifiedCount = cleanups.filter(c => c.verified || c.rejected).length
         
         // Calculate verifier rewards separately (1 $bDCU per verification)
-        // Note: totalDistributed[address] includes ALL rewards (verifier + level + impact form + referral + streak)
+        // Note: totalDistributed[address] includes ALL rewards (verifier + level + referral + streak)
         // So we calculate verifier rewards separately based on verification count
         const verifierRewardsOnly = verifiedCount * 1 // 1 $bDCU per verification
         const verifierEarned = verifierRewardsOnly.toFixed(2)
@@ -466,7 +379,7 @@ export default function VerifierPage() {
             const totalEarningsNum = parseFloat(totalEarningsFromContract)
             if (totalEarningsNum > verifierRewardsOnly) {
               const otherRewards = totalEarningsNum - verifierRewardsOnly
-              console.log(`Verifier rewards: ${verifierRewardsOnly} $bDCU, Other rewards: ${otherRewards.toFixed(2)} $bDCU (level claims, impact forms, referrals, streaks)`)
+              console.log(`Verifier rewards: ${verifierRewardsOnly} $bDCU, Other rewards: ${otherRewards.toFixed(2)} $bDCU (level claims, referrals, streaks)`)
             }
           } catch (error) {
             console.error('Error fetching total earnings:', error)
@@ -681,7 +594,7 @@ export default function VerifierPage() {
           }
           retries++
           if (retries >= 10) {
-            throw new Error('Chain switch is taking too long. Please ensure you switched to Base Sepolia in your wallet.')
+            throw new Error(`Chain switch is taking too long. Please ensure you switched to ${REQUIRED_CHAIN_NAME} in your wallet.`)
           }
         }
       } catch (switchError: any) {
@@ -1100,274 +1013,6 @@ export default function VerifierPage() {
     return 'Unassigned'
   }
 
-
-  // Component to fetch and display impact report details from IPFS
-  function ImpactReportDetails({ impactReportHash }: { impactReportHash?: string | null }) {
-    const [impactData, setImpactData] = useState<any>(null)
-    const [impactDataUrl, setImpactDataUrl] = useState<string | null>(null)
-    // Use a unique key based on hash to persist expanded state per cleanup
-    const expandedKey = `impact_expanded_${impactReportHash}`
-    const [expanded, setExpanded] = useState(() => {
-      if (typeof window === 'undefined') return false
-      try {
-        return localStorage.getItem(expandedKey) === 'true'
-      } catch {
-        return false
-      }
-    })
-    
-    // Persist expanded state to localStorage
-    const toggleExpanded = (newValue: boolean) => {
-      setExpanded(newValue)
-      try {
-        if (newValue) {
-          localStorage.setItem(expandedKey, 'true')
-        } else {
-          localStorage.removeItem(expandedKey)
-        }
-      } catch (e) {
-        console.warn('Failed to save expanded state:', e)
-      }
-    }
-
-    useEffect(() => {
-      async function fetchImpactData() {
-        if (!impactReportHash || expanded === false) {
-          return // Only fetch when expanded
-        }
-        
-        // Check if we already have this data cached
-        if (impactDataMap.has(impactReportHash)) {
-          setImpactData(impactDataMap.get(impactReportHash))
-          return
-        }
-        
-        try {
-          const { getIPFSUrl, getIPFSFallbackUrls } = await import('@/lib/ipfs')
-          
-          // Clean the hash - remove ipfs:// prefix if present
-          const cleanHash = impactReportHash.replace(/^ipfs:\/\//, '').trim()
-          if (!cleanHash || cleanHash.length === 0) {
-            return
-          }
-          
-          const primaryUrl = getIPFSUrl(cleanHash)
-          const fallbackUrls = getIPFSFallbackUrls(cleanHash)
-          
-          // Filter out null values and combine URLs
-          const urls = [primaryUrl, ...fallbackUrls].filter((url): url is string => url !== null)
-          
-          if (urls.length === 0) {
-            return
-          }
-          
-          setImpactDataUrl(urls[0])
-          
-          // Try each gateway until one works
-          let data: any = null
-          for (const url of urls) {
-            if (!url) continue
-            try {
-              const response = await fetch(url, { 
-                mode: 'cors',
-                cache: 'no-cache',
-                headers: {
-                  'Accept': 'application/json',
-                }
-              })
-              if (response.ok) {
-                data = await response.json()
-                break
-              }
-            } catch (err) {
-              continue
-            }
-          }
-          
-          if (data) {
-            setImpactData(data)
-            // Store in map for easy access
-            setImpactDataMap(prev => {
-              const newMap = new Map(prev)
-              newMap.set(impactReportHash, data)
-              return newMap
-            })
-          }
-        } catch (err) {
-          console.error('Error fetching impact report data:', err)
-        }
-      }
-
-      if (expanded) {
-        fetchImpactData()
-      }
-    }, [impactReportHash, expanded])
-
-    // Simple indicator - just show if submitted or not
-    if (!impactReportHash || impactReportHash.trim() === '') {
-      return (
-        <div className="mt-3 rounded-xl border border-gray-500/30 bg-gray-500/10 p-3 text-sm">
-          <p className="font-semibold text-gray-400">Impact Report: Not submitted</p>
-        </div>
-      )
-    }
-
-    if (!expanded) {
-      return (
-        <div className="mt-3 rounded-xl border border-green-500/30 bg-green-500/10 p-3 text-sm">
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-green-300">Impact Report: Submitted</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toggleExpanded(true)}
-              className="border-green-500/60 text-green-200 hover:bg-green-500/20"
-            >
-              View Details
-            </Button>
-          </div>
-        </div>
-      )
-    }
-
-    if (!impactData) {
-      return (
-        <div className="mt-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-sm">
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-green-300">Impact Report: Submitted</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toggleExpanded(false)}
-              className="border-green-500/60 text-green-200 hover:bg-green-500/20"
-            >
-              Hide Details
-            </Button>
-          </div>
-          <p className="mt-2 text-gray-300">Loading details…</p>
-        </div>
-      )
-    }
-
-    return (
-      <div className="mt-3 rounded-xl border border-green-500/40 bg-green-500/5 p-4 text-sm text-gray-100">
-        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-semibold uppercase tracking-wide text-green-300">Impact Report Details</p>
-          <div className="flex items-center gap-2">
-            {impactDataUrl && (
-              <a
-                href={impactDataUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-green-200 underline hover:text-green-100"
-              >
-                View raw IPFS JSON
-              </a>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toggleExpanded(false)}
-              className="border-green-500/60 text-green-200 hover:bg-green-500/20"
-            >
-              Hide Details
-            </Button>
-          </div>
-        </div>
-
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {impactData.locationType && (
-            <div>
-              <dt className="text-xs uppercase text-gray-400">Location Type</dt>
-              <dd className="text-base text-white">{impactData.locationType}</dd>
-            </div>
-          )}
-          {impactData.area && (
-            <div>
-              <dt className="text-xs uppercase text-gray-400">Area Cleaned</dt>
-              <dd className="text-base text-white">
-                {impactData.area} {impactData.areaUnit === 'sqm' ? 'm²' : 'ft²'}
-              </dd>
-            </div>
-          )}
-          {impactData.weight && (
-            <div>
-              <dt className="text-xs uppercase text-gray-400">Weight Removed</dt>
-              <dd className="text-base text-white">
-                {impactData.weight} {impactData.weightUnit}
-              </dd>
-            </div>
-          )}
-          {impactData.bags && (
-            <div>
-              <dt className="text-xs uppercase text-gray-400">Bags Filled</dt>
-              <dd className="text-base text-white">{impactData.bags}</dd>
-            </div>
-          )}
-          {(impactData.hours || impactData.minutes) && (
-            <div>
-              <dt className="text-xs uppercase text-gray-400">Time Spent</dt>
-              <dd className="text-base text-white">
-                {impactData.hours || 0}h {impactData.minutes || 0}m
-              </dd>
-            </div>
-          )}
-          {impactData.wasteTypes && impactData.wasteTypes.length > 0 && (
-            <div>
-              <dt className="text-xs uppercase text-gray-400">Waste Types</dt>
-              <dd className="text-base text-white">{impactData.wasteTypes.join(', ')}</dd>
-            </div>
-          )}
-          {impactData.contributors && impactData.contributors.length > 0 && (
-            <div className="sm:col-span-2">
-              <dt className="text-xs uppercase text-gray-400">Contributors</dt>
-              <dd className="mt-1 space-y-1">
-                {impactData.contributors.map((contributor: string, index: number) => (
-                  <div key={index} className="font-mono text-sm text-white">
-                    {contributor}
-                  </div>
-                ))}
-              </dd>
-            </div>
-          )}
-          {impactData.scopeOfWork && (
-            <div className="sm:col-span-2">
-              <dt className="text-xs uppercase text-gray-400">Scope of Work</dt>
-              <dd className="text-base text-white">{impactData.scopeOfWork}</dd>
-            </div>
-          )}
-          {impactData.rightsAssignment && (
-            <div>
-              <dt className="text-xs uppercase text-gray-400">Rights Assignment</dt>
-              <dd className="text-base text-white">{impactData.rightsAssignment}</dd>
-            </div>
-          )}
-          {impactData.environmentalChallenges && (
-            <div className="sm:col-span-2">
-              <dt className="text-xs uppercase text-gray-400">Environmental Challenges</dt>
-              <dd className="text-base text-white">{impactData.environmentalChallenges}</dd>
-            </div>
-          )}
-          {impactData.preventionIdeas && (
-            <div className="sm:col-span-2">
-              <dt className="text-xs uppercase text-gray-400">Prevention Suggestions</dt>
-              <dd className="text-base text-white">{impactData.preventionIdeas}</dd>
-            </div>
-          )}
-          {impactData.additionalNotes && (
-            <div className="sm:col-span-2">
-              <dt className="text-xs uppercase text-gray-400">Additional Notes</dt>
-              <dd className="text-base text-white whitespace-pre-wrap">{impactData.additionalNotes}</dd>
-            </div>
-          )}
-        </dl>
-
-        <p className="mt-4 text-xs text-gray-400">
-          * Impact report data is self-reported; verify details against the provided photos before approving.
-        </p>
-      </div>
-    )
-  }
 
   const pendingCleanups = cleanups.filter((c) => !c.verified && !c.rejected)
   const verifiedCleanups = cleanups.filter((c) => c.verified)
@@ -1790,28 +1435,11 @@ export default function VerifierPage() {
                             <AddressDisplay address={cleanup.referrer} />
                           </div>
                         )}
-                        {cleanup.hasImpactForm && (
-                          <div className="text-xs text-green-400">
-                            ✓ Enhanced impact form submitted
-                          </div>
-                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <div className="mb-2 flex items-center gap-2 text-xs text-gray-400">
-                          <span>Before Photo</span>
-                          {(() => {
-                            const impactData = cleanup.impactReportHash ? impactDataMap.get(cleanup.impactReportHash) : null
-                            const allowed = impactData?.beforePhotoAllowed
-                            if (allowed === true) {
-                              return <CheckCircle className="h-4 w-4 text-green-400" aria-label="User allowed use of this image" />
-                            } else if (allowed === false) {
-                              return <XCircle className="h-4 w-4 text-red-400" aria-label="User did not allow use of this image" />
-                            }
-                            return null
-                          })()}
-                        </div>
+                        <div className="mb-2 text-xs text-gray-400">Before Photo</div>
                         {getIPFSUrl(cleanup.beforePhotoHash) ? (
                           <a
                             href={getIPFSUrl(cleanup.beforePhotoHash)!}
@@ -1845,24 +1473,6 @@ export default function VerifierPage() {
                                 }
                               }}
                             />
-                            {(() => {
-                              const impactData = cleanup.impactReportHash ? impactDataMap.get(cleanup.impactReportHash) : null
-                              const allowed = impactData?.beforePhotoAllowed
-                              if (allowed === true) {
-                                return (
-                                  <div className="absolute right-2 top-2 rounded-full bg-green-500/90 p-1.5" title="Allowed for social media">
-                                    <CheckCircle className="h-4 w-4 text-white" />
-                                  </div>
-                                )
-                              } else if (allowed === false) {
-                                return (
-                                  <div className="absolute right-2 top-2 rounded-full bg-red-500/90 p-1.5" title="Not allowed for social media">
-                                    <XCircle className="h-4 w-4 text-white" />
-                                  </div>
-                                )
-                              }
-                              return null
-                            })()}
                           </a>
                         ) : (
                           <div className="flex h-32 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-xs text-gray-500">
@@ -1871,19 +1481,7 @@ export default function VerifierPage() {
                         )}
                       </div>
                       <div>
-                        <div className="mb-2 flex items-center gap-2 text-xs text-gray-400">
-                          <span>After Photo</span>
-                          {(() => {
-                            const impactData = cleanup.impactReportHash ? impactDataMap.get(cleanup.impactReportHash) : null
-                            const allowed = impactData?.afterPhotoAllowed
-                            if (allowed === true) {
-                              return <CheckCircle className="h-4 w-4 text-green-400" aria-label="User allowed use of this image" />
-                            } else if (allowed === false) {
-                              return <XCircle className="h-4 w-4 text-red-400" aria-label="User did not allow use of this image" />
-                            }
-                            return null
-                          })()}
-                        </div>
+                        <div className="mb-2 text-xs text-gray-400">After Photo</div>
                         {getIPFSUrl(cleanup.afterPhotoHash) ? (
                           <a
                             href={getIPFSUrl(cleanup.afterPhotoHash)!}
@@ -1917,24 +1515,6 @@ export default function VerifierPage() {
                                 }
                               }}
                             />
-                            {(() => {
-                              const impactData = cleanup.impactReportHash ? impactDataMap.get(cleanup.impactReportHash) : null
-                              const allowed = impactData?.afterPhotoAllowed
-                              if (allowed === true) {
-                                return (
-                                  <div className="absolute right-2 top-2 rounded-full bg-green-500/90 p-1.5" title="Allowed for social media">
-                                    <CheckCircle className="h-4 w-4 text-white" />
-                                  </div>
-                                )
-                              } else if (allowed === false) {
-                                return (
-                                  <div className="absolute right-2 top-2 rounded-full bg-red-500/90 p-1.5" title="Not allowed for social media">
-                                    <XCircle className="h-4 w-4 text-white" />
-                                  </div>
-                                )
-                              }
-                              return null
-                            })()}
                           </a>
                         ) : (
                           <div className="flex h-32 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-xs text-gray-500">
@@ -1943,11 +1523,6 @@ export default function VerifierPage() {
                         )}
                       </div>
                     </div>
-                  </div>
-                  
-                  {/* Impact Report Section - Always show, even if not submitted */}
-                  <div className="mt-4">
-                    <ImpactReportDetails impactReportHash={cleanup.impactReportHash} />
                   </div>
                   
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2089,11 +1664,6 @@ export default function VerifierPage() {
                           <MapPin className="h-4 w-4" />
                           <span>{formatCoordinates(cleanup.latitude, cleanup.longitude)}</span>
                         </div>
-                        {cleanup.hasImpactForm && (
-                          <div className="text-xs text-gray-500">
-                            Enhanced impact form submitted
-                          </div>
-                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -2182,19 +1752,6 @@ export default function VerifierPage() {
                         )}
                       </div>
                     </div>
-                  </div>
-                  {cleanup.hasImpactForm && (
-                    <div className="mt-4 rounded-lg border border-green-500/30 bg-green-500/5 p-3">
-                      <div className="flex items-center gap-2 text-sm text-green-400">
-                        <CheckCircle className="h-4 w-4" />
-                        <span className="font-semibold">Enhanced impact form submitted</span>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Impact Report Section for Rejected Cleanups - Always show */}
-                  <div className="mt-4">
-                    <ImpactReportDetails impactReportHash={cleanup.impactReportHash} />
                   </div>
                   
                   <div className="mt-4 rounded-lg border border-red-500/30 bg-red-500/5 p-3">

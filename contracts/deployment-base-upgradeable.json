@@ -1,0 +1,19 @@
+{
+  "network": "base",
+  "chainId": "8453",
+  "timestamp": "2026-01-28T12:09:57.535Z",
+  "deployer": "0xc1dDd385E3cb1E7F8A31DaE528641B6550a952Bb",
+  "contracts": {
+    "PointsRewardDistributor": "0x492065137E07c660DCfAe4dC335A3Fa9C1203dd9",
+    "ImpactProductNFT": "0x8D71Cd7445423CD42293E196B91E47f085E81BCf",
+    "VerificationContract": "0x69715d43EA6D46F65045FCe2391D9B7F89ec819F",
+    "bDCUToken": "0x30171b7014c02229497cde6745dd3ad821f12b07"
+  },
+  "configuration": {
+    "initialTokenPrice": "77",
+    "feeTreasury": "0x986913D1FB38AD0685Ba2d8C10a28B7b962c38d9",
+    "initialVerifiers": [
+      "0xc1dDd385E3cb1E7F8A31DaE528641B6550a952Bb"
+    ]
+  }
+}

@@ -7,7 +7,7 @@ import { Address } from 'viem'
  * 
  * How it works:
  * 1. $bDCU tokens are distributed automatically by bDCURewardDistributor contract
- * 2. When rewards are distributed (level claim, streak, referral, impact form, verifier rewards),
+ * 2. When rewards are distributed (level claim, streak, referral, verifier rewards),
  *    the bDCURewardDistributor transfers $bDCU tokens directly to the user's wallet
  * 3. User's $bDCU balance = their ERC20 token balance in the $bDCU token contract
  * 4. Tokens use 18 decimals (standard ERC-20)
@@ -43,7 +43,6 @@ export async function getPointsBalance(userAddress: Address): Promise<number> {
  * Add points to user's balance
  * This should be called when:
  * - Cleanup is verified (base reward)
- * - Enhanced impact form is submitted (+5 points)
  * - Referral is verified (+3 points)
  */
 export async function addPoints(
@@ -104,7 +103,6 @@ export async function getStakedPoints(userAddress: Address): Promise<number> {
 export const POINTS_REWARDS = {
   LEVEL_REWARD: 10, // 10 points per level
   STREAK_REWARD: 2, // 2 points per week streak
-  IMPACT_FORM_REWARD: 5, // 5 points for enhanced impact form
   BASE_CLEANUP_REWARD: 10, // 10 points per verified cleanup (adjust as needed)
 } as const
 
@@ -113,13 +111,6 @@ export const POINTS_REWARDS = {
  */
 export async function addCleanupReward(userAddress: Address): Promise<number> {
   return addPoints(userAddress, POINTS_REWARDS.BASE_CLEANUP_REWARD, 'verified_cleanup')
-}
-
-/**
- * Add points for enhanced impact form
- */
-export async function addImpactFormReward(userAddress: Address): Promise<number> {
-  return addPoints(userAddress, POINTS_REWARDS.IMPACT_FORM_REWARD, 'enhanced_impact_form')
 }
 
 /**

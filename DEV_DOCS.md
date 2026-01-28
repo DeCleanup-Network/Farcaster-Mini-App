@@ -118,7 +118,7 @@ npm run generate:metadata
 | Level Claim | 10 $bDCU |
 | Weekly Streak | 2 $bDCU |
 | Referral | 3 $bDCU (both parties) |
-| Impact Form | 5 $bDCU |
+| Impact Form | 5 $bDCU *(deprecated; app no longer submits impact report)* |
 | Verification | 1 $bDCU |
 
 ---

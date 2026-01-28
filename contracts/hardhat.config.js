@@ -1,6 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("@openzeppelin/hardhat-upgrades");
-require("dotenv").config();
+require("dotenv").config({ path: require("path").join(__dirname, ".env") });
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -28,12 +28,16 @@ module.exports = {
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 8453,
     },
-    // Legacy networks (for backward compatibility)
     sepolia: {
       url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 84532,
     },
+  },
+  etherscan: {
+    // Single string = Etherscan API V2 (https://api.etherscan.io/v2/api); works for Base and 60+ chains.
+    // Get key: https://etherscan.io/apidashboard — object form { base: "..." } uses deprecated V1.
+    apiKey: process.env.ETHERSCAN_API_KEY || process.env.BASESCAN_API_KEY || "",
   },
   // Using Hardhat defaults - contracts are in ./contracts/ subdirectory
   // This automatically excludes node_modules

@@ -125,8 +125,8 @@ contract VerificationContract is Initializable, OwnableUpgradeable, ReentrancyGu
      * @param latitude Latitude (scaled by 1e6)
      * @param longitude Longitude (scaled by 1e6)
      * @param referrerAddress Referrer address (optional, can be address(0))
-     * @param hasImpactForm Whether enhanced impact form was filled
-     * @param impactReportHash IPFS hash of enhanced impact report (can be empty)
+     * @param hasImpactForm Whether enhanced impact form was filled (app always passes false; impact report removed from app flow)
+     * @param impactReportHash IPFS hash of enhanced impact report (app always passes ""; impact report removed from app flow)
      * @return cleanupId The cleanup ID
      */
     function submitCleanup(

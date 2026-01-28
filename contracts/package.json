@@ -5,17 +5,11 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy:baseSepolia": "hardhat run scripts/deploy.js --network baseSepolia",
-    "deploy:base": "hardhat run scripts/deploy.js --network base",
-    "setup:baseSepolia": "hardhat run scripts/setup.js --network baseSepolia",
-    "setup:base": "hardhat run scripts/setup.js --network base",
-    "add-verifier:baseSepolia": "hardhat run scripts/addVerifier.js --network baseSepolia",
-    "redeploy:baseSepolia": "hardhat run scripts/redeploy.js --network baseSepolia",
-    "redeploy-two:baseSepolia": "hardhat run scripts/redeployTwo.js --network baseSepolia",
-    "deploy:testToken:baseSepolia": "hardhat run scripts/deployTestToken.js --network baseSepolia",
-    "transfer:testTokens:baseSepolia": "hardhat run scripts/transferTokensToDistributor.js --network baseSepolia",
-    "redeploy:bdcuDistributor:baseSepolia": "hardhat run scripts/redeployBDCURewardDistributor.js --network baseSepolia",
-    "redeploy:verification:baseSepolia": "hardhat run scripts/redeployVerificationWithVerifierRewards.js --network baseSepolia"
+    "deploy:base": "hardhat run scripts/deployUpgradeable.js --network base",
+    "deploy:baseSepolia": "hardhat run scripts/deployUpgradeable.js --network baseSepolia",
+    "verify:basescan": "hardhat run scripts/verify-on-basescan.js --network base",
+    "upgrade:pointsDistributor:base": "hardhat run scripts/upgradePointsRewardDistributor.js --network base",
+    "upgrade:pointsDistributor:baseSepolia": "hardhat run scripts/upgradePointsRewardDistributor.js --network baseSepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",

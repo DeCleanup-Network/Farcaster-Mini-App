@@ -1,27 +1,36 @@
 const { ethers, upgrades } = require("hardhat");
+const hre = require("hardhat");
+const path = require("path");
 require("dotenv").config();
 
+const MAINNET_BDCU = "0x30171b7014c02229497cde6745dd3ad821f12b07";
+const TESTNET_BDCU = "0x85162f919Bf8cd09B8046F8EAd2ecD434841e044";
+
 /**
- * Deploy all upgradeable contracts to Base Sepolia
+ * Deploy all upgradeable contracts to Base Sepolia or Base Mainnet
  * 
- * This script deploys:
- * 1. PointsRewardDistributor (upgradeable proxy)
- * 2. ImpactProductNFT (upgradeable proxy)
- * 3. VerificationContract (upgradeable proxy)
+ * Deploys: PointsRewardDistributor, ImpactProductNFT, VerificationContract
+ * Links them and sets fee treasury.
  * 
- * Then links them together and sets up initial configuration
+ * Mainnet: set BDCU_TOKEN_ADDRESS=0x30171b7014c02229497cde6745dd3ad821f12b07
+ * Run: npx hardhat run scripts/deployUpgradeable.js --network base
  */
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  console.log("Deploying contracts with account:", deployer.address);
+  const net = hre.network.name;
+  console.log("Deploying to network:", net);
+  console.log("Deployer:", deployer.address);
   console.log("Account balance:", (await ethers.provider.getBalance(deployer.address)).toString());
   console.log("");
 
-  // Get contract addresses from environment or use defaults
   const BDCU_TOKEN_ADDRESS = process.env.BDCU_TOKEN_ADDRESS || 
                                process.env.TEST_BDCU_TOKEN_ADDRESS || 
-                               "0x85162f919Bf8cd09B8046F8EAd2ecD434841e044"; // Default Base Sepolia testnet token
+                               (net === "base" ? MAINNET_BDCU : TESTNET_BDCU);
+
+  if (net === "base" && BDCU_TOKEN_ADDRESS.toLowerCase() === TESTNET_BDCU.toLowerCase()) {
+    throw new Error("Base mainnet requires mainnet bDCU. Set BDCU_TOKEN_ADDRESS=0x30171b7014c02229497cde6745dd3ad821f12b07");
+  }
 
   const INITIAL_TOKEN_PRICE = process.env.INITIAL_TOKEN_PRICE || "77"; // 8 decimals, $0.00000077
   const FEE_TREASURY = process.env.FEE_TREASURY || "0x986913D1FB38AD0685Ba2d8C10a28B7b962c38d9";
@@ -158,10 +167,10 @@ async function main() {
   console.log("  3. Test all functions");
   console.log("");
 
-  // Save addresses to a file for easy reference
   const fs = require("fs");
   const deploymentInfo = {
-    network: "baseSepolia",
+    network: net,
+    chainId: net === "base" ? "8453" : "84532",
     timestamp: new Date().toISOString(),
     deployer: deployer.address,
     contracts: {
@@ -176,12 +185,10 @@ async function main() {
       initialVerifiers: INITIAL_VERIFIERS
     }
   };
-  
-  fs.writeFileSync(
-    "contracts/deployment-baseSepolia-upgradeable.json",
-    JSON.stringify(deploymentInfo, null, 2)
-  );
-  console.log("📄 Deployment info saved to: contracts/deployment-baseSepolia-upgradeable.json");
+
+  const outPath = path.join(__dirname, "..", `deployment-${net}-upgradeable.json`);
+  fs.writeFileSync(outPath, JSON.stringify(deploymentInfo, null, 2));
+  console.log("📄 Deployment info saved to:", outPath);
 }
 
 main()

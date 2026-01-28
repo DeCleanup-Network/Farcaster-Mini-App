@@ -3,8 +3,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { useAccount, useChainId, useDisconnect, useConnect, useEnsName } from 'wagmi'
 import { ConnectButton, useConnectModal, useAccountModal, useChainModal } from '@rainbow-me/rainbowkit'
-import { Wallet, LogOut, ChevronDown } from 'lucide-react'
+import { Wallet, LogOut, ChevronDown, Loader2 } from 'lucide-react'
 import { REQUIRED_CHAIN_ID } from '@/lib/wagmi'
+import { attemptSwitchToRequiredChain } from '@/lib/network'
 import { Button } from '@/components/ui/button'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { mainnet } from 'wagmi/chains'
@@ -21,6 +22,7 @@ import { mainnet } from 'wagmi/chains'
 export function WalletConnect() {
   const [mounted, setMounted] = useState(false)
   const [forceUpdate, setForceUpdate] = useState(0)
+  const [switching, setSwitching] = useState(false)
   const { isConnected, connector, address } = useAccount()
   const chainId = useChainId()
   const { disconnect } = useDisconnect()
@@ -489,16 +491,35 @@ export function WalletConnect() {
             )
           }
 
-          // Wrong network - show network switch button
+          // Wrong network - use robust switch (openChainModal is unreliable in embeds)
           if (chain.unsupported || chain.id !== REQUIRED_CHAIN_ID) {
             return (
               <Button
                 size="sm"
-                onClick={openChainModal}
-                className="gap-2 border-2 border-yellow-500 bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30 text-xs sm:text-sm"
+                disabled={switching}
+                onClick={async (e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (isMiniApp) {
+                    alert('Please switch networks in your wallet settings outside of Farcaster, then reopen the app.')
+                    return
+                  }
+                  setSwitching(true)
+                  try { await attemptSwitchToRequiredChain() } finally { setSwitching(false) }
+                }}
+                className="gap-2 border-2 border-yellow-500 bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30 text-xs sm:text-sm disabled:opacity-70"
               >
-                <span>Wrong Network</span>
-                <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
+                {switching ? (
+                  <>
+                    <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                    <span>Switching…</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Wrong Network</span>
+                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
+                  </>
+                )}
               </Button>
             )
           }

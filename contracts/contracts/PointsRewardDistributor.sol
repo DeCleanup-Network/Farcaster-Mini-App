@@ -34,7 +34,7 @@ contract PointsRewardDistributor is Initializable, OwnableUpgradeable, Reentranc
     mapping(address => uint256) public stakedBalance;
     mapping(address => bool) public isVerifier;
     mapping(address => bool) public manuallyAddedVerifiers;
-    uint256 public constant MINIMUM_LEVEL_FOR_STAKING = 10;
+    uint256 public constant MINIMUM_LEVEL_FOR_STAKING = 3;
     uint256 public constant MINIMUM_POINTS_TO_CLAIM = 100; // Minimum DCU points required to claim
     
     address public impactProductNFT;
@@ -175,7 +175,7 @@ contract PointsRewardDistributor is Initializable, OwnableUpgradeable, Reentranc
         require(pointsToClaim >= MINIMUM_POINTS_TO_CLAIM, "Must claim at least 100 DCU points");
         require(pointsBalance[msg.sender] >= pointsToClaim, "Insufficient points");
         require(currentTokenPriceUSD > 0, "Token price not set");
-        require(_hasMinimumLevel(msg.sender), "Must reach level 10 to claim tokens");
+        require(_hasMinimumLevel(msg.sender), "Must reach minimum level to claim tokens");
         
         uint256 usdValueCents = (pointsToClaim * targetRewardValueUSD) / LEVEL_POINTS;
         uint256 usdValueDollars = (usdValueCents * 1e18) / 100;
@@ -210,7 +210,7 @@ contract PointsRewardDistributor is Initializable, OwnableUpgradeable, Reentranc
     
     function stakeTokens(uint256 amount) external whenNotPaused nonReentrant {
         require(amount > 0, "Amount must be greater than 0");
-        require(_hasMinimumLevel(msg.sender), "Must reach level 10 to stake tokens");
+        require(_hasMinimumLevel(msg.sender), "Must reach minimum level to stake tokens");
         
         uint256 userBalance = bDCUToken.balanceOf(msg.sender);
         
@@ -223,7 +223,7 @@ contract PointsRewardDistributor is Initializable, OwnableUpgradeable, Reentranc
         
         stakedBalance[msg.sender] += amount;
         
-        // Become verifier if: manually added OR (has level 10 AND staked >= 51%)
+        // Become verifier if: manually added OR (has minimum level AND staked >= 51%)
         if (!isVerifier[msg.sender]) {
             if (manuallyAddedVerifiers[msg.sender] || (_hasMinimumLevel(msg.sender) && amount >= (userBalance * 51) / 100)) {
                 isVerifier[msg.sender] = true;

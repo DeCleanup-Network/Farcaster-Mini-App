@@ -342,8 +342,10 @@ interface CleanupSubmission {
   rejected: boolean
   level: number  // 1-10
   referrer: Address | null
+  /** @deprecated Impact report removed from app flow; contract still has fields, we always pass false and ''. */
   hasImpactForm: boolean
-  impactReportHash: string | null  // IPFS hash
+  /** @deprecated Impact report removed from app flow; contract still has fields, we always pass ''. */
+  impactReportHash: string | null
 }
 ```
 
@@ -371,6 +373,7 @@ interface RewardBreakdown {
     level: number
     streak: number
     referral: number
+    /** @deprecated Impact form reward not used; app always submits hasImpactForm: false. */
     impactForm: number
     verifier: number
   }

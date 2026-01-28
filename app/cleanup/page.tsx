@@ -1,21 +1,19 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useAccount, useChainId, useSwitchChain, useConnect } from 'wagmi'
+import { useAccount, useChainId, useConnect } from 'wagmi'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
 import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle, Users, RotateCw } from 'lucide-react'
-import { uploadToIPFS, uploadJSONToIPFS, getIPFSUrl } from '@/lib/ipfs'
+import { uploadToIPFS, getIPFSUrl } from '@/lib/ipfs'
 import { submitCleanup, getSubmissionFee, getCleanupStatus, getUserLevel, CONTRACT_ADDRESSES, checkReferralEligibility, VERIFICATION_ABI } from '@/lib/contracts'
 import { clearPendingCleanupData, resetSubmissionCounting } from '@/lib/clear-cleanup-data'
 import type { Address } from 'viem'
 import { useBuilderCodeAttribution } from '@/lib/hooks/useBuilderCode'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
-import { resolveENS, isValidENSFormat } from '@/lib/ens'
-import { resolveFID, isValidFIDFormat, getFIDFromUsername } from '@/lib/farcaster-fid'
 import { openUrl } from '@/lib/farcaster'
 import { TransactionModal, useTransactionModal } from '@/components/ui/transaction-modal'
 import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow'
@@ -27,8 +25,9 @@ import {
   REQUIRED_BLOCK_EXPLORER_URL,
   REQUIRED_CHAIN_IS_TESTNET,
 } from '@/lib/wagmi'
+import { attemptSwitchToRequiredChain } from '@/lib/network'
 
-type Step = 'before' | 'after' | 'enhanced' | 'review'
+type Step = 'before' | 'after' | 'review'
 const describeChain = (id?: number) => {
   switch (id) {
     case 1:
@@ -52,7 +51,6 @@ function CleanupContent() {
   
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
-  const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
   const { connect, connectors, isPending: isConnecting } = useConnect()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -63,8 +61,6 @@ function CleanupContent() {
   const [step, setStep] = useState<Step>('before')
   const [beforePhoto, setBeforePhoto] = useState<File | null>(null)
   const [afterPhoto, setAfterPhoto] = useState<File | null>(null)
-  const [beforePhotoAllowed, setBeforePhotoAllowed] = useState(false)
-  const [afterPhotoAllowed, setAfterPhotoAllowed] = useState(false)
   const [beforePhotoUrl, setBeforePhotoUrl] = useState<string | null>(null)
   const [afterPhotoUrl, setAfterPhotoUrl] = useState<string | null>(null)
   const [beforePhotoIPFSHash, setBeforePhotoIPFSHash] = useState<string | null>(null)
@@ -89,6 +85,7 @@ function CleanupContent() {
   const { modal, showSuccess, hideModal } = useTransactionModal()
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showAddAppModal, setShowAddAppModal] = useState(false)
+  const [switchingBanner, setSwitchingBanner] = useState(false)
   
   // Fix hydration error by only rendering after mount
   useEffect(() => {
@@ -292,127 +289,6 @@ function CleanupContent() {
 
     checkEligibility()
   }, [address, referrerAddress, isConnected])
-
-  // Impact Report form data
-  const [enhancedData, setEnhancedData] = useState({
-    locationType: '',
-    area: '',
-    areaUnit: 'sqm' as 'sqm' | 'sqft',
-    weight: '',
-    weightUnit: 'kg' as 'kg' | 'lbs',
-    bags: '',
-    hours: '',
-    minutes: '',
-    wasteTypes: [] as string[],
-    contributors: [] as string[], // Array of contributor addresses
-    scopeOfWork: '', // Auto-generated
-    rightsAssignment: '' as '' | 'attribution' | 'non-commercial' | 'no-derivatives' | 'share-alike' | 'all-rights-reserved',
-    environmentalChallenges: '',
-    preventionIdeas: '',
-    additionalNotes: '',
-  })
-
-  // Restore enhancedData from localStorage on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined' && address && mounted) {
-      try {
-        const saved = localStorage.getItem(`enhanced_data_${address.toLowerCase()}`)
-        if (saved) {
-          const parsed = JSON.parse(saved)
-          setEnhancedData({
-            locationType: parsed.locationType || '',
-            area: parsed.area || '',
-            areaUnit: parsed.areaUnit || 'sqm' as 'sqm' | 'sqft',
-            weight: parsed.weight || '',
-            weightUnit: parsed.weightUnit || 'kg' as 'kg' | 'lbs',
-            bags: parsed.bags || '',
-            hours: parsed.hours || '',
-            minutes: parsed.minutes || '',
-            wasteTypes: parsed.wasteTypes || [] as string[],
-            contributors: parsed.contributors || [] as string[],
-            scopeOfWork: parsed.scopeOfWork || '',
-            rightsAssignment: parsed.rightsAssignment || '' as '' | 'attribution' | 'non-commercial' | 'no-derivatives' | 'share-alike' | 'all-rights-reserved',
-            environmentalChallenges: parsed.environmentalChallenges || '',
-            preventionIdeas: parsed.preventionIdeas || '',
-            additionalNotes: parsed.additionalNotes || '',
-          })
-        }
-      } catch (e) {
-        console.error('Failed to restore enhanced data:', e)
-      }
-    }
-  }, [address, mounted])
-
-  // State for contributor resolution (ENS/FID)
-  const [contributorResolving, setContributorResolving] = useState<Record<number, boolean>>({})
-  const [contributorErrors, setContributorErrors] = useState<Record<number, string>>({})
-
-  // Preset options
-  const locationTypeOptions = [
-    'Beach',
-    'Park',
-    'Waterway',
-    'Forest',
-    'Urban',
-    'Rural',
-    'Industrial',
-    'Other',
-  ]
-
-  const wasteTypeOptions = [
-    'Plastic',
-    'Glass',
-    'Metal',
-    'Paper',
-    'Organic',
-    'Hazardous',
-    'Electronics',
-    'Textiles',
-    'Other',
-  ]
-
-  const environmentalChallengePresets = [
-    'Heavy pollution',
-    'Lack of waste bins',
-    'Illegal dumping',
-    'Storm damage',
-    'Wildlife impact',
-    'Water contamination',
-    'Soil contamination',
-    'Air quality issues',
-  ]
-
-  const preventionPresets = [
-    'Install more waste bins',
-    'Increase public awareness',
-    'Regular cleanup schedules',
-    'Stricter enforcement',
-    'Community involvement',
-    'Better waste management',
-    'Educational programs',
-    'Recycling facilities',
-  ]
-
-  // Auto-generate scope of work
-  useEffect(() => {
-    if (enhancedData.locationType && enhancedData.wasteTypes.length > 0) {
-      const scope = `Cleanup at ${enhancedData.locationType} location, removing ${enhancedData.wasteTypes.join(', ')} waste types`
-      setEnhancedData(prev => ({ ...prev, scopeOfWork: scope }))
-    } else {
-      setEnhancedData(prev => ({ ...prev, scopeOfWork: '' }))
-    }
-  }, [enhancedData.locationType, enhancedData.wasteTypes])
-
-  // Save enhancedData to localStorage whenever it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined' && address && enhancedData) {
-      try {
-        localStorage.setItem(`enhanced_data_${address.toLowerCase()}`, JSON.stringify(enhancedData))
-      } catch (e) {
-        console.error('Failed to save enhanced data:', e)
-      }
-    }
-  }, [enhancedData, address])
 
   // Don't request location automatically - only when user is ready to submit
   // Location will be requested when user clicks "Next" on the before photo step
@@ -818,32 +694,15 @@ function CleanupContent() {
     setStep('after')
   }
 
-  const handleAfterNext = () => {
+  const handleAfterNext = async () => {
     if (!afterPhoto) {
       alert('Please upload an after photo')
       return
     }
-    // Go to enhanced form
-    setStep('enhanced')
+    await submitCleanupFlow()
   }
 
-  const handleSkipEnhanced = async () => {
-    await submitCleanupFlow(false)
-  }
-
-  const handleSubmitEnhanced = async () => {
-    // Validate that the form has at least locationType filled before proceeding
-    // This prevents submitting hasImpactForm=true with empty impactReportHash
-    if (!enhancedData.locationType || enhancedData.locationType.trim() === '') {
-      alert('Please fill in at least the location type in the impact report form.')
-      return
-    }
-    
-    // Submit with form data (hasForm=true)
-    await submitCleanupFlow(true)
-  }
-
-  const submitCleanupFlow = async (hasForm: boolean) => {
+  const submitCleanupFlow = async () => {
     if (!isConnected || !address) {
       alert('Please connect your wallet first')
       return
@@ -926,47 +785,6 @@ function CleanupContent() {
       setBeforePhotoIPFSHash(beforeHash.hash)
       setAfterPhotoIPFSHash(afterHash.hash)
 
-      // Upload enhanced impact report data to IPFS if form was submitted and valid
-      // Validate that locationType is filled (required field) before uploading
-      let impactFormDataHash: string | null = null
-      const isFormValid: boolean = Boolean(hasForm && enhancedData.locationType && enhancedData.locationType.trim() !== '')
-      if (isFormValid) {
-        try {
-          console.log('Uploading enhanced impact report data to IPFS...')
-          const impactData = {
-            locationType: enhancedData.locationType,
-            area: enhancedData.area,
-            areaUnit: enhancedData.areaUnit,
-            weight: enhancedData.weight,
-            weightUnit: enhancedData.weightUnit,
-            bags: enhancedData.bags,
-            hours: enhancedData.hours,
-            minutes: enhancedData.minutes,
-            wasteTypes: enhancedData.wasteTypes,
-            contributors: enhancedData.contributors,
-            scopeOfWork: enhancedData.scopeOfWork,
-            rightsAssignment: enhancedData.rightsAssignment,
-            environmentalChallenges: enhancedData.environmentalChallenges,
-            preventionIdeas: enhancedData.preventionIdeas,
-            additionalNotes: enhancedData.additionalNotes,
-            // Image usage permissions
-            beforePhotoAllowed: beforePhotoAllowed,
-            afterPhotoAllowed: afterPhotoAllowed,
-            timestamp: new Date().toISOString(),
-            userAddress: address,
-          }
-          const impactDataResult = await uploadJSONToIPFS(impactData, `impact-report-${Date.now()}`)
-          impactFormDataHash = impactDataResult.hash
-          console.log('Impact report data uploaded to IPFS:', impactFormDataHash)
-
-          // Store the hash in localStorage with cleanup ID (will be set after submission)
-          // We'll associate this hash with the cleanup on-chain below
-        } catch (error) {
-          console.error('Error uploading impact report data to IPFS:', error)
-          // Don't fail the submission if IPFS upload fails, just log it
-        }
-      }
-
       // Check if submission fee is required
       const feeInfo = await getSubmissionFee()
       const feeValue = feeInfo.enabled && feeInfo.fee > 0 ? feeInfo.fee : undefined
@@ -1016,7 +834,6 @@ function CleanupContent() {
         afterHash: afterHash.hash,
         lat: location.lat,
         lng: location.lng,
-        hasForm,
         feeValue: feeValue?.toString() || '0'
       })
       
@@ -1039,13 +856,7 @@ function CleanupContent() {
                                       referrerAddress !== '0x0000000000000000000000000000000000000000') 
           ? referrerAddress 
           : null
-        
-        // Only pass hasForm=true if we actually have valid form data
-        // This prevents contract mismatch where hasImpactForm=true but impactReportHash is empty
-        const hasValidFormData: boolean = Boolean(isFormValid && impactFormDataHash !== null)
-        const actualHasForm: boolean = hasValidFormData
-        const finalImpactReportHash: string = hasValidFormData && impactFormDataHash ? impactFormDataHash : ''
-        
+
         // Try with Builder Code first, fallback to standard submission if it fails
         let cleanupId: bigint
         let transactionHash: `0x${string}`
@@ -1072,12 +883,10 @@ function CleanupContent() {
             afterHash.hash,
             location.lat,
             location.lng,
-            finalReferrerAddress, // Use referrer from URL if available and eligible
-            actualHasForm,
-            finalImpactReportHash,
-            feeValue, // Include fee if required
-            chainId, // Pass chainId from useChainId hook to avoid detection bugs
-            sendTransaction // Pass Builder Code transaction sender
+            finalReferrerAddress,
+            feeValue,
+            chainId,
+            sendTransaction
           )
           cleanupId = result.cleanupId
           transactionHash = result.transactionHash
@@ -1099,11 +908,9 @@ function CleanupContent() {
               location.lat,
               location.lng,
               finalReferrerAddress,
-              actualHasForm,
-              finalImpactReportHash,
               feeValue,
               chainId,
-              undefined // No Builder Code - use standard writeContract
+              undefined
             )
             cleanupId = result.cleanupId
             transactionHash = result.transactionHash
@@ -1373,7 +1180,7 @@ function CleanupContent() {
 
   // Check if submission is disabled due to pending cleanup or wrong network
   const isWrongNetwork = chainId !== REQUIRED_CHAIN_ID
-  const isSubmissionDisabled = (pendingCleanup && !pendingCleanup.verified) || isWrongNetwork || isSwitchingChain
+  const isSubmissionDisabled = (pendingCleanup && !pendingCleanup.verified) || isWrongNetwork || switchingBanner
 
   // Referral Notification Component (defined early so it's always in scope)
   const ReferralNotification = () => {
@@ -1492,7 +1299,7 @@ function CleanupContent() {
           {/* Network notice */}
           <div className="mb-4 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
             <p className="text-xs text-blue-300">
-              <strong>Note:</strong> Make sure your wallet is connected to Base Sepolia chain to ensure smooth performance.
+              <strong>Note:</strong> Make sure your wallet is connected to {REQUIRED_CHAIN_NAME} to ensure smooth performance.
             </p>
           </div>
           
@@ -1592,20 +1399,17 @@ function CleanupContent() {
                   </p>
                 </div>
               ) : (
-                // Web: Can switch chains programmatically - show button
+                // Web: use shared robust switch (raw provider + wagmi, verify & reload)
                 <Button
                   onClick={async () => {
-                    try {
-                      await switchChain({ chainId: REQUIRED_CHAIN_ID })
-                    } catch {
-                      alert(`Please switch to ${REQUIRED_CHAIN_NAME} manually in MetaMask.`)
-                    }
+                    setSwitchingBanner(true)
+                    try { await attemptSwitchToRequiredChain() } finally { setSwitchingBanner(false) }
                   }}
-                  disabled={isSwitchingChain}
+                  disabled={switchingBanner}
                   size="sm"
                   className="bg-brand-green text-black hover:bg-brand-green/90"
                 >
-                  {isSwitchingChain ? 'Switching…' : `Switch to ${REQUIRED_CHAIN_NAME}`}
+                  {switchingBanner ? 'Switching…' : `Switch to ${REQUIRED_CHAIN_NAME}`}
                 </Button>
               )}
             </div>
@@ -1755,7 +1559,7 @@ function CleanupContent() {
             </p>
             <div className="mt-3 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3 text-center">
               <p className="text-xs text-blue-300">
-                <strong>Note:</strong> Make sure your wallet is connected to Base Sepolia chain to ensure smooth performance and successful transactions.
+                <strong>Note:</strong> Make sure your wallet is connected to {REQUIRED_CHAIN_NAME} to ensure smooth performance and successful transactions.
               </p>
             </div>
           </div>
@@ -1827,15 +1631,6 @@ function CleanupContent() {
               </button>
             )}
 
-            <label className="mt-4 flex items-center gap-2 text-sm text-gray-400">
-              <input
-                type="checkbox"
-                checked={beforePhotoAllowed}
-                onChange={(e) => setBeforePhotoAllowed(e.target.checked)}
-                className="rounded border-gray-700 bg-gray-800"
-              />
-              Agree if you allow us to post this picture on social platforms (X, Telegram, Farcaster)
-            </label>
           </div>
 
           {/* Location Status */}
@@ -2059,32 +1854,23 @@ function CleanupContent() {
               </button>
             )}
 
-            <label className="mt-4 flex items-center gap-2 text-sm text-gray-400">
-              <input
-                type="checkbox"
-                checked={afterPhotoAllowed}
-                onChange={(e) => setAfterPhotoAllowed(e.target.checked)}
-                className="rounded border-gray-700 bg-gray-800"
-              />
-              Agree if you allow us to post this picture on social platforms (X, Telegram, Farcaster)
-            </label>
           </div>
 
           <div className="flex gap-4">
             <BackButton />
             <Button
-              onClick={handleAfterNext}
-              disabled={!afterPhoto || isSubmitting}
+              onClick={() => handleAfterNext()}
+              disabled={!afterPhoto || !location || isSubmitting}
               className="flex-1 gap-2 bg-brand-green text-black hover:bg-[#4a9a26]"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Processing...
+                  Submitting…
                 </>
               ) : (
                 <>
-                  Save and Next
+                  Submit
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
@@ -2095,625 +1881,7 @@ function CleanupContent() {
     )
   }
 
-
-  // Step 4: Impact Report (Optional)
-  if (step === 'enhanced') {
-    return (
-      <div className="min-h-screen bg-background px-4 py-6 sm:py-8 pb-20 overflow-y-auto">
-        <div className="mx-auto max-w-md">
-          <div className="mb-6">
-            <BackButton />
-          </div>
-          
-          <ReferralNotification />
-          
-          <div className="mb-6">
-            <h1 className="mb-2 text-center text-3xl font-bold uppercase tracking-wide text-white sm:text-4xl">
-              Impact Report
-            </h1>
-            <p className="mb-2 text-center text-sm font-medium text-brand-yellow">
-              +5 DCU Bonus
-            </p>
-            <p className="text-center text-sm text-gray-400">
-              Provide more details on your cleanup (optional, rewarded with 5 DCU).
-            </p>
-          </div>
-
-          {/* Full form (always visible) - scrollable on desktop if content is tall */}
-          <div className="mb-6 space-y-4 max-h-[calc(100vh-20rem)] overflow-y-auto pr-2 sm:max-h-none sm:overflow-visible">
-            {/* Location Type */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-300">
-                Location Type *
-              </label>
-              <select
-                name="location-type"
-                autoComplete="off"
-                value={enhancedData.locationType}
-                onChange={(e) => setEnhancedData({ ...enhancedData, locationType: e.target.value })}
-                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
-                required
-              >
-                <option value="">Select location type</option>
-                {locationTypeOptions.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Area Cleaned */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-300">
-                Area Cleaned
-              </label>
-              <div className="flex gap-2">
-              <input
-                type="number"
-                name="area"
-                autoComplete="off"
-                inputMode="decimal"
-                value={enhancedData.area}
-                onChange={(e) => {
-                  const value = e.target.value
-                  // Prevent scientific notation (e, E, +) but allow negative numbers
-                  if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
-                    setEnhancedData({ ...enhancedData, area: value })
-                  }
-                }}
-                onKeyDown={(e) => {
-                  // Prevent e, E, and + keys from being entered
-                  if (e.key === 'e' || e.key === 'E' || e.key === '+') {
-                    e.preventDefault()
-                  }
-                }}
-                spellCheck={false}
-                className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                placeholder="50"
-                min="0"
-                step="0.1"
-              />
-                <select
-                  name="area-unit"
-                  autoComplete="off"
-                  value={enhancedData.areaUnit}
-                  onChange={(e) => setEnhancedData({ ...enhancedData, areaUnit: e.target.value as 'sqm' | 'sqft' })}
-                  className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
-                >
-                  <option value="sqm">m²</option>
-                  <option value="sqft">ft²</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Weight Removed */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-300">
-                Weight Removed
-              </label>
-              <div className="flex gap-2">
-              <input
-                type="number"
-                name="weight"
-                autoComplete="off"
-                inputMode="decimal"
-                value={enhancedData.weight}
-                onChange={(e) => {
-                  const value = e.target.value
-                  // Prevent scientific notation (e, E, +) but allow negative numbers
-                  if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
-                    setEnhancedData({ ...enhancedData, weight: value })
-                  }
-                }}
-                onKeyDown={(e) => {
-                  // Prevent e, E, and + keys from being entered
-                  if (e.key === 'e' || e.key === 'E' || e.key === '+') {
-                    e.preventDefault()
-                  }
-                }}
-                spellCheck={false}
-                className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                placeholder="5"
-                min="0"
-                step="0.1"
-              />
-                <select
-                  name="weight-unit"
-                  autoComplete="off"
-                  value={enhancedData.weightUnit}
-                  onChange={(e) => setEnhancedData({ ...enhancedData, weightUnit: e.target.value as 'kg' | 'lbs' })}
-                  className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
-                >
-                  <option value="kg">kg</option>
-                  <option value="lbs">lbs</option>
-                </select>
-              </div>
-              <p className="mt-1 text-xs text-gray-500">1 standard trash bag ≈ 2kg</p>
-            </div>
-
-            {/* Bags Filled */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-300">
-                Bags Filled
-              </label>
-              <input
-                type="number"
-                name="bags"
-                autoComplete="off"
-                inputMode="numeric"
-                value={enhancedData.bags}
-                onChange={(e) => {
-                  const value = e.target.value
-                  // Prevent scientific notation (e, E, +) but allow negative numbers
-                  if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
-                    setEnhancedData({ ...enhancedData, bags: value })
-                  }
-                }}
-                onKeyDown={(e) => {
-                  // Prevent e, E, and + keys from being entered
-                  if (e.key === 'e' || e.key === 'E' || e.key === '+') {
-                    e.preventDefault()
-                  }
-                }}
-                spellCheck={false}
-                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                placeholder="2"
-                min="0"
-              />
-            </div>
-
-            {/* Time Spent */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-300">
-                Time Spent
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  name="hours"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  value={enhancedData.hours}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    // Prevent scientific notation (e, E, +) but allow negative numbers
-                    if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
-                      setEnhancedData({ ...enhancedData, hours: value })
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    // Prevent e, E, and + keys from being entered
-                    if (e.key === 'e' || e.key === 'E' || e.key === '+') {
-                      e.preventDefault()
-                    }
-                  }}
-                  spellCheck={false}
-                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                  placeholder="1"
-                  min="0"
-                />
-                <span className="flex items-center text-gray-400">hrs</span>
-                <input
-                  type="number"
-                  name="minutes"
-                  autoComplete="off"
-                  inputMode="numeric"
-                  value={enhancedData.minutes}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    // Prevent scientific notation (e, E, +) but allow negative numbers
-                    if (value === '' || value === '-' || (!/[eE+]/.test(value))) {
-                      setEnhancedData({ ...enhancedData, minutes: value })
-                    }
-                  }}
-                  onKeyDown={(e) => {
-                    // Prevent e, E, and + keys from being entered
-                    if (e.key === 'e' || e.key === 'E' || e.key === '+') {
-                      e.preventDefault()
-                    }
-                  }}
-                  spellCheck={false}
-                  className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                  placeholder="30"
-                  min="0"
-                  max="59"
-                />
-                <span className="flex items-center text-gray-400">min</span>
-              </div>
-            </div>
-
-            {/* Waste Types */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-300">
-                Waste Types (Select all that apply)
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {wasteTypeOptions.map((type) => (
-                  <label key={type} className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 p-2 hover:bg-gray-800 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name={`waste-type-${type}`}
-                      checked={enhancedData.wasteTypes.includes(type)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setEnhancedData({ ...enhancedData, wasteTypes: [...enhancedData.wasteTypes, type] })
-                        } else {
-                          setEnhancedData({ ...enhancedData, wasteTypes: enhancedData.wasteTypes.filter(t => t !== type) })
-                        }
-                      }}
-                      className="rounded border-gray-600"
-                    />
-                    <span className="text-sm text-white">{type}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Contributors */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-300">
-                Contributors
-              </label>
-              <div className="space-y-2">
-                <div className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-400">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-white">You</span>
-                    <span className="font-mono text-xs text-gray-400">
-                      {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
-                    </span>
-                </div>
-                </div>
-                {enhancedData.contributors.map((contributor, idx) => {
-                  const isResolving = contributorResolving[idx] || false
-                  const error = contributorErrors[idx]
-                  const inputValue = contributor
-                  const isAddress = /^0x[a-fA-F0-9]{40}$/.test(inputValue.trim())
-                  
-                  return (
-                    <div key={idx} className="space-y-1">
-                      <div className="flex gap-2">
-                        <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      name={`contributor-${idx}`}
-                      autoComplete="off"
-                      inputMode="text"
-                      value={contributor}
-                      onChange={(e) => {
-                        const newContributors = [...enhancedData.contributors]
-                        newContributors[idx] = e.target.value
-                        setEnhancedData({ ...enhancedData, contributors: newContributors })
-                              
-                              // Clear previous error when typing
-                              setContributorErrors(prev => {
-                                const updated = { ...prev }
-                                delete updated[idx]
-                                return updated
-                              })
-                            }}
-                            onPaste={(e) => {
-                              // Allow paste - will be resolved when user clicks search
-                              e.preventDefault()
-                              const pasted = e.clipboardData.getData('text')
-                              const newContributors = [...enhancedData.contributors]
-                              newContributors[idx] = pasted
-                              setEnhancedData({ ...enhancedData, contributors: newContributors })
-                            }}
-                            placeholder={
-                              isMiniApp 
-                                ? "Paste Farcaster FID, @username, or wallet address" 
-                                : "Paste ENS name (e.g., vitalik.eth) or wallet address (0x...)"
-                            }
-                      className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500 text-sm"
-                            disabled={isResolving}
-                          />
-                          {isResolving && (
-                            <div className="absolute right-12 top-1/2 -translate-y-1/2">
-                              <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                            </div>
-                          )}
-                        </div>
-                        {!isAddress && inputValue.trim() && (
-                    <button
-                            onClick={async () => {
-                              const trimmed = inputValue.trim()
-                              if (!trimmed) return
-                              
-                              // Check if it's already an address
-                              if (/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
-                                return // Already an address, no need to resolve
-                              }
-
-                              setContributorResolving(prev => ({ ...prev, [idx]: true }))
-                              setContributorErrors(prev => {
-                                const updated = { ...prev }
-                                delete updated[idx]
-                                return updated
-                              })
-
-                              try {
-                                let resolved: Address | null = null
-                                
-                                // First check if it's already a valid address
-                                if (/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
-                                  resolved = trimmed as Address
-                                } else if (isMiniApp) {
-                                  // Farcaster flow: try FID or username
-                                  if (isValidFIDFormat(trimmed)) {
-                                    resolved = await resolveFID(trimmed)
-                                  } else if (trimmed.startsWith('@')) {
-                                    const fid = await getFIDFromUsername(trimmed)
-                                    if (fid) {
-                                      resolved = await resolveFID(fid)
-                                    } else {
-                                      throw new Error('Farcaster username not found')
-                                    }
-                                  } else {
-                                    throw new Error('Enter FID (e.g., 12345), @username, or wallet address (0x...)')
-                                  }
-                                } else {
-                                  // Web flow: try ENS or address
-                                  if (isValidENSFormat(trimmed)) {
-                                    resolved = await resolveENS(trimmed)
-                                  } else {
-                                    throw new Error('Enter ENS name (e.g., vitalik.eth) or wallet address (0x...)')
-                                  }
-                                }
-
-                                if (resolved) {
-                                  const newContributors = [...enhancedData.contributors]
-                                  newContributors[idx] = resolved
-                                  setEnhancedData({ ...enhancedData, contributors: newContributors })
-                                } else {
-                                  throw new Error(isMiniApp ? 'FID or username not found' : 'ENS name not found')
-                                }
-                              } catch (err: any) {
-                                setContributorErrors(prev => ({ 
-                                  ...prev, 
-                                  [idx]: err?.message || 'Failed to resolve' 
-                                }))
-                              } finally {
-                                setContributorResolving(prev => {
-                                  const updated = { ...prev }
-                                  delete updated[idx]
-                                  return updated
-                                })
-                              }
-                            }}
-                            disabled={isResolving || !inputValue.trim() || isAddress}
-                            className="rounded-lg border border-brand-green bg-brand-green/10 px-3 py-2 text-brand-green hover:bg-brand-green/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Search and resolve"
-                          >
-                            {isResolving ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                              </svg>
-                            )}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            setEnhancedData({ ...enhancedData, contributors: enhancedData.contributors.filter((_, i) => i !== idx) })
-                            setContributorErrors(prev => {
-                              const updated = { ...prev }
-                              delete updated[idx]
-                              return updated
-                            })
-                            setContributorResolving(prev => {
-                              const updated = { ...prev }
-                              delete updated[idx]
-                              return updated
-                            })
-                          }}
-                      className="rounded-lg border border-red-500 bg-red-500/10 px-3 py-2 text-red-400 hover:bg-red-500/20"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                      {error && (
-                        <p className="text-xs text-red-400">{error}</p>
-                      )}
-                      {isAddress && (
-                        <p className="text-xs text-green-400">✓ Valid address</p>
-                      )}
-                    </div>
-                  )
-                })}
-                <button
-                  type="button"
-                  onClick={() => setEnhancedData({ ...enhancedData, contributors: [...enhancedData.contributors, ''] })}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800"
-                >
-                  <span className="text-lg">+</span>
-                  Add Contributor
-                </button>
-                {enhancedData.contributors.length > 0 && (
-                  <p className="text-xs text-gray-500">
-                    {isMiniApp 
-                      ? 'Search by Farcaster FID (e.g., 12345) or @username. Contributors are listed for attribution purposes only.'
-                      : 'Search by ENS name (e.g., vitalik.eth) or enter address directly. Contributors are listed for attribution purposes only.'}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Scope of Work (Auto-generated) */}
-            {enhancedData.scopeOfWork && (
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-300">
-                  Scope of Work (Auto-generated)
-                </label>
-                <div className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-300">
-                  {enhancedData.scopeOfWork}
-                </div>
-              </div>
-            )}
-
-            {/* Rights Assignment */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-300">
-                Rights Assignment
-              </label>
-              <select
-                name="rights-assignment"
-                autoComplete="off"
-                value={enhancedData.rightsAssignment}
-                onChange={(e) => setEnhancedData({ ...enhancedData, rightsAssignment: e.target.value as any })}
-                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white"
-              >
-                <option value="">Select license</option>
-                <option value="attribution">Allow use with credit (CC BY)</option>
-                <option value="non-commercial">Non-commercial use only (CC BY-NC)</option>
-                <option value="no-derivatives">No modifications allowed (CC BY-ND)</option>
-                <option value="share-alike">Share with same license (CC BY-SA)</option>
-                <option value="all-rights-reserved">All rights reserved</option>
-              </select>
-            </div>
-
-            {/* Environmental Challenges */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-300">
-                Environmental Challenges
-              </label>
-              <div className="mb-2 flex flex-wrap gap-2">
-                {environmentalChallengePresets.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => {
-                      const current = enhancedData.environmentalChallenges
-                      const newValue = current ? `${current}, ${preset}` : preset
-                      setEnhancedData({ ...enhancedData, environmentalChallenges: newValue })
-                    }}
-                    className="rounded-lg border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-300 hover:bg-gray-700"
-                  >
-                    + {preset}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                name="environmental-challenges"
-                autoComplete="off"
-                value={enhancedData.environmentalChallenges}
-                onChange={(e) => setEnhancedData({ ...enhancedData, environmentalChallenges: e.target.value })}
-                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                placeholder="What issues did you observe?"
-                rows={3}
-                spellCheck={true}
-              />
-            </div>
-
-            {/* Prevention Suggestions */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-300">
-                Prevention Suggestions
-              </label>
-              <div className="mb-2 flex flex-wrap gap-2">
-                {preventionPresets.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => {
-                      const current = enhancedData.preventionIdeas
-                      const newValue = current ? `${current}, ${preset}` : preset
-                      setEnhancedData({ ...enhancedData, preventionIdeas: newValue })
-                    }}
-                    className="rounded-lg border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-300 hover:bg-gray-700"
-                  >
-                    + {preset}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                name="prevention-ideas"
-                autoComplete="off"
-                value={enhancedData.preventionIdeas}
-                onChange={(e) => setEnhancedData({ ...enhancedData, preventionIdeas: e.target.value })}
-                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                placeholder="How can we prevent this?"
-                rows={3}
-                spellCheck={true}
-              />
-            </div>
-
-            {/* Additional Notes */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-300">
-                Additional Notes (Optional)
-              </label>
-              <textarea
-                name="additional-notes"
-                autoComplete="off"
-                value={enhancedData.additionalNotes}
-                onChange={(e) => setEnhancedData({ ...enhancedData, additionalNotes: e.target.value })}
-                className="w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500"
-                placeholder="Any additional information…"
-                rows={2}
-                spellCheck={true}
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-            <Button
-              variant="outline"
-              onClick={handleSkipEnhanced}
-              disabled={isSubmitting}
-              className="flex-1 border-2 border-gray-700 bg-black text-white hover:bg-gray-900"
-            >
-              Skip Impact Report
-            </Button>
-            <div className="flex-1 flex flex-col gap-2">
-              <Button
-                onClick={handleSubmitEnhanced}
-                disabled={isSubmitting}
-                className="w-full gap-2 bg-brand-yellow text-black hover:bg-[#e6e600]"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Submitting…
-                  </>
-                ) : (
-                  <>
-                    Submit {enhancedData.area ? 'with Bonus' : ''}
-                    <ArrowRight className="h-4 w-4" />
-                  </>
-                )}
-              </Button>
-              {isSubmitting && (
-                <Button
-                  onClick={() => {
-                    // Save form state before refresh
-                    if (typeof window !== 'undefined' && address) {
-                      try {
-                        localStorage.setItem(`enhanced_data_${address.toLowerCase()}`, JSON.stringify(enhancedData))
-                      } catch (e) {
-                        console.error('Failed to save enhanced data before refresh:', e)
-                      }
-                    }
-                    setIsSubmitting(false)
-                    window.location.reload()
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="w-full gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800 text-xs"
-                >
-                  <RotateCw className="h-3 w-3" />
-                  Stuck? Refresh Page
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Step 5: In Review
+  // Step 3: In Review (after submission)
   return (
     <>
       {/* Onboarding Flow - shows for first-time users, including from referral links */}
@@ -2752,17 +1920,7 @@ function CleanupContent() {
           </p>
           <div className="mt-4">
             <Button
-              onClick={() => {
-                // Save form state before refresh
-                if (typeof window !== 'undefined' && address) {
-                  try {
-                    localStorage.setItem(`enhanced_data_${address.toLowerCase()}`, JSON.stringify(enhancedData))
-                  } catch (e) {
-                    console.error('Failed to save enhanced data before refresh:', e)
-                  }
-                }
-                window.location.reload()
-              }}
+              onClick={() => window.location.reload()}
               variant="outline"
               size="sm"
               className="gap-2 border-gray-700 bg-gray-900 text-white hover:bg-gray-800"

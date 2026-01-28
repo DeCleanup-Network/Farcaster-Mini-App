@@ -1,0 +1,1328 @@
+{
+  "manifestVersion": "3.2",
+  "proxies": [
+    {
+      "address": "0x492065137E07c660DCfAe4dC335A3Fa9C1203dd9",
+      "txHash": "0xef3a5289a938df15b62c06505c1b08a8e24457d876ec78842452625a41e26747",
+      "kind": "uups"
+    },
+    {
+      "address": "0x8D71Cd7445423CD42293E196B91E47f085E81BCf",
+      "txHash": "0x328f149d8680398c4aa8dced63a3e28905394605330701d8e41f75e085300bf2",
+      "kind": "uups"
+    },
+    {
+      "address": "0x69715d43EA6D46F65045FCe2391D9B7F89ec819F",
+      "txHash": "0x9ae2a98d79c467f84130161d4ddd4e2b1b66725c81d32de5ebc9df9ef7315767",
+      "kind": "uups"
+    }
+  ],
+  "impls": {
+    "dade3c1b064381b1e716a6aa5314720da990507d36b7470b9399fdac48122147": {
+      "address": "0xa282c26245d116aB5600fBF7901f2E4827c16B7A",
+      "txHash": "0xddd41759c0cd1903c8177079269c0f14dbef8744aecd6960249aab4aa1c8553d",
+      "layout": {
+        "solcVersion": "0.8.22",
+        "storage": [
+          {
+            "label": "bDCUToken",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IERC20)1392",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:16"
+          },
+          {
+            "label": "LEVEL_POINTS",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:18"
+          },
+          {
+            "label": "STREAK_POINTS",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:19"
+          },
+          {
+            "label": "REFERRAL_POINTS",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:20"
+          },
+          {
+            "label": "IMPACT_FORM_POINTS",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:21"
+          },
+          {
+            "label": "VERIFIER_POINTS",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:22"
+          },
+          {
+            "label": "targetRewardValueUSD",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:24"
+          },
+          {
+            "label": "currentTokenPriceUSD",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:28"
+          },
+          {
+            "label": "pointsBalance",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:30"
+          },
+          {
+            "label": "pointsClaimed",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:31"
+          },
+          {
+            "label": "globalTotalPoints",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:32"
+          },
+          {
+            "label": "stakedBalance",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:34"
+          },
+          {
+            "label": "isVerifier",
+            "offset": 0,
+            "slot": "12",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:35"
+          },
+          {
+            "label": "manuallyAddedVerifiers",
+            "offset": 0,
+            "slot": "13",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:36"
+          },
+          {
+            "label": "impactProductNFT",
+            "offset": 0,
+            "slot": "14",
+            "type": "t_address",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:40"
+          },
+          {
+            "label": "verificationContract",
+            "offset": 0,
+            "slot": "15",
+            "type": "t_address",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:41"
+          },
+          {
+            "label": "streakCount",
+            "offset": 0,
+            "slot": "16",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:43"
+          },
+          {
+            "label": "lastCleanupTimestamp",
+            "offset": 0,
+            "slot": "17",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:44"
+          },
+          {
+            "label": "hasReceivedReferralReward",
+            "offset": 0,
+            "slot": "18",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:47"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "19",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:88"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)224_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)288_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_contract(IERC20)1392": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "62d8dfa9963cb620891e23f52ce2b4be208338aa11e29f6d9bf0be9431ca3b7d": {
+      "address": "0x0b2686003Aa6a3cb55e686F49c7fb9228F927DC6",
+      "txHash": "0x48d2a7f69a330df6d22bbb5b6aff04dbc7e25e442fd6f04f181437c86f4eab62",
+      "layout": {
+        "solcVersion": "0.8.22",
+        "storage": [
+          {
+            "label": "tokenLevel",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_mapping(t_uint256,t_uint8)",
+            "contract": "ImpactProductNFT",
+            "src": "contracts/ImpactProductNFT.sol:21"
+          },
+          {
+            "label": "userTokenId",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "ImpactProductNFT",
+            "src": "contracts/ImpactProductNFT.sol:24"
+          },
+          {
+            "label": "userCurrentLevel",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_address,t_uint8)",
+            "contract": "ImpactProductNFT",
+            "src": "contracts/ImpactProductNFT.sol:27"
+          },
+          {
+            "label": "baseURI",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_string_storage",
+            "contract": "ImpactProductNFT",
+            "src": "contracts/ImpactProductNFT.sol:30"
+          },
+          {
+            "label": "verifier",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_address",
+            "contract": "ImpactProductNFT",
+            "src": "contracts/ImpactProductNFT.sol:33"
+          },
+          {
+            "label": "verificationContract",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_address",
+            "contract": "ImpactProductNFT",
+            "src": "contracts/ImpactProductNFT.sol:36"
+          },
+          {
+            "label": "rewardDistributor",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_address",
+            "contract": "ImpactProductNFT",
+            "src": "contracts/ImpactProductNFT.sol:39"
+          },
+          {
+            "label": "_tokenCounter",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_uint256",
+            "contract": "ImpactProductNFT",
+            "src": "contracts/ImpactProductNFT.sol:42"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "ImpactProductNFT",
+            "src": "contracts/ImpactProductNFT.sol:77"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_mapping(t_address,t_bool))": {
+            "label": "mapping(address => mapping(address => bool))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_address)": {
+            "label": "mapping(uint256 => address)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_string_storage)": {
+            "label": "mapping(uint256 => string)",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(ERC721Storage)240_storage": {
+            "label": "struct ERC721Upgradeable.ERC721Storage",
+            "members": [
+              {
+                "label": "_name",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_symbol",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "_owners",
+                "type": "t_mapping(t_uint256,t_address)",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "_balances",
+                "type": "t_mapping(t_address,t_uint256)",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "_tokenApprovals",
+                "type": "t_mapping(t_uint256,t_address)",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "_operatorApprovals",
+                "type": "t_mapping(t_address,t_mapping(t_address,t_bool))",
+                "offset": 0,
+                "slot": "5"
+              }
+            ],
+            "numberOfBytes": "192"
+          },
+          "t_struct(ERC721URIStorageStorage)551_storage": {
+            "label": "struct ERC721URIStorageUpgradeable.ERC721URIStorageStorage",
+            "members": [
+              {
+                "label": "_tokenURIs",
+                "type": "t_mapping(t_uint256,t_string_storage)",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)637_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)701_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_mapping(t_address,t_uint8)": {
+            "label": "mapping(address => uint8)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_uint8)": {
+            "label": "mapping(uint256 => uint8)",
+            "numberOfBytes": "32"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.ERC721URIStorage": [
+            {
+              "contract": "ERC721URIStorageUpgradeable",
+              "label": "_tokenURIs",
+              "type": "t_mapping(t_uint256,t_string_storage)",
+              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol:26",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.ERC721": [
+            {
+              "contract": "ERC721Upgradeable",
+              "label": "_name",
+              "type": "t_string_storage",
+              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:27",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "ERC721Upgradeable",
+              "label": "_symbol",
+              "type": "t_string_storage",
+              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:30",
+              "offset": 0,
+              "slot": "1"
+            },
+            {
+              "contract": "ERC721Upgradeable",
+              "label": "_owners",
+              "type": "t_mapping(t_uint256,t_address)",
+              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:32",
+              "offset": 0,
+              "slot": "2"
+            },
+            {
+              "contract": "ERC721Upgradeable",
+              "label": "_balances",
+              "type": "t_mapping(t_address,t_uint256)",
+              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:34",
+              "offset": 0,
+              "slot": "3"
+            },
+            {
+              "contract": "ERC721Upgradeable",
+              "label": "_tokenApprovals",
+              "type": "t_mapping(t_uint256,t_address)",
+              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:36",
+              "offset": 0,
+              "slot": "4"
+            },
+            {
+              "contract": "ERC721Upgradeable",
+              "label": "_operatorApprovals",
+              "type": "t_mapping(t_address,t_mapping(t_address,t_bool))",
+              "src": "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol:38",
+              "offset": 0,
+              "slot": "5"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "b79e2c9d56a44930a1f4dbbb725f054d25ac84c4d91c804433dc594c27f9ddf6": {
+      "address": "0x0bBc0C4D5f4756fe3502136FaD3eBb06254f51cf",
+      "txHash": "0xa01340fe73ca26b265f342cc31f396fe77c919b643cbaffbb82be8aca9ca092d",
+      "layout": {
+        "solcVersion": "0.8.22",
+        "storage": [
+          {
+            "label": "cleanups",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_mapping(t_uint256,t_struct(CleanupSubmission)11468_storage)",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:35"
+          },
+          {
+            "label": "cleanupCounter",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_uint256",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:38"
+          },
+          {
+            "label": "hasSubmittedCleanup",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:41"
+          },
+          {
+            "label": "verifiers",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:44"
+          },
+          {
+            "label": "impactProductNFT",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_contract(ImpactProductNFT)9649",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:47"
+          },
+          {
+            "label": "rewardDistributor",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_address",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:50"
+          },
+          {
+            "label": "submissionFee",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:53"
+          },
+          {
+            "label": "feeEnabled",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_bool",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:54"
+          },
+          {
+            "label": "claimFee",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_uint256",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:58"
+          },
+          {
+            "label": "claimFeeEnabled",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_bool",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:59"
+          },
+          {
+            "label": "feeTreasury",
+            "offset": 1,
+            "slot": "9",
+            "type": "t_address",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:62"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "VerificationContract",
+            "src": "contracts/VerificationContract.sol:111"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)637_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)701_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_contract(ImpactProductNFT)9649": {
+            "label": "contract ImpactProductNFT",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_struct(CleanupSubmission)11468_storage)": {
+            "label": "mapping(uint256 => struct VerificationContract.CleanupSubmission)",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(CleanupSubmission)11468_storage": {
+            "label": "struct VerificationContract.CleanupSubmission",
+            "members": [
+              {
+                "label": "user",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "beforePhotoHash",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "afterPhotoHash",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "timestamp",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "latitude",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "longitude",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "verified",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "6"
+              },
+              {
+                "label": "claimed",
+                "type": "t_bool",
+                "offset": 1,
+                "slot": "6"
+              },
+              {
+                "label": "rejected",
+                "type": "t_bool",
+                "offset": 2,
+                "slot": "6"
+              },
+              {
+                "label": "level",
+                "type": "t_uint8",
+                "offset": 3,
+                "slot": "6"
+              },
+              {
+                "label": "referrer",
+                "type": "t_address",
+                "offset": 4,
+                "slot": "6"
+              },
+              {
+                "label": "hasImpactForm",
+                "type": "t_bool",
+                "offset": 24,
+                "slot": "6"
+              },
+              {
+                "label": "impactReportHash",
+                "type": "t_string_storage",
+                "offset": 0,
+                "slot": "7"
+              }
+            ],
+            "numberOfBytes": "256"
+          },
+          "t_uint8": {
+            "label": "uint8",
+            "numberOfBytes": "1"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "590cd2f617f860ddf6628ad13ac9b6a3eae9397a1278f6e996c4462064fe18a8": {
+      "address": "0xAe670aB94DD835241BbFbae6286d47d23578d004",
+      "txHash": "0xa06f95caa91902b343ec9514a99fe9c3d5aff169f869c447ac0f9ceb555a8532",
+      "layout": {
+        "solcVersion": "0.8.22",
+        "storage": [
+          {
+            "label": "bDCUToken",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_contract(IERC20)1392",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:16"
+          },
+          {
+            "label": "LEVEL_POINTS",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:18"
+          },
+          {
+            "label": "STREAK_POINTS",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:19"
+          },
+          {
+            "label": "REFERRAL_POINTS",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:20"
+          },
+          {
+            "label": "IMPACT_FORM_POINTS",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:21"
+          },
+          {
+            "label": "VERIFIER_POINTS",
+            "offset": 0,
+            "slot": "5",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:22"
+          },
+          {
+            "label": "targetRewardValueUSD",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:24"
+          },
+          {
+            "label": "currentTokenPriceUSD",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:28"
+          },
+          {
+            "label": "pointsBalance",
+            "offset": 0,
+            "slot": "8",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:30"
+          },
+          {
+            "label": "pointsClaimed",
+            "offset": 0,
+            "slot": "9",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:31"
+          },
+          {
+            "label": "globalTotalPoints",
+            "offset": 0,
+            "slot": "10",
+            "type": "t_uint256",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:32"
+          },
+          {
+            "label": "stakedBalance",
+            "offset": 0,
+            "slot": "11",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:34"
+          },
+          {
+            "label": "isVerifier",
+            "offset": 0,
+            "slot": "12",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:35"
+          },
+          {
+            "label": "manuallyAddedVerifiers",
+            "offset": 0,
+            "slot": "13",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:36"
+          },
+          {
+            "label": "impactProductNFT",
+            "offset": 0,
+            "slot": "14",
+            "type": "t_address",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:40"
+          },
+          {
+            "label": "verificationContract",
+            "offset": 0,
+            "slot": "15",
+            "type": "t_address",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:41"
+          },
+          {
+            "label": "streakCount",
+            "offset": 0,
+            "slot": "16",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:43"
+          },
+          {
+            "label": "lastCleanupTimestamp",
+            "offset": 0,
+            "slot": "17",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:44"
+          },
+          {
+            "label": "hasReceivedReferralReward",
+            "offset": 0,
+            "slot": "18",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:47"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "19",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "PointsRewardDistributor",
+            "src": "contracts/PointsRewardDistributor.sol:88"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)73_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(OwnableStorage)13_storage": {
+            "label": "struct OwnableUpgradeable.OwnableStorage",
+            "members": [
+              {
+                "label": "_owner",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)224_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)288_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_contract(IERC20)1392": {
+            "label": "contract IERC20",
+            "numberOfBytes": "20"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Ownable": [
+            {
+              "contract": "OwnableUpgradeable",
+              "label": "_owner",
+              "type": "t_address",
+              "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:24",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

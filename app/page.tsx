@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { SuccessModal } from '@/components/ui/success-modal'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
-import { useAccount, useConnect, useChainId, useSwitchChain } from 'wagmi'
+import { useAccount, useConnect, useChainId } from 'wagmi'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import { useFarcasterAutoConnect } from '@/lib/hooks/useFarcasterAutoConnect'
 import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow'
@@ -16,7 +16,7 @@ import type { Connector } from 'wagmi'
 import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, X } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
 import { claimImpactProductFromVerification, getClaimFee, getUserLevel } from '@/lib/contracts'
-import { REQUIRED_BLOCK_EXPLORER_URL } from '@/lib/wagmi'
+import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
   ? 'Basescan (Sepolia)'
@@ -36,7 +36,6 @@ export default function Home() {
   const { isMiniApp } = useFarcaster()
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
-  const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
   const { connectAsync, connectors, isPending } = useConnect()
   const [cleanupStatus, setCleanupStatus] = useState<{
     hasPendingCleanup: boolean
@@ -262,7 +261,7 @@ export default function Home() {
               Apply with your cleanup results to receive a DeCleanup Impact Product, earn community token $bDCU, and progress through levels.
             </p>
             <p className="mx-auto mt-4 text-xs text-muted-foreground sm:text-sm">
-              Connect your wallet on Base Sepolia to get started
+              Connect your wallet on {REQUIRED_CHAIN_NAME} to get started
             </p>
           </div>
 
