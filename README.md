@@ -152,12 +152,8 @@ Open [http://localhost:3000](http://localhost:3000) and connect your wallet.
 - **[DEVELOPER_SPECS.md](DEVELOPER_SPECS.md)** - Technical specs, contracts, env
 - **[SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)** - Architecture
 - **[DEV_DOCS.md](DEV_DOCS.md)** - Development guide
-- **[LOCAL_TESTING.md](LOCAL_TESTING.md)** - Local testing
-- **[CONTRACTS_RECHECK.md](CONTRACTS_RECHECK.md)** - Contract reference (treasury, verifiers, funding)
-- **[contracts/DEPLOY_MAINNET.md](contracts/DEPLOY_MAINNET.md)** - Deploy and upgrade contracts
 - **[SECURITY_AUDIT.md](SECURITY_AUDIT.md)** - Security audit
 - **[TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)** - Terms of Service
-- **[CHANGELOG.md](CHANGELOG.md)** - Changelog
 
 ---
 
