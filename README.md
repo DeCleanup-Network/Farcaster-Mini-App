@@ -132,7 +132,7 @@ cp .env.example .env.local
 Edit `.env.local` with:
 - Contract addresses (mainnet proxies in table above; see [.env.example](.env.example))
 - `NEXT_PUBLIC_CHAIN_ID=8453` (Base mainnet)
-- `NEXT_PUBLIC_RPC_URL` for mainnet (e.g. `https://mainnet.base.org` or your own RPC)
+- `NEXT_PUBLIC_RPC_URL` for mainnet. Use a dedicated RPC (Alchemy, Infura, QuickNode) in production to avoid 429 rate limits from the public `mainnet.base.org` endpoint.
 - **Pinata API keys** (server-side: `PINATA_API_KEY`, `PINATA_SECRET_KEY`)
 - WalletConnect Project ID, Farcaster Neynar API key, Base App ID
 
