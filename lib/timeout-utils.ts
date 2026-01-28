@@ -43,6 +43,8 @@ export async function retryWithTimeout<T>(
     maxDelayMs?: number
     backoffMultiplier?: number
     onRetry?: (attempt: number, error: Error) => void
+    /** If false, do not retry (throw immediately). E.g. use for 429 to avoid amplifying load. */
+    shouldRetry?: (error: Error) => boolean
   } = {}
 ): Promise<T> {
   const {
@@ -52,6 +54,7 @@ export async function retryWithTimeout<T>(
     maxDelayMs = 10000,
     backoffMultiplier = 2,
     onRetry,
+    shouldRetry,
   } = options
 
   let lastError: Error | null = null
@@ -66,6 +69,11 @@ export async function retryWithTimeout<T>(
       // Don't retry on timeout errors - they're likely network issues
       if (error instanceof TimeoutError) {
         throw error
+      }
+
+      // Don't retry when shouldRetry returns false (e.g. 429 to avoid amplifying rate-limit load)
+      if (typeof shouldRetry === 'function' && !shouldRetry(lastError)) {
+        throw lastError
       }
 
       // Don't retry on last attempt

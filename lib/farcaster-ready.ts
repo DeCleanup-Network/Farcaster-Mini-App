@@ -77,10 +77,9 @@ export async function checkIsInMiniAppWithRetry(maxRetries = MAX_RETRIES): Promi
  */
 export async function callFarcasterReady(maxRetries = MAX_RETRIES): Promise<boolean> {
   try {
-    // Wait for SDK to be available first
+    // Wait for SDK to be available first (expected in normal browser; no warn)
     const sdkAvailable = await waitForFarcasterSDK(maxRetries)
     if (!sdkAvailable) {
-      console.warn('[farcaster-ready] SDK not available after retries')
       return false
     }
 

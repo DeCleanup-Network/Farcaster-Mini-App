@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WagmiProvider } from 'wagmi'
 import { getWagmiConfig } from './wagmi'
@@ -25,6 +26,30 @@ const RainbowKitProviderWithTheme = dynamic(
     // Get chains for RainbowKit (excludes mainnet - only Base chains)
     // Mainnet is kept in wagmi config for ENS resolution but hidden from chain switcher
     const rainbowKitChains = getRainbowKitChains()
+
+    // Custom avatar that does NOT use ensImage to avoid CORS from euc.li (no Access-Control-Allow-Origin).
+    // Renders a simple circle with a letter derived from the address.
+    const NoEnsAvatar: React.ComponentType<{ address: string; ensImage?: string | null; size: number }> = ({ address, size }) => {
+      const letter = (address || '?').slice(2, 4).toUpperCase() || '?'
+      return (
+        <div
+          style={{
+            width: size,
+            height: size,
+            borderRadius: '50%',
+            backgroundColor: 'rgba(88, 177, 47, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: Math.max(10, size * 0.4),
+            fontWeight: 600,
+            color: '#58B12F',
+          }}
+        >
+          {letter}
+        </div>
+      )
+    }
     
     const RainbowKitProviderWithCustomTheme = ({ children, ...props }: any) => {
       // Debug: Log viewport and provider mount
@@ -42,6 +67,7 @@ const RainbowKitProviderWithTheme = dynamic(
           showRecentTransactions={true}
           modalSize="wide"
           coolMode
+          avatar={NoEnsAvatar}
           appInfo={{
             appName: 'DeCleanup Rewards',
             learnMoreUrl: 'https://decleanup.net',

@@ -261,7 +261,6 @@ export function WalletConnect() {
                 try {
                   console.log('🔵 Opening RainbowKit connect modal...')
                   openConnectModal()
-                  
                   // On mobile, also set up a fallback check in case modal opens but connection doesn't trigger
                   // This helps with cases where MetaMask opens but no connection request appears
                   if (isMobile) {
@@ -442,7 +441,6 @@ export function WalletConnect() {
               
               try {
                 console.log('🔌 Attempting direct connection with:', connectorToUse.name, connectorToUse.id)
-                
                 // For MetaMask on mobile, ensure we wait a bit for the wallet to be ready
                 if (isMobile && (connectorToUse.id === 'metaMask' || connectorToUse.name.toLowerCase().includes('metamask'))) {
                   // Give MetaMask app time to initialize if it was just opened

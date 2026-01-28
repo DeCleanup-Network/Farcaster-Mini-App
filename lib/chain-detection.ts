@@ -50,8 +50,12 @@ export async function getCurrentChainIdCached(forceRefresh = false): Promise<num
         return null
       }
 
-      // Get chain ID
-      const chainId = await getChainId(getWagmiConfig())
+      // Get chain ID (can be null for metaMaskSDK / some connectors despite being connected)
+      let chainId = await getChainId(getWagmiConfig())
+      // Fallback: use account.chainId when getChainId returns null (e.g. MetaMask SDK)
+      if ((chainId == null || chainId === undefined) && account.chainId != null) {
+        chainId = account.chainId
+      }
       
       // Update cache
       chainIdCache.value = chainId

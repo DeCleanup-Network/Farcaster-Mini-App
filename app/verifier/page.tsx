@@ -709,11 +709,11 @@ export default function VerifierPage() {
       // Load up to counter-1, but also try a few more IDs in case counter is slightly off
       // Use counter-1 as primary, but extend to at least 20 to catch any missed cleanups
       const endId = Math.max(maxCleanupId, 20) // Try at least up to ID 20, or counter-1 if higher
-      
       console.log(`Attempting to load cleanups from ${startId} to ${endId}...`)
       
       for (let i = startId; i <= endId; i++) {
         try {
+          if (i > startId) await new Promise((r) => setTimeout(r, 120))
           const details = await getCleanupDetails(BigInt(i))
           
           // Filter out empty/invalid cleanups (zero address means cleanup doesn't exist)

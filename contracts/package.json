@@ -9,7 +9,9 @@
     "deploy:baseSepolia": "hardhat run scripts/deployUpgradeable.js --network baseSepolia",
     "verify:basescan": "hardhat run scripts/verify-on-basescan.js --network base",
     "upgrade:pointsDistributor:base": "hardhat run scripts/upgradePointsRewardDistributor.js --network base",
-    "upgrade:pointsDistributor:baseSepolia": "hardhat run scripts/upgradePointsRewardDistributor.js --network baseSepolia"
+    "upgrade:pointsDistributor:baseSepolia": "hardhat run scripts/upgradePointsRewardDistributor.js --network baseSepolia",
+    "addVerifier:base": "node run-addVerifier.js base",
+    "addVerifier:baseSepolia": "node run-addVerifier.js baseSepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",

@@ -110,6 +110,10 @@ if (!walletConnectProjectId) {
 // This ensures initialization happens AFTER browser APIs and wallet providers are ready
 let _config: ReturnType<typeof createConfig> | null = null
 
+// Cached SSR config: createConfig is called once per Node process instead of every SSR getWagmiConfig().
+// Prevents WagmiProvider from receiving a new config reference on each SSR render (H2 fix).
+let _ssrConfig: ReturnType<typeof createConfig> | null = null
+
 /**
  * Get wagmi config with lazy initialization
  * 
@@ -131,6 +135,9 @@ export function getWagmiConfig() {
   // For SSR, create a minimal config that satisfies type requirements
   // This won't work for actual wallet operations, but prevents build errors
   if (typeof window === 'undefined') {
+    if (_ssrConfig) {
+      return _ssrConfig
+    }
     // Create minimal config for SSR - connectors will be empty but config structure is valid
     // Use connectorsForWallets for consistency with client-side config
     let defaultConnectors: any[] = []
@@ -175,7 +182,7 @@ export function getWagmiConfig() {
       defaultConnectors = []
     }
     
-    return createConfig({
+    _ssrConfig = createConfig({
       chains: allChains, // Include mainnet for ENS resolution
       connectors: defaultConnectors,
       transports: {
@@ -184,6 +191,7 @@ export function getWagmiConfig() {
         [mainnet.id]: http(), // Mainnet RPC for ENS resolution (RainbowKit needs this)
       },
     })
+    return _ssrConfig
   }
 
   // Use custom wallet list with connectorsForWallets for better control
@@ -249,26 +257,13 @@ export function getWagmiConfig() {
     isFarcasterEnv = false
   }
 
-  // In Farcaster: exclude injectedWallet (id 'injected' / "Browser Wallet") so Phantom and
-  // other injected wallets that can conflict (e.g. Phantom vs MetaMask) are not offered.
-  // Users get: MetaMask, WalletConnect, Coinbase, Safe, and Farcaster Mini App.
-  if (isFarcasterEnv) {
-    defaultConnectors = defaultConnectors.filter((c) => (c as any).id !== 'injected')
-  }
-
-  // Add Farcaster Mini App connector ONLY when in Farcaster environment
-  // MUST be last in array to prevent auto-selection outside Farcaster
-  // Note: RPC URL is configured via transports in createConfig below
-  // The Farcaster connector will use the transport configuration automatically
-  // The "No rpcUrl provided" warning is harmless - the connector uses transports
+  // Farcaster: only the Farcaster wallet. Web: all standard wallets (MetaMask, WalletConnect, Coinbase, injected, Safe).
   const farcasterConnector = isFarcasterEnv ? farcasterMiniApp() : null
 
-  // Include all connectors - Farcaster LAST (never first) to prevent auto-selection
-  // Default connectors first, Farcaster only when in FC environment
-  const connectors = [
-    ...defaultConnectors,
-    ...(farcasterConnector ? [farcasterConnector] : []),
-  ]
+  const connectors =
+    isFarcasterEnv && farcasterConnector
+      ? [farcasterConnector]
+      : [...defaultConnectors]
 
   // Create config with all connectors
   // Using createConfig directly is valid in v2 when you need custom connector logic

@@ -104,9 +104,9 @@ async function handleWalletConnectStaleSession(error: any): Promise<void> {
       } catch (disconnectError) {
         console.warn('Failed to disconnect during stale session cleanup:', disconnectError)
       }
-    } catch (e) {
-      console.warn('Failed to clear WalletConnect storage:', e)
-    }
+  } catch (e) {
+    console.warn('Failed to clear WalletConnect storage:', e)
+  }
   }
   
   throw new Error('WalletConnect session expired. Please reconnect your wallet and try again.')
@@ -604,6 +604,7 @@ export const VERIFICATION_ABI = parseAbi([
   'function isRejected(uint256 cleanupId) external view returns (bool)',
   'function hasSubmittedCleanup(address user) external view returns (bool)',
   'function rewardDistributor() external view returns (address)',
+  'function owner() external view returns (address)',
 ])
 
 // ERC20 Token ABI (for Clanker $bDCU token)
@@ -1594,28 +1595,37 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
     throw new Error('Required chain not found in wagmi config')
   }
 
-  const result = await retryWithTimeout(
-    async () => {
-      const publicClient = createPublicClient({
-        chain: requiredChain,
-        transport: http(REQUIRED_RPC_URL),
-      })
-      return await publicClient.readContract({
-        address: CONTRACT_ADDRESSES.VERIFICATION,
-        abi: VERIFICATION_ABI,
-        functionName: 'getCleanup',
-        args: [cleanupId],
-      })
-    },
-    {
-      maxRetries: 2,
-      timeoutMs: 10000, // 10 second timeout
-      initialDelayMs: 1000,
-      onRetry: (attempt, error) => {
-        console.warn(`[getCleanupDetails] Retry attempt ${attempt} after RPC error:`, error?.message)
+  let result: unknown
+  try {
+    result = await retryWithTimeout(
+      async () => {
+        const publicClient = createPublicClient({
+          chain: requiredChain,
+          transport: http(REQUIRED_RPC_URL),
+        })
+        return await publicClient.readContract({
+          address: CONTRACT_ADDRESSES.VERIFICATION,
+          abi: VERIFICATION_ABI,
+          functionName: 'getCleanup',
+          args: [cleanupId],
+        })
       },
+      {
+        maxRetries: 2,
+        timeoutMs: 10000, // 10 second timeout
+        initialDelayMs: 1000,
+        onRetry: (attempt, error) => {
+          console.warn(`[getCleanupDetails] Retry attempt ${attempt} after RPC error:`, error?.message)
+        },
+        shouldRetry: (e) => !/429|rate limit|Too Many Requests/i.test(String(e?.message ?? e)),
+      }
+    )
+  } catch (e) {
+    if (/429|rate limit|Too Many Requests/i.test(String((e as Error)?.message ?? e))) {
+      throw new Error('RPC rate limited (429). Set NEXT_PUBLIC_RPC_URL to a dedicated RPC (e.g. Alchemy, Infura) for production.')
     }
-  )
+    throw e
+  }
 
   if (Array.isArray(result)) {
     return {
@@ -1696,21 +1706,22 @@ export async function getCleanupCounter(): Promise<bigint> {
         onRetry: (attempt, error) => {
           console.warn(`[getCleanupCounter] Retry attempt ${attempt} after RPC error:`, error?.message)
         },
+        shouldRetry: (e) => !/429|rate limit|Too Many Requests/i.test(String(e?.message ?? e)),
       }
     )
   } catch (error) {
-    // RPC failures - throw with helpful message
     const errorMessage = error instanceof Error ? error.message : String(error)
+    if (/429|rate limit|Too Many Requests/i.test(errorMessage)) {
+      throw new Error('RPC rate limited (429). Set NEXT_PUBLIC_RPC_URL to a dedicated RPC (e.g. Alchemy, Infura) for production.')
+    }
     const isRpcError = errorMessage.includes('Failed to fetch') || 
                       errorMessage.includes('HTTP request failed') ||
                       errorMessage.includes('network') ||
                       errorMessage.includes('timeout')
-    
     if (isRpcError) {
       console.error('[getCleanupCounter] RPC error:', errorMessage)
       throw new Error('Network error: Unable to connect to blockchain. Please check your internet connection and try again.')
     }
-    
     throw error
   }
 }
@@ -2761,40 +2772,64 @@ export async function getStakedBalance(userAddress: Address): Promise<bigint> {
 }
 
 /**
- * Check if user is a verifier (has staked minimum amount)
+ * Check if user is a verifier.
+ * Returns true if ANY of:
+ * - PointsRewardDistributor.isVerifier (staking or manuallyAddedVerifiers), OR
+ * - VerificationContract.isVerifier (allowlist; added via addVerifier by owner), OR
+ * - VerificationContract.owner() (admin can verify/reject on-chain; app treats as verifier).
  * @param userAddress User's wallet address
  * @returns True if user is a verifier
  */
 export async function isUserVerifier(userAddress: Address): Promise<boolean> {
-  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR && !CONTRACT_ADDRESSES.VERIFICATION) {
     return false
   }
 
   try {
-    // Use retry logic for RPC calls to handle network issues.
-    // Use required chain RPC via viem PublicClient (Base mainnet or Base Sepolia).
     const requiredChain = getRequiredChain()
     if (!requiredChain) {
       console.warn('[isUserVerifier] Required chain not found, returning false')
       return false
     }
-    
+
     const isVerifier = await retryWithTimeout(
       async () => {
         const publicClient = createPublicClient({
           chain: requiredChain,
           transport: http(REQUIRED_RPC_URL),
         })
-        return await publicClient.readContract({
-          address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
-          abi: POINTS_REWARD_DISTRIBUTOR_ABI,
-          functionName: 'isVerifier',
-          args: [userAddress],
-        }) as boolean
+        // PointsRewardDistributor: staking-based or manuallyAddedVerifiers
+        let fromPRD = false
+        if (CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+          fromPRD = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+            abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+            functionName: 'isVerifier',
+            args: [userAddress],
+          }) as boolean
+        }
+        if (fromPRD) return true
+        // VerificationContract: allowlist (addVerifier by owner) or owner (admin can verify/reject on-chain)
+        if (CONTRACT_ADDRESSES.VERIFICATION) {
+          const fromVC = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.VERIFICATION,
+            abi: VERIFICATION_ABI,
+            functionName: 'isVerifier',
+            args: [userAddress],
+          }) as boolean
+          if (fromVC) return true
+          const owner = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.VERIFICATION,
+            abi: VERIFICATION_ABI,
+            functionName: 'owner',
+          }) as Address
+          if (owner && owner.toLowerCase() === userAddress.toLowerCase()) return true
+        }
+        return false
       },
       {
         maxRetries: 2,
-        timeoutMs: 10000, // 10 second timeout
+        timeoutMs: 10000,
         initialDelayMs: 1000,
         onRetry: (attempt, error) => {
           console.warn(`[isUserVerifier] Retry attempt ${attempt} after RPC error:`, error?.message)
@@ -2806,6 +2841,14 @@ export async function isUserVerifier(userAddress: Address): Promise<boolean> {
   } catch (error) {
     // RPC failures - return false gracefully instead of breaking UI
     const errorMessage = error instanceof Error ? error.message : String(error)
+    const fullError = String(error) + String((error as any)?.cause?.message || '')
+    const is429 = errorMessage.includes('429') || errorMessage.includes('Too Many Requests') ||
+                  fullError.includes('429') || fullError.includes('Too Many Requests')
+    if (is429) {
+      throw new Error(
+        'RPC rate limited (429). Set NEXT_PUBLIC_RPC_URL to a dedicated RPC provider (e.g. Alchemy, Infura) for production.'
+      )
+    }
     const isRpcError = errorMessage.includes('Failed to fetch') || 
                       errorMessage.includes('HTTP request failed') ||
                       errorMessage.includes('network') ||
