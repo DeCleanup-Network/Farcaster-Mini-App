@@ -16,6 +16,8 @@ interface SuccessModalProps {
   onShare?: () => void
   showShare?: boolean
   level?: number
+  /** Optional primary CTA (e.g. "Join Verifier Channel" → Telegram invite). Opens href in new tab. */
+  primaryAction?: { label: string; href: string }
 }
 
 export function SuccessModal({
@@ -29,6 +31,7 @@ export function SuccessModal({
   onShare,
   showShare = false,
   level,
+  primaryAction,
 }: SuccessModalProps) {
   const [sharing, setSharing] = useState(false)
   const { isMiniApp } = useFarcaster()
@@ -127,6 +130,17 @@ export function SuccessModal({
 
         {/* Actions */}
         <div className="flex flex-col gap-3">
+          {primaryAction && (
+            <a
+              href={primaryAction.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 rounded-lg border-2 border-brand-green bg-brand-green/10 px-4 py-3 text-sm font-semibold text-brand-green hover:bg-brand-green/20 transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              {primaryAction.label}
+            </a>
+          )}
           {explorerUrl && (
             <a
               href={explorerUrl}

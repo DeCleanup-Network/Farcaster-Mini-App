@@ -8,10 +8,9 @@ import { Button } from '@/components/ui/button'
 import { BackButton } from '@/components/navigation/BackButton'
 import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle, Users, RotateCw } from 'lucide-react'
 import { uploadToIPFS, getIPFSUrl } from '@/lib/ipfs'
-import { submitCleanup, getSubmissionFee, getCleanupStatus, getUserLevel, CONTRACT_ADDRESSES, checkReferralEligibility, VERIFICATION_ABI } from '@/lib/contracts'
+import { submitCleanup, getSubmissionFee, getCleanupStatus, getUserLevel, CONTRACT_ADDRESSES, checkReferralEligibility } from '@/lib/contracts'
 import { clearPendingCleanupData, resetSubmissionCounting } from '@/lib/clear-cleanup-data'
 import type { Address } from 'viem'
-import { useBuilderCodeAttribution } from '@/lib/hooks/useBuilderCode'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { openUrl } from '@/lib/farcaster'
@@ -54,7 +53,6 @@ function CleanupContent() {
   const { connect, connectors, isPending: isConnecting } = useConnect()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { sendWithBuilderCode } = useBuilderCodeAttribution()
   const { isMiniApp, context } = useFarcaster()
   const [mounted, setMounted] = useState(false)
   const [referrerAddress, setReferrerAddress] = useState<Address | null>(null)
@@ -857,68 +855,19 @@ function CleanupContent() {
           ? referrerAddress 
           : null
 
-        // Try with Builder Code first, fallback to standard submission if it fails
-        let cleanupId: bigint
-        let transactionHash: `0x${string}`
-        try {
-          // Create transaction sender with Builder Code attribution
-          const sendTransaction = async (params: {
-            address: Address
-            abi: typeof VERIFICATION_ABI
-            functionName: 'submitCleanup'
-            args: readonly unknown[]
-            value: bigint
-          }) => {
-            return await sendWithBuilderCode({
-              to: params.address,
-              abi: params.abi,
-              functionName: params.functionName,
-              args: params.args,
-              value: params.value,
-            })
-          }
-
-          const result = await submitCleanup(
-            beforeHash.hash,
-            afterHash.hash,
-            location.lat,
-            location.lng,
-            finalReferrerAddress,
-            feeValue,
-            chainId,
-            sendTransaction
-          )
-          cleanupId = result.cleanupId
-          transactionHash = result.transactionHash
-        } catch (builderCodeError: any) {
-          // If Builder Code fails (capabilities error, etc.), retry without it
-          const errorMessage = builderCodeError?.message || String(builderCodeError || '')
-          const isBuilderCodeError = errorMessage.includes('capabilities') ||
-                                    errorMessage.includes('dataSuffix') ||
-                                    errorMessage.includes('invalid_type') ||
-                                    errorMessage.includes('Expected object') ||
-                                    errorMessage.includes('wallet_sendCalls')
-          
-          if (isBuilderCodeError) {
-            console.warn('⚠️ Builder Code submission failed, retrying with standard transaction:', errorMessage)
-            // Retry without Builder Code (standard submission)
-            const result = await submitCleanup(
-              beforeHash.hash,
-              afterHash.hash,
-              location.lat,
-              location.lng,
-              finalReferrerAddress,
-              feeValue,
-              chainId,
-              undefined
-            )
-            cleanupId = result.cleanupId
-            transactionHash = result.transactionHash
-          } else {
-            // Re-throw if it's not a Builder Code error
-            throw builderCodeError
-          }
-        }
+        // Use standard writeContract (Builder Code skipped: MetaMask rejects capabilities.dataSuffix format, causing delay)
+        const result = await submitCleanup(
+          beforeHash.hash,
+          afterHash.hash,
+          location.lat,
+          location.lng,
+          finalReferrerAddress,
+          feeValue,
+          chainId,
+          undefined
+        )
+        const cleanupId = result.cleanupId
+        const transactionHash = result.transactionHash
 
         console.log('✅ Cleanup submitted with ID:', cleanupId.toString())
         console.log('✅ Transaction hash:', transactionHash)
@@ -926,6 +875,24 @@ function CleanupContent() {
         if (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') {
           console.log('✅ Referral reward will be distributed when cleanup is verified!')
         }
+
+        // Notify Telegram (best-effort; do not block UX)
+        if (address && location) {
+          fetch('/api/notify-cleanup-submission', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              cleanupId: cleanupId.toString(),
+              submitterAddress: address,
+              beforePhotoHash: beforeHash.hash,
+              afterPhotoHash: afterHash.hash,
+              latitude: location.lat,
+              longitude: location.lng,
+              transactionHash,
+            }),
+          }).catch(() => {})
+        }
+
         setStep('review')
         
         // Show transaction modal with success message

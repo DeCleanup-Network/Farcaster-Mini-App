@@ -23,6 +23,7 @@ import {
   AlertCircle,
   X,
   History,
+  Coins,
 } from 'lucide-react'
 import { ImportTokenModal } from '@/components/wallet/ImportTokenModal'
 import Link from 'next/link'
@@ -261,6 +262,9 @@ function ProfileContent() {
     transactionHash?: string
     level?: number
   } | null>(null)
+  const [showVerifierSuccessModal, setShowVerifierSuccessModal] = useState(false)
+  const [verifierSuccessTxHash, setVerifierSuccessTxHash] = useState<string | null>(null)
+  const [verifierInviteUrl, setVerifierInviteUrl] = useState<string | null>(null)
   const [breakdownExpanded, setBreakdownExpanded] = useState(false)
   const [referrerAddress, setReferrerAddress] = useState<Address | null>(null)
   const [showReferralNotification, setShowReferralNotification] = useState(false)
@@ -290,6 +294,18 @@ function ProfileContent() {
   useEffect(() => {
     setHasMounted(true)
   }, [])
+
+  // Fetch verifier Telegram invite URL from API when modal opens (server checks on-chain verifier status)
+  useEffect(() => {
+    if (!showVerifierSuccessModal || !address) {
+      if (!showVerifierSuccessModal) setVerifierInviteUrl(null)
+      return
+    }
+    fetch(`/api/verifier-telegram-invite?address=${encodeURIComponent(address)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.url) setVerifierInviteUrl(d.url) })
+      .catch(() => {})
+  }, [showVerifierSuccessModal, address])
 
   // Capture referral codes from profile links as fallback (Safari-compatible)
   useEffect(() => {
@@ -1382,16 +1398,20 @@ function ProfileContent() {
                       return
                     }
                     if (isStaking) return
-                    
+                    const wasNotVerifier = !profileData.isVerifier
                     try {
                       setIsStaking(true)
                       const amount = parseUnits(stakeAmount, 18)
                       const hash = await stakeTokensForVerifier(amount, chainId)
-                      alert(`Stake transaction submitted! Hash: ${hash}`)
                       setStakeAmount('')
-                      // Reload profile data
                       if (address) {
                         await loadProfileData(address, { showSpinner: false })
+                      }
+                      if (wasNotVerifier) {
+                        setVerifierSuccessTxHash(hash)
+                        setShowVerifierSuccessModal(true)
+                      } else {
+                        alert(`Stake transaction submitted! Hash: ${hash}`)
                       }
                     } catch (error: any) {
                       console.error('Error staking:', error)
@@ -1427,10 +1447,36 @@ function ProfileContent() {
         )}
 
         {profileData.level < 3 && (
-          <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800/50 p-4">
-            <p className="text-sm text-gray-400">
-              Reach level 3 to unlock staking and token claiming features.
+          <div className="mb-6 rounded-lg border border-brand-yellow/40 bg-brand-yellow/5 p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Coins className="h-5 w-5 text-brand-yellow" />
+              <span className="text-sm font-semibold text-brand-yellow">Reach level 3 to unlock</span>
+            </div>
+            <p className="text-sm text-gray-300 mb-3">
+              Staking and token claiming unlock at level 3. Staking <strong>51% of your $bDCU</strong> makes you a Verifier and lets you review cleanups.
             </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              {CONTRACT_ADDRESSES.BDCU_TOKEN && (
+                <a
+                  href={`${REQUIRED_BLOCK_EXPLORER_URL}/address/${CONTRACT_ADDRESSES.BDCU_TOKEN}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-brand-yellow hover:underline"
+                >
+                  $bDCU on {BLOCK_EXPLORER_NAME}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+              <a
+                href="https://www.clanker.world/clanker/0x30171b7014c02229497CdE6745DD3aD821F12b07"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-brand-yellow hover:underline"
+              >
+                Buy $bDCU on Clanker
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
           </div>
         )}
 
@@ -2130,6 +2176,24 @@ function ProfileContent() {
             explorerName={BLOCK_EXPLORER_NAME}
             showShare={!!successModalData.level && successModalData.level > 0}
             level={successModalData.level}
+          />
+        )}
+
+        {/* Verifier success modal: after first-time staking to become verifier */}
+        {showVerifierSuccessModal && (
+          <SuccessModal
+            isOpen={showVerifierSuccessModal}
+            onClose={() => {
+              setShowVerifierSuccessModal(false)
+              setVerifierSuccessTxHash(null)
+              setVerifierInviteUrl(null)
+            }}
+            title="You're a Verifier!"
+            message="Join our Verifier Channel to get instant alerts for new cleanup submissions (images, location, wallet)."
+            transactionHash={verifierSuccessTxHash ?? undefined}
+            explorerUrl={verifierSuccessTxHash ? getExplorerTxUrl(verifierSuccessTxHash as `0x${string}`) : undefined}
+            explorerName={BLOCK_EXPLORER_NAME}
+            primaryAction={verifierInviteUrl ? { label: 'Join Verifier Channel', href: verifierInviteUrl } : undefined}
           />
         )}
 

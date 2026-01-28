@@ -27,12 +27,11 @@ export async function proxy(request: NextRequest) {
     !pathname.startsWith('/.well-known') &&
     !pathname.match(/\.(ico|png|jpg|jpeg|svg|gif|webp|woff|woff2|ttf|eot)$/)
   ) {
-    // Protect sensitive routes
+    // Protect sensitive routes (verifier page excluded: UI-only; /api/cleanup/verify stays protected)
     const protectedRoutes = [
       '/api/cleanup/submit',
       '/api/cleanup/verify',
       '/api/points',
-      '/verifier',
     ]
 
     const isProtectedRoute = protectedRoutes.some(route => 
@@ -41,13 +40,14 @@ export async function proxy(request: NextRequest) {
 
     if (isProtectedRoute) {
       try {
-        // Check user agent for legitimate mobile browsers (Safari iOS, Chrome Mobile, etc.)
+        // Check user agent for legitimate browsers: mobile (Safari, Chrome), Farcaster/Base in-app WebViews
         const userAgent = request.headers.get('user-agent') || ''
         const isSafariIOS = /iPhone|iPad|iPod/i.test(userAgent) && /Safari/i.test(userAgent) && !/CriOS|FxiOS|OPiOS/i.test(userAgent)
         const isChromeMobile = /Android.*Chrome|CriOS/i.test(userAgent)
-        const isLegitimateMobile = isSafariIOS || isChromeMobile
+        const isFarcasterOrBase = /(?:Farcaster|Warpcast|Base)/i.test(userAgent)
+        const isLegitimateMobile = isSafariIOS || isChromeMobile || isFarcasterOrBase
 
-        // Allow legitimate mobile browsers without bot check
+        // Allow legitimate mobile and in-app browsers without bot check (Bot ID often unavailable in WebViews)
         if (isLegitimateMobile) {
           console.log(`[Bot Protection] Allowing legitimate mobile browser: ${userAgent.substring(0, 50)}...`)
           return NextResponse.next()

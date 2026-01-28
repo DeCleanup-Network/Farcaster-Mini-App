@@ -8,6 +8,7 @@
 - **Web App**: [decleanup.net](https://decleanup.net)
 - **System Architecture**: [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md)
 - **Local Testing**: [LOCAL_TESTING.md](LOCAL_TESTING.md)
+- **Telegram Notifications**: [TELEGRAM_NOTIFICATIONS.md](TELEGRAM_NOTIFICATIONS.md) (optional)
 
 ---
 
@@ -73,6 +74,10 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=...
 ```
 
 **⚠️ Important**: Pinata keys must be server-side only (`PINATA_API_KEY`, not `NEXT_PUBLIC_PINATA_API_KEY`) to prevent client exposure.
+
+### Optional: Telegram Notifications
+
+To get Telegram messages for new cleanup submissions, set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` (server-side only). See [TELEGRAM_NOTIFICATIONS.md](TELEGRAM_NOTIFICATIONS.md) for setup.
 
 ---
 
@@ -169,6 +174,8 @@ npx hardhat deploy --network baseSepolia
 | Route | Method | Purpose |
 |-------|--------|---------|
 | `/api/ipfs/upload` | POST | Proxy IPFS uploads (keeps Pinata keys server-side) |
+| `/api/notify-cleanup-submission` | POST | Notify Telegram on new cleanup (optional; requires `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) |
+| `/api/verifier-telegram-invite` | GET | Return Verifier Telegram invite URL only to on-chain verifiers (optional; requires `VERIFIER_TELEGRAM_INVITE_URL`) |
 | `/api/health` | GET | Health check endpoint |
 
 ---
