@@ -401,15 +401,15 @@ function ProfileContent() {
         }
 
         // Add timeout to prevent hanging
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Profile data loading timeout')), 30000)
         )
 
         const dataPromise = Promise.all([
           getDCUBalance(userAddress),
-          getDCUPointsBalance(userAddress).catch(() => 0), // Try new points system, fallback to 0
+          getDCUPointsBalance(userAddress).catch(() => 0),
           getStakedDCU(userAddress),
-          getStakedBalance(userAddress).catch(() => BigInt(0)), // Try new staking system
+          getStakedBalance(userAddress).catch(() => BigInt(0)),
           getUserLevel(userAddress),
           getStreakCount(userAddress),
           hasActiveStreak(userAddress),
@@ -420,26 +420,32 @@ function ProfileContent() {
           getTargetRewardValue().catch(() => 90),
         ])
 
-        // Load main data and rewards breakdown in parallel
-        const [mainData, rewardsBreakdown] = await Promise.all([
-          Promise.race([
-            dataPromise,
-            timeoutPromise,
-          ]) as Promise<Awaited<typeof dataPromise>>,
-          getRewardsBreakdown(userAddress).catch((error) => {
-            console.error('Error fetching rewards breakdown:', error)
-            return {
-              levelRewards: 0,
-              cleanupCount: 0,
-              streakRewards: 0,
-              referralRewards: 0,
-              impactFormRewards: 0,
-              verifierRewards: 0,
-              retroRewards: 0,
-              total: 0,
-            }
-          }),
+        // Load main data and rewards breakdown in parallel; use allSettled so we keep breakdown even if main data times out
+        const [mainResult, breakdownResult] = await Promise.allSettled([
+          Promise.race([dataPromise, timeoutPromise]) as Promise<Awaited<typeof dataPromise>>,
+          getRewardsBreakdown(userAddress),
         ])
+
+        const mainData =
+          mainResult.status === 'fulfilled'
+            ? mainResult.value
+            : ([0, 0, 0, BigInt(0), 0, 0, false, 0, false, false, 0, 90] as Awaited<typeof dataPromise>)
+        const rewardsBreakdown =
+          breakdownResult.status === 'fulfilled'
+            ? breakdownResult.value
+            : {
+                levelRewards: 0,
+                cleanupCount: 0,
+                streakRewards: 0,
+                referralRewards: 0,
+                impactFormRewards: 0,
+                verifierRewards: 0,
+                retroRewards: 0,
+                total: 0,
+              }
+        if (breakdownResult.status === 'rejected') {
+          console.error('Error fetching rewards breakdown:', breakdownResult.reason)
+        }
 
         const [dcuBalance, dcuPoints, stakedDCU, stakedBalance, level, streak, activeStreak, totalRewardsDistributed, isVerifier, hasMinimumLevel, currentTokenPrice, targetRewardValue] = mainData
 
@@ -684,6 +690,14 @@ function ProfileContent() {
           hasMinimumLevel: hasMinimumLevel || false,
           isVerifier: isVerifier || false,
           level,
+          rewardsBreakdown: {
+            cleanupCount: rewardsBreakdown.cleanupCount,
+            levelDCU: rewardsBreakdown.levelRewards,
+            streakDCU: rewardsBreakdown.streakRewards,
+            referralDCU: rewardsBreakdown.referralRewards,
+            verifierDCU: rewardsBreakdown.verifierRewards,
+            total: rewardsBreakdown.total,
+          },
         })
         
         setProfileData(newProfileData)
@@ -1227,7 +1241,8 @@ function ProfileContent() {
               Stake your $bDCU tokens to become a verifier and help review cleanup submissions. You need to reach level 3 first.
             </p>
             
-            {profileData.isVerifier ? (
+            {/* Only show "You are a Verifier" / unstake when user has actually staked; otherwise show stake form */}
+            {profileData.isVerifier && profileData.stakedBalance > BigInt(0) ? (
               <div className="mb-4 rounded-lg border border-brand-green bg-brand-green/10 p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <CheckCircle className="h-5 w-5 text-brand-green" />
@@ -1536,57 +1551,29 @@ function ProfileContent() {
                 </span>
               </div>
 
-              <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/30 p-3">
-                <div className="flex items-center gap-3">
-                  <Users className="h-5 w-5 text-brand-green" />
-                  <div>
-                    <span className="text-sm font-medium text-white">Referrals</span>
-                    <p className="text-xs text-gray-400">Rewards for referring new users (3 DCU each)</p>
-                  </div>
-                </div>
-                <span className="text-lg font-mono font-bold text-white">
-                  {Math.floor(profileData.rewardsBreakdown.referralRewards / 3) * 3} DCU
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/30 p-3">
-                <div className="flex items-center gap-3">
-                  <Flame className="h-5 w-5 text-brand-yellow" />
-                  <div>
-                    <span className="text-sm font-medium text-white">Streak</span>
-                    <p className="text-xs text-gray-400">Weekly streak maintenance rewards (1 DCU each)</p>
-                  </div>
-                </div>
-                <span className="text-lg font-mono font-bold text-white">
-                  {Math.floor(profileData.rewardsBreakdown.streakRewards / 1) * 1} DCU
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/30 p-3">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="h-5 w-5 text-brand-green" />
-                  <div>
-                    <span className="text-sm font-medium text-white">Verifier Rewards</span>
-                    <p className="text-xs text-gray-400">Rewards for verifying cleanups (1 DCU each)</p>
-                  </div>
-                </div>
-                <span className="text-lg font-mono font-bold text-white">
-                  {Math.floor(profileData.rewardsBreakdown.verifierRewards)} DCU
-                </span>
-              </div>
-
-              {/* Retro Rewards */}
-              {profileData.rewardsBreakdown.retroRewards > 0 && (
+              {/* Other (streak, verifier, referral, retro) */}
+              {(
+                profileData.rewardsBreakdown.streakRewards > 0 ||
+                profileData.rewardsBreakdown.verifierRewards > 0 ||
+                profileData.rewardsBreakdown.referralRewards > 0 ||
+                profileData.rewardsBreakdown.retroRewards > 0
+              ) && (
                 <div className="flex items-center justify-between rounded-lg border border-gray-700 bg-gray-800/30 p-3">
                   <div className="flex items-center gap-3">
                     <History className="h-5 w-5 text-brand-yellow" />
                     <div>
-                      <span className="text-sm font-medium text-white">Retro Rewards</span>
-                      <p className="text-xs text-gray-400">Retroactive rewards for past activity</p>
+                      <span className="text-sm font-medium text-white">Other</span>
+                      <p className="text-xs text-gray-400">Streak, verifier, referral, or retroactive rewards</p>
                     </div>
                   </div>
                   <span className="text-lg font-mono font-bold text-white">
-                    {Math.floor(profileData.rewardsBreakdown.retroRewards)} DCU
+                    {Math.floor(
+                      profileData.rewardsBreakdown.streakRewards +
+                        profileData.rewardsBreakdown.verifierRewards +
+                        profileData.rewardsBreakdown.referralRewards +
+                        profileData.rewardsBreakdown.retroRewards
+                    )}{' '}
+                    DCU
                   </span>
                 </div>
               )}
