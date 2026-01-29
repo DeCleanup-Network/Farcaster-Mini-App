@@ -29,6 +29,7 @@ import { ImportTokenModal } from '@/components/wallet/ImportTokenModal'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { formatFeeEth } from '@/lib/utils'
 import {
   getDCUBalance,
   getDCUPointsBalance,
@@ -176,7 +177,7 @@ function ClaimFeeDisplay() {
     return (
       <div className="rounded-lg border border-amber-800/50 bg-amber-950/30 p-2">
         <p className="text-xs text-amber-200/90">
-          Claim Impact Product fee: ~{feeInCents.toFixed(2)} cents USD ({feeInEth.toFixed(8)} ETH). You pay when you confirm below. Have some ETH on Base for gas.
+          Claim Impact Product fee: ~{feeInCents.toFixed(2)} cents USD ({formatFeeEth(claimFee.fee)} ETH). You pay when you confirm below. Have some ETH on Base for gas.
         </p>
       </div>
     )

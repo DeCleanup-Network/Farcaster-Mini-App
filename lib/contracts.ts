@@ -59,6 +59,13 @@ function getErrorMessage(error: any): string {
   return String(error)
 }
 
+// Detect iOS Safari (wallet often opens but tx request can be lost; we add delay and show hints)
+function isIOSSafari(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  return /iPad|iPhone|iPod/.test(ua) && !(typeof window !== 'undefined' && (window as any).MSStream)
+}
+
 // Helper to check if error is a WalletConnect stale session error
 function isWalletConnectStaleSessionError(error: any): boolean {
   if (!error) return false
@@ -1131,6 +1138,12 @@ export async function submitCleanup(
     }
   }
 
+  // iOS Safari: wallet often opens but tx request doesn't appear; delay so wallet is ready
+  if (isIOSSafari()) {
+    console.log('[submitCleanup] iOS Safari detected, waiting for wallet to be ready...')
+    await new Promise(resolve => setTimeout(resolve, 1800))
+  }
+
   // Account is already verified at the top of the function
   let hash: `0x${string}`
   try {
@@ -1200,9 +1213,17 @@ export async function submitCleanup(
       await handleWalletConnectStaleSession(error)
     }
     
+    const errorMessageSubmit = getErrorMessage(error)
+    // iOS Safari: wallet opened but tx didn't appear
+    if (isIOSSafari() && (errorMessageSubmit.includes('timeout') || errorMessageSubmit.includes('failed to fetch') || errorMessageSubmit.includes('connection') || errorMessageSubmit.includes('No response'))) {
+      throw new Error(
+        'Transaction request didn’t reach your wallet. On iOS Safari: return to this page and tap Submit again. If the wallet opens, approve the transaction when it appears.'
+      )
+    }
+    
     // For Safari/WalletConnect/Farcaster, provide more helpful error messages
     if (isSafariWalletConnect || isFarcaster || isFarcasterWalletConnect) {
-      const errorMessage = getErrorMessage(error)
+      const errorMessage = errorMessageSubmit
       const context = isFarcaster ? 'Farcaster' : 'Safari/WalletConnect'
       
       if (errorMessage.includes('User rejected') || error?.code === 4001) {
@@ -1446,6 +1467,12 @@ export async function claimImpactProductFromVerification(
     }
   }
 
+  // iOS Safari: wallet often opens but tx request doesn't appear; delay so wallet is ready
+  if (isIOSSafari()) {
+    console.log('[claimImpactProduct] iOS Safari detected, waiting for wallet to be ready...')
+    await new Promise(resolve => setTimeout(resolve, 1800))
+  }
+
   // Account is already verified at the top of the function
   try {
     console.log('[claimImpactProduct] Account status:', account.status, 'Connector:', account.connector?.name || account.connector?.id)
@@ -1504,6 +1531,37 @@ export async function claimImpactProductFromVerification(
       throw new Error(`Cleanup #${cleanupId.toString()} does not exist.`)
     }
     
+    if (errorMessage.includes('Insufficient claim fee') || errorMessage.includes('claim fee')) {
+      throw new Error(
+        'The claim fee sent does not match. Please ensure you have the exact amount shown (and some ETH on Base for gas) and try again.'
+      )
+    }
+    
+    if (errorMessage.includes('Level must be higher') || errorMessage.includes('level must be higher')) {
+      throw new Error(
+        'You already have an Impact Product at this level. Complete and verify another cleanup to advance to a higher level, then claim again.'
+      )
+    }
+    
+    // Generic revert/simulation failure — suggest common causes
+    if (
+      errorMessage.includes('revert') ||
+      errorMessage.includes('Simulation failed') ||
+      errorMessage.includes('ContractFunctionExecutionError') ||
+      errorMessage.includes('would fail')
+    ) {
+      throw new Error(
+        'Claim failed (contract reverted). Common causes: (1) Use the same wallet that submitted this cleanup — in Farcaster, make sure you\'re connected with that wallet. (2) Have enough ETH for the claim fee + gas on Base. (3) If you already have an Impact Product at this level, you need another cleanup verified at a higher level.'
+      )
+    }
+    
+    // iOS Safari: wallet opened but tx didn't appear
+    if (isIOSSafari() && (errorMessage.includes('timeout') || errorMessage.includes('failed to fetch') || errorMessage.includes('connection') || errorMessage.includes('No response'))) {
+      throw new Error(
+        'Transaction request didn’t reach your wallet. On iOS Safari: return to this page and tap Claim Level again. If the wallet opens, approve the transaction when it appears.'
+      )
+    }
+
     // Farcaster-specific error handling
     if (isFarcaster) {
       if (errorMessage.includes('timeout') || errorMessage.includes('failed to fetch')) {
@@ -1845,6 +1903,12 @@ export async function verifyCleanup(
   // This prevents race conditions where the transaction is attempted before the chain switch is complete
   await new Promise(resolve => setTimeout(resolve, 500))
   
+  // iOS Safari: wallet often opens but tx request doesn't appear; delay so wallet is ready
+  if (isIOSSafari()) {
+    console.log('[verification] iOS Safari detected, waiting for wallet to be ready...')
+    await new Promise(resolve => setTimeout(resolve, 1800))
+  }
+  
   console.log(`[verification] Chain check passed, proceeding with transaction`)
 
   // Account is already verified at the top of the function
@@ -1910,6 +1974,13 @@ export async function verifyCleanup(
     
     const errorMessage = getErrorMessage(error)
     console.error('Error calling verifyCleanup:', errorMessage)
+
+    // iOS Safari: wallet opened but tx didn't appear
+    if (isIOSSafari() && (errorMessage.includes('timeout') || errorMessage.includes('failed to fetch') || errorMessage.includes('connection') || errorMessage.includes('No response'))) {
+      throw new Error(
+        'Transaction request didn’t reach your wallet. On iOS Safari: return to this page and tap Verify again. If the wallet opens, approve the transaction when it appears.'
+      )
+    }
 
     // Check for chain mismatch errors first
     if (

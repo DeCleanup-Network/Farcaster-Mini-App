@@ -16,6 +16,7 @@ import type { Connector } from 'wagmi'
 import { Leaf, Award, Users, AlertCircle, Wallet, Heart, Loader2, X } from 'lucide-react'
 import { getUserCleanupStatus } from '@/lib/verification'
 import { claimImpactProductFromVerification, getClaimFee, getUserLevel } from '@/lib/contracts'
+import { formatFeeEth } from '@/lib/utils'
 import { REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME } from '@/lib/wagmi'
 
 const BLOCK_EXPLORER_NAME = REQUIRED_BLOCK_EXPLORER_URL.includes('sepolia')
@@ -58,6 +59,7 @@ export default function Home() {
     transactionHash?: string
   } | null>(null)
   const [claimFeeDisplay, setClaimFeeDisplay] = useState<{ fee: bigint; enabled: boolean } | null>(null)
+  const [isIOSSafari, setIsIOSSafari] = useState(false)
   
   const farcasterConnector = connectors.find((c) => {
     const name = c.name.toLowerCase()
@@ -73,6 +75,12 @@ export default function Home() {
 
   // In Mini App, prioritize Farcaster connector; otherwise use external connectors
   const primaryConnector: Connector | undefined = isMiniApp && farcasterConnector ? farcasterConnector : externalConnectors[0]
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
+      setIsIOSSafari(true)
+    }
+  }, [])
 
   // Load claim fee when user can claim so they see it before pressing CLAIM LEVEL
   useEffect(() => {
@@ -303,7 +311,7 @@ export default function Home() {
                           {claimFeeDisplay !== null && (
                             <p className="mt-1 text-xs text-gray-400">
                               {claimFeeDisplay.enabled && claimFeeDisplay.fee > BigInt(0)
-                                ? `Claim Impact Product fee: ${(Number(claimFeeDisplay.fee) / 1e18).toFixed(8)} ETH (you pay when you confirm below). Have some ETH on Base for gas.`
+                                ? `Claim Impact Product fee: ${formatFeeEth(claimFeeDisplay.fee)} ETH (you pay when you confirm below). Have some ETH on Base for gas.`
                                 : 'No Claim Impact Product fee. Only have some ETH on Base for gas.'}
                             </p>
                           )}
@@ -340,10 +348,16 @@ export default function Home() {
                 <div className="mx-auto max-w-md rounded-lg border border-gray-700 bg-gray-900/50 px-3 py-2">
                   <p className="text-xs text-gray-400">
                     {claimFeeDisplay.enabled && claimFeeDisplay.fee > BigInt(0)
-                      ? `Claim Impact Product fee: ${(Number(claimFeeDisplay.fee) / 1e18).toFixed(8)} ETH (you pay when you confirm). Have some ETH on Base for gas.`
+                      ? `Claim Impact Product fee: ${formatFeeEth(claimFeeDisplay.fee)} ETH (you pay when you confirm). Have some ETH on Base for gas.`
                       : 'No Claim Impact Product fee. Only have some ETH on Base for gas.'}
                   </p>
                 </div>
+              )}
+
+              {mounted && isIOSSafari && isConnected && (
+                <p className="mx-auto max-w-md text-center text-xs text-muted-foreground">
+                  On iOS Safari: if the wallet opens but no transaction appears, return here and tap again.
+                </p>
               )}
 
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
@@ -382,7 +396,7 @@ export default function Home() {
                     /* single title: fee when can claim, reason when disabled */
                     cleanupStatus?.canClaim
                       ? (claimFeeDisplay?.enabled && claimFeeDisplay?.fee && claimFeeDisplay.fee > BigInt(0)
-                          ? `Claim Impact Product fee: ${(Number(claimFeeDisplay.fee) / 1e18).toFixed(8)} ETH`
+                          ? `Claim Impact Product fee: ${formatFeeEth(claimFeeDisplay.fee)} ETH`
                           : undefined)
                       : cleanupStatus?.reason
                   }

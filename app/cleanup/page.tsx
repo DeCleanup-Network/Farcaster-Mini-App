@@ -9,6 +9,7 @@ import { BackButton } from '@/components/navigation/BackButton'
 import { Camera, Upload, ArrowRight, Check, Loader2, ExternalLink, X, Clock, AlertCircle, Users, RotateCw } from 'lucide-react'
 import { uploadToIPFS, getIPFSUrl } from '@/lib/ipfs'
 import { submitCleanup, getSubmissionFee, getCleanupStatus, getUserLevel, CONTRACT_ADDRESSES, checkReferralEligibility } from '@/lib/contracts'
+import { formatFeeEth } from '@/lib/utils'
 import { clearPendingCleanupData, resetSubmissionCounting } from '@/lib/clear-cleanup-data'
 import type { Address } from 'viem'
 import { useFarcasterReady } from '@/lib/hooks/useFarcasterReady'
@@ -1841,7 +1842,7 @@ function CleanupContent() {
             <div className="mb-3 rounded-lg border border-gray-700 bg-gray-900/50 p-2">
               <p className="text-xs text-gray-400">
                 {submissionFeeDisplay.enabled && submissionFeeDisplay.fee > BigInt(0)
-                  ? `Submission fee: ${(Number(submissionFeeDisplay.fee) / 1e18).toFixed(8)} ETH (you pay when you confirm). Make sure you have some ETH on Base for gas.`
+                  ? `Submission fee: ${formatFeeEth(submissionFeeDisplay.fee)} ETH (you pay when you confirm). Make sure you have some ETH on Base for gas.`
                   : 'Submission fee is 0. Only have some ETH on Base for gas.'}
               </p>
             </div>
