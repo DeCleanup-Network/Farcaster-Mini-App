@@ -1502,8 +1502,8 @@ export async function claimImpactProductFromVerification(
       })
     } else {
       // Explicit gas params so wallet shows Base-appropriate total (~cents), not mainnet-style estimate
-      const gasLimit = 500_000n
-      const maxFeePerGasBase = 50_000_000n // 0.05 gwei (Base typical ~0.01 gwei; caps display at ~$0.10 total)
+      const gasLimit = BigInt(500000)
+      const maxFeePerGasBase = BigInt(50000000) // 0.05 gwei (Base typical ~0.01 gwei; caps display at ~$0.10 total)
       hash = await writeContract(getWagmiConfig() as any, {
         address: CONTRACT_ADDRESSES.VERIFICATION,
         abi: VERIFICATION_ABI,
