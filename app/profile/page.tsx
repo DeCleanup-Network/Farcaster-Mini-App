@@ -145,7 +145,7 @@ export default function ProfilePage() {
   )
 }
 
-// Component to display claim fee
+// Claim Impact Product fee — shown before Claim button so user sees it first
 function ClaimFeeDisplay() {
   const [claimFee, setClaimFee] = useState<{ fee: bigint; enabled: boolean } | null>(null)
   
@@ -162,18 +162,29 @@ function ClaimFeeDisplay() {
     loadClaimFee()
   }, [])
   
-  if (!claimFee || !claimFee.enabled || claimFee.fee === BigInt(0)) {
-    return null
+  if (!claimFee) {
+    return (
+      <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-2">
+        <p className="text-xs text-gray-400">Claim Impact Product fee: loading…</p>
+      </div>
+    )
   }
   
-  const feeInEth = Number(claimFee.fee) / 1e18
-  const feeInCents = feeInEth * 2800 // Approximate ETH price for display
+  if (claimFee.enabled && claimFee.fee > BigInt(0)) {
+    const feeInEth = Number(claimFee.fee) / 1e18
+    const feeInCents = feeInEth * 2800 // Approximate ETH price for display
+    return (
+      <div className="rounded-lg border border-amber-800/50 bg-amber-950/30 p-2">
+        <p className="text-xs text-amber-200/90">
+          Claim Impact Product fee: ~{feeInCents.toFixed(2)} cents USD ({feeInEth.toFixed(8)} ETH). You pay when you confirm below. Have some ETH on Base for gas.
+        </p>
+      </div>
+    )
+  }
   
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-2">
-      <p className="text-xs text-gray-400">
-        Claim fee: ~{feeInCents.toFixed(2)} cents USD ({feeInEth.toFixed(8)} ETH)
-      </p>
+      <p className="text-xs text-gray-400">No Claim Impact Product fee. Only have some ETH on Base for gas.</p>
     </div>
   )
 }
@@ -1642,6 +1653,7 @@ function ProfileContent() {
                       🎉 Your cleanup has been verified! You can now claim your Impact Product NFT.
                     </p>
                   </div>
+                  <p className="text-xs text-gray-400">Fees (if any) are shown below. You pay in ETH when you confirm.</p>
                   <ClaimFeeDisplay />
                   {featureLock.isLocked && <FeatureLockedNotice />}
                   <Button

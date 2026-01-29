@@ -51,7 +51,7 @@
 
 ```bash
 # Network Configuration
-NEXT_PUBLIC_CHAIN_ID=84532  # Base Sepolia (8453 for mainnet)
+NEXT_PUBLIC_CHAIN_ID=8453   # Base Mainnet (84532 for Base Sepolia testnet)
 NEXT_PUBLIC_RPC_URL=...
 NEXT_PUBLIC_BLOCK_EXPLORER_URL=...
 
@@ -123,8 +123,14 @@ npm run generate:metadata
 | Level Claim | 10 $bDCU |
 | Weekly Streak | 2 $bDCU |
 | Referral | 3 $bDCU (both parties) |
-| Impact Form | 5 $bDCU *(deprecated; app no longer submits impact report)* |
+| Impact Form | 5 $bDCU *(deprecated; unused)* |
 | Verification | 1 $bDCU |
+
+### Fees (VerificationContract)
+
+- **Submission fee**: stays 0. We do not charge for submitting cleanups.
+- **Claim fee** (optional): may be charged when claiming the Impact Product NFT after verification, if enabled. The app shows the exact amount in ETH on the home and profile pages **before** the user taps Claim Level or Claim Impact Product.
+- Claim fee is paid in ETH and can be changed by the contract owner. See [TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md) §9.
 
 ---
 
@@ -144,7 +150,7 @@ scripts/          # Utility scripts (metadata generation, etc.)
 
 ### Local Development
 1. Start dev server: `npm run dev`
-2. Connect wallet on Base Sepolia
+2. Connect wallet on Base Mainnet (or Base Sepolia if using testnet)
 3. Test cleanup submission flow
 4. Use verifier dashboard to approve
 
@@ -164,7 +170,8 @@ See [LOCAL_TESTING.md](LOCAL_TESTING.md) for tunnel setup (ngrok, Cloudflare, lo
 ### Smart Contracts (Hardhat)
 ```bash
 cd contracts
-npx hardhat deploy --network baseSepolia
+npm run deploy:base        # Base Mainnet
+# or: npm run deploy:baseSepolia  # Base Sepolia testnet
 ```
 
 ---
@@ -193,7 +200,7 @@ npx hardhat deploy --network baseSepolia
 ## Troubleshooting
 
 ### Wallet Connection Issues
-- Ensure wallet is on Base Sepolia (84532)
+- Ensure wallet is on Base Mainnet (8453) or Base Sepolia (84532) if using testnet
 - Check `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` is set
 - Verify network is added to wallet
 

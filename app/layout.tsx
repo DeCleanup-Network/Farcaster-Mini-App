@@ -101,7 +101,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" style={{ colorScheme: 'dark' }}>
+    <html lang="en" className="dark" style={{ colorScheme: 'dark' }} data-scroll-behavior="smooth">
       <head>
         <meta name="base:app_id" content="69450375d77c069a945be104" />
         <meta property="og:image" content={OG_IMAGE_URL} />

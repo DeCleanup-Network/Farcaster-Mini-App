@@ -52,7 +52,7 @@ When you submit cleanup documentation through our Services:
 - You grant us a license to use, display, and store your submissions for the purpose of providing our Services
 - You understand that submissions are subject to verification by our community verifiers
 - You acknowledge that false or misleading submissions may result in rejection and potential suspension of your account
-- You may be required to pay a submission fee (if enabled) in ETH
+- Submitting a cleanup does not require a fee (submission fee stays 0). A small claim fee may apply when claiming your Impact Product; the app shows the amount before you press Claim Level or Claim Impact Product
 - Photos are stored on IPFS (InterPlanetary File System) and cannot be deleted once submitted
 
 ## 6. DCU Points and $bDCU Token Rewards
@@ -69,7 +69,7 @@ DeCleanup Rewards uses a points-based reward system:
   - Manual/retroactive rewards: Variable (admin-awarded)
 
 - Points are tracked onchain and cannot be transferred between users
-- Points can be claimed for $bDCU tokens after reaching Level 10 (minimum 100 DCU points required)
+- Points can be claimed for $bDCU tokens after reaching Level 3 (minimum 100 DCU points required)
 - The actual USD value of points is determined at claim time based on current token price and multipliers
 - Points values and multipliers may be adjusted by administrators
 
@@ -77,7 +77,7 @@ DeCleanup Rewards uses a points-based reward system:
 
 - To claim tokens, you must:
   - Have accumulated at least 100 DCU points (minimum claim amount)
-  - Reach Impact Product Level 10 (minimum requirement)
+  - Reach Impact Product Level 3 (minimum requirement)
   - Have sufficient contract balance available for claims
 
 - Claim amount is calculated based on:
@@ -106,7 +106,7 @@ Impact Products are non-fungible tokens (NFTs) that represent verified environme
 ### Staking Requirements
 
 - To become a verifier through staking, you must:
-  - Reach Impact Product Level 10
+  - Reach Impact Product Level 3
   - Stake at least 51% of your available $bDCU token balance at the time of staking
   - Maintain staked balance above 50% of original stake to retain verifier status (unless manually added by admin)
 
@@ -130,15 +130,16 @@ Our Services include a community-driven verification system where verified users
 
 ## 9. Fees
 
+We do not charge a fee for submitting cleanups (submission fee stays 0). A small claim fee may apply when claiming your Impact Product NFT; **the app always shows the exact amount (in ETH) before you press Claim Level or Claim Impact Product.**
+
 ### Submission Fees
 
-- Submission fees may be charged when submitting cleanups (currently disabled)
-- Fees are paid in ETH and are non-refundable
-- Fee amounts and status may be changed by administrators
+- **Submission fee is 0.** We do not charge a fee for submitting cleanups.
 
-### Claim Fees
+### Claim Fees (Impact Product NFT)
 
-- A small claim fee (currently ~$0.02 USD equivalent in ETH) is charged when claiming Impact Product levels
+- A small claim fee may be charged when claiming your Impact Product NFT after a cleanup is verified (if enabled by the contract)
+- The app displays the claim fee (if any) **before you press "Claim Level" or "Claim Impact Product"**, so you always see it first
 - Fees are paid in ETH and are non-refundable
 - Fee amounts and status may be changed by administrators
 

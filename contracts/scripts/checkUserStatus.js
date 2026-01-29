@@ -25,13 +25,13 @@ async function main() {
   console.log("User:", USER);
   console.log("DCU Points:", points.toString());
   console.log("Level:", level.toString());
-  console.log("Has Minimum Level (10):", hasMinimumLevel);
+  console.log("Has Minimum Level (3):", hasMinimumLevel);
   console.log("\n=== UI Visibility ===");
   console.log("Claim section will show:", points > 0 && hasMinimumLevel ? "✅ YES" : "❌ NO");
   console.log("Stake section will show:", hasMinimumLevel ? "✅ YES" : "❌ NO");
   
   if (!hasMinimumLevel) {
-    console.log("\n⚠️  User needs to reach level 10 to see claim/stake sections");
+    console.log("\n⚠️  User needs to reach level 3 to see claim/stake sections");
   }
   if (points === 0) {
     console.log("\n⚠️  User has 0 DCU points");

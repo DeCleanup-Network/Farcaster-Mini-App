@@ -95,8 +95,10 @@ async function main() {
     }
   }
 
+  // When base.json has multiple deployments (e.g. 6 proxies), show the most recent (last 3)
+  const showProxies = proxies.length > 3 ? proxies.slice(-3) : proxies;
   console.log("Proxy addresses (use these in the app; no need to verify):");
-  PROXY_NAMES.forEach((n, i) => console.log(`  ${n}: ${proxies[i] || "(unknown)"}`));
+  PROXY_NAMES.forEach((n, i) => console.log(`  ${n}: ${showProxies[i] || "(unknown)"}`));
 }
 
 main()

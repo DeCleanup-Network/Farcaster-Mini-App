@@ -67,7 +67,7 @@ This document mirrors the level of depth and structure we admire in Green Goods�
   - Level claims: 10 $bDCU
   - Streak maintenance: 2 $bDCU
   - Referrals: 3 $bDCU (both referrer and referee)
-  - Impact forms: 5 $bDCU *(deprecated; app no longer submits impact report, so this is unused)*
+  - Impact forms: 5 $bDCU *(deprecated; unused)*
   - Verifier rewards: 1 $bDCU per verification
 
 ---
@@ -77,7 +77,7 @@ This document mirrors the level of depth and structure we admire in Green Goods�
 | Contract | ABI entry points used | Notes |
 | --- | --- | --- |
 | Impact Product NFT | `claimLevelForUser`, `userCurrentLevel`, `getUserTokenId`, `tokenURI`, `getTokenURIForLevel` | Levels map to on-chain metadata (IPFS CIDs). Verification contract address is also readable/settable. |
-| Verification | `submitCleanup`, `verifyCleanup`, `rejectCleanup`, `claimImpactProduct`, `getCleanupStatus`, `cleanupCounter`, `getSubmissionFee`, `getClaimFee` | Submission and claim fees optional; when enabled we pass `value` from fee functions. |
+| Verification | `submitCleanup`, `verifyCleanup`, `rejectCleanup`, `claimImpactProduct`, `getCleanupStatus`, `cleanupCounter`, `getSubmissionFee`, `getClaimFee` | Submission fee stays 0. Claim fee optional; when enabled we pass `value`; app shows fee before Claim Level / Claim Impact Product. |
 | bDCURewardDistributor | `distributeLevelReward`, `distributeStreakReward`, `distributeReferralReward`, `distributeImpactFormReward`, `distributeVerifierReward`, `totalDistributed`, `globalTotalDistributed`, `getContractBalance` | Automatic $bDCU token distributions. Tracks all distributions per user and globally. |
 | $bDCU Token (Clanker) | `balanceOf`, `decimals`, `symbol`, `name` (ERC20) | Direct token balance reading. Primary source for user $bDCU balance. |
 
@@ -101,9 +101,9 @@ Environment coordination happens through `NEXT_PUBLIC_*` vars (see Section 6).
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `NEXT_PUBLIC_CHAIN_ID` | `84532` (Base Sepolia) | Controls which chain Wagmi treats as “required”; swap to `8453` for production. |
+| `NEXT_PUBLIC_CHAIN_ID` | `8453` (Base Mainnet) | Controls which chain Wagmi treats as “required”; use `84532` for Base Sepolia testnet. |
 | `NEXT_PUBLIC_RPC_URL` / `NEXT_PUBLIC_TESTNET_RPC_URL` | Base RPC endpoints | Primary transport for Viem clients. |
-| `NEXT_PUBLIC_BLOCK_EXPLORER_URL` | `https://sepolia.basescan.org` | Ensures explorer links match the active network. |
+| `NEXT_PUBLIC_BLOCK_EXPLORER_URL` | `https://basescan.org` | Ensures explorer links match the active network (mainnet). |
 | `NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS` | `0x…` | Contract addresses for each module; fallbacks exist for legacy keys. |
 | `PINATA_API_KEY` / `PINATA_SECRET_KEY` | — | Server-side only (NOT `NEXT_PUBLIC_*`). Used by `/api/ipfs/upload` route to proxy uploads securely. |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | — | Enables WalletConnect connector when present. |

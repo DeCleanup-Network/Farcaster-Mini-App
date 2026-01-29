@@ -57,6 +57,7 @@ export default function Home() {
     message: string
     transactionHash?: string
   } | null>(null)
+  const [claimFeeDisplay, setClaimFeeDisplay] = useState<{ fee: bigint; enabled: boolean } | null>(null)
   
   const farcasterConnector = connectors.find((c) => {
     const name = c.name.toLowerCase()
@@ -72,6 +73,19 @@ export default function Home() {
 
   // In Mini App, prioritize Farcaster connector; otherwise use external connectors
   const primaryConnector: Connector | undefined = isMiniApp && farcasterConnector ? farcasterConnector : externalConnectors[0]
+
+  // Load claim fee when user can claim so they see it before pressing CLAIM LEVEL
+  useEffect(() => {
+    if (!cleanupStatus?.canClaim) {
+      setClaimFeeDisplay(null)
+      return
+    }
+    let cancelled = false
+    getClaimFee()
+      .then((info) => { if (!cancelled) setClaimFeeDisplay(info) })
+      .catch(() => { if (!cancelled) setClaimFeeDisplay({ fee: BigInt(0), enabled: false }) })
+    return () => { cancelled = true }
+  }, [cleanupStatus?.canClaim])
 
   const handleConnect = async (connector?: Connector) => {
     if (!connector) {
@@ -286,6 +300,13 @@ export default function Home() {
                           <p className="mt-1 text-xs text-gray-300">
                             You can now claim your Impact Product (Level {cleanupStatus.level || 1})
                           </p>
+                          {claimFeeDisplay !== null && (
+                            <p className="mt-1 text-xs text-gray-400">
+                              {claimFeeDisplay.enabled && claimFeeDisplay.fee > BigInt(0)
+                                ? `Claim Impact Product fee: ${(Number(claimFeeDisplay.fee) / 1e18).toFixed(8)} ETH (you pay when you confirm below). Have some ETH on Base for gas.`
+                                : 'No Claim Impact Product fee. Only have some ETH on Base for gas.'}
+                            </p>
+                          )}
                         </div>
                       </>
                     ) : cleanupStatus.hasPendingCleanup ? (
@@ -311,6 +332,17 @@ export default function Home() {
                       </>
                     ) : null}
                   </div>
+                </div>
+              )}
+
+              {/* Claim Impact Product fee — shown before Claim Level button so user sees it first */}
+              {cleanupStatus?.canClaim && claimFeeDisplay !== null && (
+                <div className="mx-auto max-w-md rounded-lg border border-gray-700 bg-gray-900/50 px-3 py-2">
+                  <p className="text-xs text-gray-400">
+                    {claimFeeDisplay.enabled && claimFeeDisplay.fee > BigInt(0)
+                      ? `Claim Impact Product fee: ${(Number(claimFeeDisplay.fee) / 1e18).toFixed(8)} ETH (you pay when you confirm). Have some ETH on Base for gas.`
+                      : 'No Claim Impact Product fee. Only have some ETH on Base for gas.'}
+                  </p>
                 </div>
               )}
 
@@ -346,6 +378,7 @@ export default function Home() {
                 <Button
                   size="lg"
                   disabled={!cleanupStatus?.canClaim || isClaiming}
+                  title={claimFeeDisplay?.enabled && claimFeeDisplay?.fee && claimFeeDisplay.fee > BigInt(0) ? `Claim Impact Product fee: ${(Number(claimFeeDisplay.fee) / 1e18).toFixed(8)} ETH` : undefined}
                   onClick={async () => {
                     if (!cleanupStatus?.canClaim || !cleanupStatus?.cleanupId || isClaiming) return
 

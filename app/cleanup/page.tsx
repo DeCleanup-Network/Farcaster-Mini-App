@@ -72,12 +72,26 @@ function CleanupContent() {
   const [manualLngInput, setManualLngInput] = useState('')
   const [hostName, setHostName] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submissionFeeDisplay, setSubmissionFeeDisplay] = useState<{ fee: bigint; enabled: boolean } | null>(null)
   const [pendingCleanup, setPendingCleanup] = useState<{
     id: bigint
     verified: boolean
     claimed: boolean
   } | null>(null)
   const [checkingPending, setCheckingPending] = useState(true)
+
+  // Load submission fee when on review step so user sees it before Submit
+  useEffect(() => {
+    if (step !== 'after') {
+      setSubmissionFeeDisplay(null)
+      return
+    }
+    let cancelled = false
+    getSubmissionFee()
+      .then((info) => { if (!cancelled) setSubmissionFeeDisplay(info) })
+      .catch(() => { if (!cancelled) setSubmissionFeeDisplay({ fee: BigInt(0), enabled: false }) })
+    return () => { cancelled = true }
+  }, [step])
   const [clearingPending, setClearingPending] = useState(false)
   const [userLevel, setUserLevel] = useState<number | null>(null)
   const { modal, showSuccess, hideModal } = useTransactionModal()
@@ -1823,6 +1837,15 @@ function CleanupContent() {
 
           </div>
 
+          {submissionFeeDisplay !== null && (
+            <div className="mb-3 rounded-lg border border-gray-700 bg-gray-900/50 p-2">
+              <p className="text-xs text-gray-400">
+                {submissionFeeDisplay.enabled && submissionFeeDisplay.fee > BigInt(0)
+                  ? `Submission fee: ${(Number(submissionFeeDisplay.fee) / 1e18).toFixed(8)} ETH (you pay when you confirm). Make sure you have some ETH on Base for gas.`
+                  : 'Submission fee is 0. Only have some ETH on Base for gas.'}
+              </p>
+            </div>
+          )}
           <div className="flex gap-4">
             <BackButton />
             <Button

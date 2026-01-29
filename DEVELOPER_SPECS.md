@@ -87,7 +87,7 @@ function calculateClaimAmount(uint256 points) external view returns (uint256 tok
 
 **Requirements:**
 - Minimum 100 DCU points required to claim
-- User must reach Level 10 to claim tokens
+- User must reach Level 3 to claim tokens
 - Contract must have sufficient token balance
 
 **Staking:**
@@ -97,7 +97,7 @@ function unstakeTokens(uint256 amount) external
 ```
 
 **Requirements:**
-- User must reach Level 10 to stake
+- User must reach Level 3 to stake
 - Must stake at least 51% of available token balance to become verifier
 - Verifier status lost if unstaking reduces balance below 50% of original stake (unless manually added)
 - Manually added verifiers retain status even after unstaking
@@ -174,7 +174,7 @@ function unpause() external onlyOwner
 function upgradeTo(address newImplementation) external onlyOwner  // UUPS upgrade
 ```
 
-**Note:** Fees are automatically withdrawn to the fee treasury when collected (no manual withdrawal needed).
+**Note:** Submission fee stays 0. Claim fee (if enabled) is automatically withdrawn to the fee treasury when collected. The app displays the exact claim fee in ETH before the user presses Claim Level or Claim Impact Product.
 
 **Referral Logic:**
 - Referral rewards are awarded to both referrer and referee (3 points each)
@@ -184,8 +184,8 @@ function upgradeTo(address newImplementation) external onlyOwner  // UUPS upgrad
 
 #### Fee Configuration
 
-- **Submission Fee**: Optional (currently disabled)
-- **Claim Fee**: ~$0.02 USD equivalent in ETH (currently enabled)
+- **Submission Fee**: Stays 0 (not charged for submitting cleanups)
+- **Claim Fee**: Optional; if enabled, ~few cents USD equivalent in ETH. User sees the exact amount before pressing Claim Level or Claim Impact Product.
 - **Fee Treasury**: `0x986913D1FB38AD0685Ba2d8C10a28B7b962c38d9`
 
 ### ImpactProductNFT
@@ -359,7 +359,7 @@ interface UserProfile {
   stakedBalance: bigint
   isVerifier: boolean
   level: number  // 1-10
-  hasMinimumLevel: boolean  // level >= 10
+  hasMinimumLevel: boolean  // level >= 3
   tokenId: number | null  // Impact Product NFT token ID
 }
 ```
@@ -538,10 +538,10 @@ npm run test
 ### Frontend (.env.local)
 
 ```bash
-# Network
-NEXT_PUBLIC_CHAIN_ID=84532  # Base Sepolia
-NEXT_PUBLIC_RPC_URL=https://sepolia.base.org
-NEXT_PUBLIC_BLOCK_EXPLORER_URL=https://sepolia.basescan.org
+# Network (Base Mainnet)
+NEXT_PUBLIC_CHAIN_ID=8453
+NEXT_PUBLIC_RPC_URL=https://mainnet.base.org
+NEXT_PUBLIC_BLOCK_EXPLORER_URL=https://basescan.org
 
 # Contracts
 NEXT_PUBLIC_POINTS_REWARD_DISTRIBUTOR_ADDRESS=0x...
@@ -566,9 +566,9 @@ NEXT_PUBLIC_BASE_APP_ID=...
 ### Contracts (.env)
 
 ```bash
-# Network
+# Network (Base Mainnet)
 PRIVATE_KEY=...
-RPC_URL=https://sepolia.base.org
+RPC_URL=https://mainnet.base.org
 
 # Contracts
 POINTS_REWARD_DISTRIBUTOR_ADDRESS=0x...

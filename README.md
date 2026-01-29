@@ -10,12 +10,12 @@
 
 | Contract | Proxy (use in app) | Basescan |
 |----------|--------------------|----------|
-| **PointsRewardDistributor** | [`0x492065137E07c660DCfAe4dC335A3Fa9C1203dd9`](https://basescan.org/address/0x492065137E07c660DCfAe4dC335A3Fa9C1203dd9) | [Read as Proxy](https://basescan.org/address/0x492065137E07c660DCfAe4dC335A3Fa9C1203dd9#readProxyContract) |
-| **ImpactProductNFT** | [`0x8D71Cd7445423CD42293E196B91E47f085E81BCf`](https://basescan.org/address/0x8D71Cd7445423CD42293E196B91E47f085E81BCf) | [Read as Proxy](https://basescan.org/address/0x8D71Cd7445423CD42293E196B91E47f085E81BCf#readProxyContract) |
-| **VerificationContract** | [`0x69715d43EA6D46F65045FCe2391D9B7F89ec819F`](https://basescan.org/address/0x69715d43EA6D46F65045FCe2391D9B7F89ec819F) | [Read as Proxy](https://basescan.org/address/0x69715d43EA6D46F65045FCe2391D9B7F89ec819F#readProxyContract) |
+| **PointsRewardDistributor** | [`0x9F42cf21fB3d5855E2c0B6FCDf5F4A2Cbc1332ba`](https://basescan.org/address/0x9F42cf21fB3d5855E2c0B6FCDf5F4A2Cbc1332ba) | [Read as Proxy](https://basescan.org/address/0x9F42cf21fB3d5855E2c0B6FCDf5F4A2Cbc1332ba#readProxyContract) |
+| **ImpactProductNFT** | [`0x0B3A52260d62268BE75A7EfA12f16E83Ef218656`](https://basescan.org/address/0x0B3A52260d62268BE75A7EfA12f16E83Ef218656) | [Read as Proxy](https://basescan.org/address/0x0B3A52260d62268BE75A7EfA12f16E83Ef218656#readProxyContract) |
+| **VerificationContract** | [`0x7fC07dbE598827E619459390674C028BADdD75F5`](https://basescan.org/address/0x7fC07dbE598827E619459390674C028BADdD75F5) | [Read as Proxy](https://basescan.org/address/0x7fC07dbE598827E619459390674C028BADdD75F5#readProxyContract) |
 | **bDCU Token** | `0x30171b7014c02229497cde6745dd3ad821f12b07` | [Basescan](https://basescan.org/address/0x30171b7014c02229497cde6745dd3ad821f12b07) |
 
-Implementations are verified so proxy pages support “Read as Proxy” / “Write as Proxy”. Deploy and upgrade: [contracts/DEPLOY_MAINNET.md](contracts/DEPLOY_MAINNET.md).
+Implementations are verified so proxy pages support “Read as Proxy” / “Write as Proxy”. Deploy and verify: [contracts/DEPLOY_MAINNET.md](contracts/DEPLOY_MAINNET.md).
 
 ### $bDCU — Buy & support the movement
 
@@ -58,7 +58,7 @@ DeCleanup Rewards is a fully functional, production-ready Farcaster Mini App tha
 - **Verifier Slashing**: Remove verifier status even with staked tokens (for misconduct)
 - **Point Multipliers**: Adjust reward point values for all action types
 - **Price Management**: Update token price and target reward values
-- **Fee Management**: Configure submission and claim fees (optional, auto-withdraws to treasury)
+- **Fee Management**: Submission fee stays 0. Claim fee (optional) may apply when claiming the Impact Product NFT; the app shows the exact fee in ETH before the user presses Claim Level or Claim Impact Product.
 - **Level Management**: Decrease user levels for inappropriate behavior
 - **Emergency Controls**: Pause/unpause contracts, withdraw tokens
 - **Contract Upgrades**: Upgrade contracts using UUPS pattern (preserves user data)
@@ -174,7 +174,7 @@ TOKEN_PRICE=77 npx hardhat run scripts/updateTokenPrice.js --network base
 TRANSFER_AMOUNT=1000000 npx hardhat run scripts/transferTokensToPointsDistributor.js --network base
 ```
 
-See [CONTRACTS_RECHECK.md](CONTRACTS_RECHECK.md) and [contracts/DEPLOY_MAINNET.md](contracts/DEPLOY_MAINNET.md) for more.
+See [contracts/DEPLOY_MAINNET.md](contracts/DEPLOY_MAINNET.md) for deploy and verify steps.
 
 ---
 

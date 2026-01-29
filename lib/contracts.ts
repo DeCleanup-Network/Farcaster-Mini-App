@@ -403,7 +403,7 @@ async function ensureWalletConnected(): Promise<Address> {
 }
 
 // Check if wallet has sufficient balance for gas fees
-// Uses a lower minimum for testnet (0.0001 ETH) and higher for mainnet (0.001 ETH)
+// Uses 0.0001 ETH for both testnet and mainnet (Base gas is very low; 0.0001 ETH is enough for many txs)
 async function checkGasBalance(walletAddress: Address, minBalance?: bigint): Promise<void> {
   try {
     const publicClient = getPublicClient(getWagmiConfig())
@@ -419,10 +419,8 @@ async function checkGasBalance(walletAddress: Address, minBalance?: bigint): Pro
       return // Don't check balance if we're on wrong chain - chain switch will handle it
     }
     
-    // Use lower minimum for testnet, higher for mainnet
-    const defaultMinBalance = REQUIRED_CHAIN_IS_TESTNET 
-      ? BigInt('100000000000000') // 0.0001 ETH for testnet
-      : BigInt('1000000000000000') // 0.001 ETH for mainnet
+    // Use 0.0001 ETH for both (Base gas is cheap; 0.0001 ETH ≈ enough for many txs)
+    const defaultMinBalance = BigInt('100000000000000') // 0.0001 ETH
     const requiredMinBalance = minBalance || defaultMinBalance
     
     // Use publicClient.getBalance() method instead of importing getBalance from viem
@@ -572,6 +570,9 @@ export const CONTRACT_ADDRESSES = {
 
 
 const METADATA_CID = process.env.NEXT_PUBLIC_IMPACT_METADATA_CID || ''
+// When contract was deployed with placeholder base URI (IPFS_BASE_URI not set), use this for metadata
+const PLACEHOLDER_BASE = 'QmYourBaseURIHere'
+const FALLBACK_METADATA_CID = METADATA_CID || 'bafybeifygxoux2l63muhba4j6gez3vlbe7enjnlkpjwfupylnkhgkqg54y'
 
 // Impact Product NFT ABI
 export const IMPACT_PRODUCT_ABI = parseAbi([
@@ -666,12 +667,17 @@ export async function getTokenURIForLevel(level: number): Promise<string> {
   }
 
   try {
-    return await readContract(getWagmiConfig(), {
+    const uri = await readContract(getWagmiConfig(), {
       address: CONTRACT_ADDRESSES.IMPACT_PRODUCT,
       abi: IMPACT_PRODUCT_ABI,
       functionName: 'getTokenURIForLevel',
       args: [level],
     })
+    // Contract may have been deployed with placeholder base URI; use env/fallback CID
+    if (typeof uri === 'string' && (uri.includes(PLACEHOLDER_BASE) || uri.includes('YourBaseURIHere'))) {
+      return `ipfs://${FALLBACK_METADATA_CID}/level${level}.json`
+    }
+    return uri
   } catch (error) {
     if (fallback) {
       console.warn('Falling back to static metadata CID for level', level, error)
@@ -689,12 +695,20 @@ export async function getTokenURI(tokenId: bigint): Promise<string> {
     throw new Error('Impact Product contract address not set')
   }
 
-  return await readContract(getWagmiConfig(), {
+  const uri = await readContract(getWagmiConfig(), {
     address: CONTRACT_ADDRESSES.IMPACT_PRODUCT,
     abi: IMPACT_PRODUCT_ABI,
     functionName: 'tokenURI',
     args: [tokenId],
   })
+  // Contract may have been deployed with placeholder base URI; use env/fallback CID
+  if (typeof uri === 'string' && (uri.includes(PLACEHOLDER_BASE) || uri.includes('YourBaseURIHere'))) {
+    // tokenURI from contract is like ipfs://QmYourBaseURIHere/levelN.json - we need level from token or keep path
+    const match = uri.match(/level(\d+)\.json/)
+    const level = match ? parseInt(match[1], 10) : 1
+    return `ipfs://${FALLBACK_METADATA_CID}/level${level}.json`
+  }
+  return uri
 }
 
 /**
@@ -873,8 +887,7 @@ export async function getClaimFee(): Promise<{ fee: bigint; enabled: boolean }> 
 }
 
 /**
- * Submit a cleanup. Impact report is not used: the contract still accepts hasImpactForm and
- * impactReportHash for backward compatibility; we always pass false and ''.
+ * Submit a cleanup. hasImpactForm and impactReportHash are passed as false/'' for compatibility.
  */
 export async function submitCleanup(
   beforePhotoHash: string,
@@ -1015,8 +1028,8 @@ export async function submitCleanup(
         latScaled,
         lngScaled,
         referrerAddress || '0x0000000000000000000000000000000000000000',
-        false, // hasImpactForm: impact report removed from app flow
-        '', // impactReportHash
+        false, // hasImpactForm (unused)
+        '', // impactReportHash (unused)
       ],
       value: value || BigInt(0),
     })
@@ -1146,8 +1159,8 @@ export async function submitCleanup(
           latScaled,
           lngScaled,
           referrerAddress || '0x0000000000000000000000000000000000000000',
-          false, // hasImpactForm: impact report removed from app flow
-          '', // impactReportHash
+          false, // hasImpactForm (unused)
+          '', // impactReportHash (unused)
         ],
         value: value || BigInt(0),
       })
@@ -1163,8 +1176,8 @@ export async function submitCleanup(
           latScaled,
           lngScaled,
           referrerAddress || '0x0000000000000000000000000000000000000000',
-          false, // hasImpactForm: impact report removed from app flow
-          '', // impactReportHash
+          false, // hasImpactForm (unused)
+          '', // impactReportHash (unused)
         ],
         value: value || BigInt(0), // Include fee if provided
         chain: targetChain,
@@ -1564,8 +1577,7 @@ export async function getCleanupStatus(cleanupId: bigint): Promise<{
  * Get full cleanup details (for verifiers)
  */
 /**
- * Fetch cleanup details from chain. Note: hasImpactForm and impactReportHash are still returned
- * by the contract but are unused in the app (impact report removed from flow).
+ * Fetch cleanup details from chain. hasImpactForm and impactReportHash are returned but unused.
  */
 export async function getCleanupDetails(cleanupId: bigint): Promise<{
   user: `0x${string}`
@@ -1579,9 +1591,9 @@ export async function getCleanupDetails(cleanupId: bigint): Promise<{
   rejected: boolean
   level: number
   referrer: `0x${string}`
-  /** @deprecated Unused; app no longer submits impact report. */
+  /** @deprecated Unused. */
   hasImpactForm: boolean
-  /** @deprecated Unused; app no longer submits impact report. */
+  /** @deprecated Unused. */
   impactReportHash: string
 }> {
   if (!CONTRACT_ADDRESSES.VERIFICATION) {
@@ -2297,22 +2309,35 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
 
       const distributorAddress = CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR
       
-      // Query PointsAwarded events
+      // Query PointsAwarded events (skip on RPC 400/401 - e.g. invalid or truncated Alchemy key)
       let fromBlock = BigInt(0)
       try {
         const currentBlock = await publicClient.getBlockNumber()
         const blockRange = BigInt(50000)
         fromBlock = currentBlock > blockRange ? currentBlock - blockRange : BigInt(0)
-      } catch (error) {
-        console.warn('Could not get current block number:', error)
+      } catch (blockError: unknown) {
+        const msg = String((blockError as Error)?.message ?? blockError)
+        if (/400|401|429|rate limit|Unauthorized|Bad Request/i.test(msg)) {
+          return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, retroRewards: 0, total: 0 }
+        }
+        console.warn('Could not get current block number:', blockError)
       }
 
-      const pointsLogs = await publicClient.getLogs({
-        address: distributorAddress,
-        event: parseAbiItem('event PointsAwarded(address indexed user, uint256 points, string rewardType)'),
-        args: { user: userAddress },
-        fromBlock,
-      }).catch(() => [])
+      let pointsLogs: { args: { points?: bigint; rewardType?: string } }[] = []
+      try {
+        pointsLogs = await publicClient.getLogs({
+          address: distributorAddress,
+          event: parseAbiItem('event PointsAwarded(address indexed user, uint256 points, string rewardType)'),
+          args: { user: userAddress },
+          fromBlock,
+        }) as { args: { points?: bigint; rewardType?: string } }[]
+      } catch (logsError: unknown) {
+        const msg = String((logsError as Error)?.message ?? logsError)
+        if (/400|401|429|rate limit|Unauthorized|Bad Request/i.test(msg)) {
+          return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, retroRewards: 0, total: 0 }
+        }
+        console.warn('Could not get points logs:', logsError)
+      }
 
       // Group by reward type
       let levelRewards = 0
@@ -2771,6 +2796,10 @@ export async function getStakedBalance(userAddress: Address): Promise<bigint> {
   }
 }
 
+// In-memory cache for isUserVerifier to reduce RPC load (public Base RPC rate-limits heavily)
+const isUserVerifierCache: { key: string; value: boolean; expiry: number }[] = []
+const IS_USER_VERIFIER_CACHE_TTL_MS = 2 * 60 * 1000 // 2 min
+
 /**
  * Check if user is a verifier.
  * Returns true if ANY of:
@@ -2784,6 +2813,11 @@ export async function isUserVerifier(userAddress: Address): Promise<boolean> {
   if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR && !CONTRACT_ADDRESSES.VERIFICATION) {
     return false
   }
+
+  const cacheKey = `${userAddress.toLowerCase()}`
+  const now = Date.now()
+  const hit = isUserVerifierCache.find((e) => e.key === cacheKey && e.expiry > now)
+  if (hit) return hit.value
 
   try {
     const requiredChain = getRequiredChain()
@@ -2834,9 +2868,15 @@ export async function isUserVerifier(userAddress: Address): Promise<boolean> {
         onRetry: (attempt, error) => {
           console.warn(`[isUserVerifier] Retry attempt ${attempt} after RPC error:`, error?.message)
         },
+        // Do not retry on 429 - avoids amplifying rate-limit load
+        shouldRetry: (e) => !/429|rate limit|Too Many Requests/i.test(String(e?.message ?? e)),
       }
     )
 
+    // Cache result
+    const expired = isUserVerifierCache.filter((e) => e.expiry <= now)
+    expired.forEach((e) => { const i = isUserVerifierCache.indexOf(e); if (i !== -1) isUserVerifierCache.splice(i, 1) })
+    isUserVerifierCache.push({ key: cacheKey, value: isVerifier, expiry: now + IS_USER_VERIFIER_CACHE_TTL_MS })
     return isVerifier
   } catch (error) {
     // RPC failures - return false gracefully instead of breaking UI
@@ -2845,20 +2885,19 @@ export async function isUserVerifier(userAddress: Address): Promise<boolean> {
     const is429 = errorMessage.includes('429') || errorMessage.includes('Too Many Requests') ||
                   fullError.includes('429') || fullError.includes('Too Many Requests')
     if (is429) {
-      throw new Error(
-        'RPC rate limited (429). Set NEXT_PUBLIC_RPC_URL to a dedicated RPC provider (e.g. Alchemy, Infura) for production.'
-      )
+      console.warn('[isUserVerifier] RPC rate limited (429), returning false. Set NEXT_PUBLIC_RPC_URL to a dedicated RPC (e.g. Alchemy, Infura) for production.')
+      return false // Graceful: don't throw, don't retry
     }
-    const isRpcError = errorMessage.includes('Failed to fetch') || 
+    const isRpcError = errorMessage.includes('Failed to fetch') ||
                       errorMessage.includes('HTTP request failed') ||
                       errorMessage.includes('network') ||
                       errorMessage.includes('timeout')
-    
+
     if (isRpcError) {
       console.warn('[isUserVerifier] RPC error, returning false (non-critical):', errorMessage)
       return false // Graceful degradation - UI won't break
     }
-    
+
     console.error('[isUserVerifier] Error checking verifier status:', error)
     return false
   }

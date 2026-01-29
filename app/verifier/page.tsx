@@ -17,10 +17,8 @@ const {
   getCleanupStatus,
   getUserLevel,
   CONTRACT_ADDRESSES,
-  VERIFICATION_ABI,
 } = contractsLib
 import { Address } from 'viem'
-import { useBuilderCodeAttribution } from '@/lib/hooks/useBuilderCode'
 import { waitForTransactionReceipt, getEnsName } from 'wagmi/actions'
 import { getWagmiConfig, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUIRED_CHAIN_ID, REQUIRED_RPC_URL } from '@/lib/wagmi'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
@@ -55,9 +53,9 @@ interface CleanupItem {
   rejected: boolean
   level: number
   referrer: Address
-  /** @deprecated Unused; impact report removed from app. Kept for getCleanup return shape. */
+  /** @deprecated Unused; kept for getCleanup return shape. */
   hasImpactForm?: boolean
-  /** @deprecated Unused; impact report removed from app. Kept for getCleanup return shape. */
+  /** @deprecated Unused; kept for getCleanup return shape. */
   impactReportHash?: string
 }
 
@@ -75,7 +73,6 @@ export default function VerifierPage() {
   const { address, isConnected } = useAccount()
   const chainId = useChainId()
   const router = useRouter()
-  const { sendWithBuilderCode } = useBuilderCodeAttribution()
   const { isMiniApp } = useFarcaster()
   const [mounted, setMounted] = useState(false)
   const [isVerifier, setIsVerifier] = useState(false)
@@ -527,7 +524,7 @@ export default function VerifierPage() {
           console.error('❌ Address mismatch! Checking:', addr, 'but connected address is:', connectedAddr)
           setError(`Address mismatch: Checking ${addr} but connected wallet is ${connectedAddr}. Please reconnect your wallet.`)
       } else {
-        const errorMsg = `Address ${addr} is not in the verifier allowlist. Please ensure this address is added to the VERIFIER_ADDRESSES in the contract.`
+        const errorMsg = `Your address (${addr}) is not registered as a verifier on-chain. An admin must add you: from the \`contracts/\` directory run \`npm run addVerifier:base ${addr}\` (requires deployer/owner private key). Alternatively, the contract owner can add this address to VerificationContract or PointsRewardDistributor.`
         console.error('❌ Verifier check failed:', errorMsg)
         setError(errorMsg)
         }
@@ -800,25 +797,8 @@ export default function VerifierPage() {
         nextLevel = 1
       }
 
-      // Create transaction sender with Builder Code attribution
-      const sendTransaction = async (params: {
-        address: Address
-        abi: typeof VERIFICATION_ABI
-        functionName: 'verifyCleanup'
-        args: readonly unknown[]
-        value?: bigint
-      }) => {
-        return await sendWithBuilderCode({
-          to: params.address,
-          abi: params.abi,
-          functionName: params.functionName,
-          args: params.args,
-          value: params.value,
-        })
-      }
-
-      // Verify with automatically calculated level - pass chainId to avoid false detection
-      const hash = await verifyCleanup(cleanupId, nextLevel, chainId, sendTransaction)
+      // Use standard writeContract (Builder Code skipped: MetaMask rejects capabilities.dataSuffix format)
+      const hash = await verifyCleanup(cleanupId, nextLevel, chainId, undefined)
       setActiveTx({ cleanupId, hash })
       console.log(`Verifying cleanup ${cleanupId.toString()} with level ${nextLevel}`)
       console.log(`Transaction hash: ${hash}`)
@@ -938,25 +918,8 @@ export default function VerifierPage() {
     try {
       await ensureCorrectNetwork('reject cleanup')
       
-      // Create transaction sender with Builder Code attribution
-      const sendTransaction = async (params: {
-        address: Address
-        abi: typeof VERIFICATION_ABI
-        functionName: 'rejectCleanup'
-        args: readonly unknown[]
-        value?: bigint
-      }) => {
-        return await sendWithBuilderCode({
-          to: params.address,
-          abi: params.abi,
-          functionName: params.functionName,
-          args: params.args,
-          value: params.value,
-        })
-      }
-
-      // Pass chainId to avoid false chain detection
-      const hash = await rejectCleanup(cleanupId, chainId, sendTransaction)
+      // Use standard writeContract (Builder Code skipped: MetaMask rejects capabilities.dataSuffix format)
+      const hash = await rejectCleanup(cleanupId, chainId, undefined)
       console.log(`Rejecting cleanup ${cleanupId.toString()}`)
       console.log(`Transaction hash: ${hash}`)
       
@@ -1187,8 +1150,8 @@ export default function VerifierPage() {
             <div className="rounded-lg border border-gray-700 bg-gray-900 p-4 text-left">
               <p className="mb-2 text-sm font-semibold text-white">Troubleshooting:</p>
               <ul className="list-inside list-disc space-y-1 text-sm text-gray-400">
-                <li>Ensure contracts are deployed with your address in VERIFIER_ADDRESSES</li>
-                <li>Check that NEXT_PUBLIC_VERIFICATION_CONTRACT matches the deployed contract</li>
+                <li>Have an admin add your address: from <code className="text-brand-green">contracts/</code> run <code className="text-brand-green">npm run addVerifier:base &lt;your-address&gt;</code></li>
+                <li>Check that NEXT_PUBLIC_VERIFICATION_CONTRACT and NEXT_PUBLIC_POINTS_REWARD_DISTRIBUTOR_ADDRESS match the deployed contracts</li>
                 <li>Verify you're connected to the correct network ({REQUIRED_CHAIN_NAME})</li>
                 <li>Check browser console for detailed error messages</li>
               </ul>

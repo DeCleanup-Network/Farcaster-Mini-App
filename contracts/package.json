@@ -11,7 +11,11 @@
     "upgrade:pointsDistributor:base": "hardhat run scripts/upgradePointsRewardDistributor.js --network base",
     "upgrade:pointsDistributor:baseSepolia": "hardhat run scripts/upgradePointsRewardDistributor.js --network baseSepolia",
     "addVerifier:base": "node run-addVerifier.js base",
-    "addVerifier:baseSepolia": "node run-addVerifier.js baseSepolia"
+    "addVerifier:baseSepolia": "node run-addVerifier.js baseSepolia",
+    "setFees:base": "hardhat run scripts/setFees.js --network base",
+    "setFees:baseSepolia": "hardhat run scripts/setFees.js --network baseSepolia",
+    "updateBaseURI:base": "hardhat run scripts/updateBaseURI.js --network base",
+    "updateBaseURI:baseSepolia": "hardhat run scripts/updateBaseURI.js --network baseSepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",

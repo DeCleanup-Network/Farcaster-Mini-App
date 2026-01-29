@@ -30,10 +30,14 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log("Updating baseURI with account:", deployer.address);
   
-  const IMPACT_PRODUCT_ADDRESS = process.env.IMPACT_PRODUCT_CONTRACT_ADDRESS || process.env.NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT_ADDRESS;
-  
+  const IMPACT_PRODUCT_ADDRESS =
+    process.env.IMPACT_PRODUCT_CONTRACT_ADDRESS ||
+    process.env.IMPACT_PRODUCT_NFT_ADDRESS ||
+    process.env.NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS ||
+    process.env.NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT_ADDRESS;
+
   if (!IMPACT_PRODUCT_ADDRESS || !ethers.isAddress(IMPACT_PRODUCT_ADDRESS)) {
-    throw new Error("IMPACT_PRODUCT_CONTRACT_ADDRESS must be set in contracts/.env");
+    throw new Error("Set IMPACT_PRODUCT_NFT_ADDRESS (or IMPACT_PRODUCT_CONTRACT_ADDRESS) in contracts/.env");
   }
 
   let NEW_BASE_URI = process.env.NEW_BASE_URI;

@@ -332,11 +332,21 @@
   text-align: left !important;
 }
 
-/* Mobile-specific: Larger touch targets for wallet buttons */
+/* Mobile-specific: Larger touch targets + force wallet list to one column so labels aren't cut */
 @media (max-width: 640px) {
   [data-rk] button[data-rk] {
     min-height: 3.5rem !important;
     padding: 0.875rem 1rem !important;
+  }
+  /* RainbowKit wallet grid: force single column so each wallet gets full width and label is visible */
+  [data-rk] [role="dialog"] div[style*="grid"],
+  [role="dialog"] div[style*="grid"] {
+    grid-template-columns: 1fr !important;
+    display: grid !important;
+  }
+  [data-rk] [role="dialog"] div[style*="grid"] > *,
+  [role="dialog"] div[style*="grid"] > * {
+    min-width: 0 !important;
   }
 }
 
@@ -392,13 +402,33 @@
   min-width: min(100vw - 2rem, 300px) !important;
 }
 
+/* Force wallet list to single column so each wallet gets full width and labels are not cut */
+[data-rk] [data-rk] > div[style*="grid"],
+[data-rk] [data-rk] section > div,
+[role="dialog"] > div[style*="grid"],
+[role="dialog"] section > div {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: unset !important;
+  gap: 0.5rem !important;
+}
+[data-rk] [data-rk] > div > div,
+[data-rk] [data-rk] section > div > div,
+[role="dialog"] > div > div,
+[role="dialog"] section > div > div {
+  width: 100% !important;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
+}
+
 /* Additional fix for wallet option buttons (incl. portaled connect modal outside [data-rk]) */
 [data-rk] [data-rk] li button,
 [data-rk] [data-rk] div button,
 [role="dialog"] li button,
 [role="dialog"] div button {
   width: 100% !important;
-  min-width: 10rem !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
   justify-content: flex-start !important;
   text-align: left !important;
 }

@@ -9,10 +9,6 @@ import { getWagmiConfig, REQUIRED_CHAIN_ID, REQUIRED_CHAIN_NAME } from '@/lib/wa
 import { useFarcaster } from '@/components/farcaster/FarcasterProvider'
 import { attemptSwitchToRequiredChain } from '@/lib/network'
 
-// #region agent log
-const _log = (m: string, d: Record<string, unknown>, h: string) => { fetch('http://127.0.0.1:7242/ingest/40e39046-eb29-4e48-9a5d-8d66cddb1371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'NetworkBlockingScreen.tsx',message:m,data:d,hypothesisId:h,timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix'})}).catch(()=>{}); };
-// #endregion
-
 /**
  * NetworkBlockingScreen - Blocks app usage when on wrong network
  * 
@@ -42,25 +38,11 @@ export function NetworkBlockingScreen() {
   // Only show if connected and on wrong network
   const isWrongNetwork = isConnected && typeof chainId === 'number' && chainId !== REQUIRED_CHAIN_ID
 
-  // #region agent log
-  useEffect(() => {
-    if (!isWrongNetwork) return
-    _log('BlockingScreen visible', { chainId, REQUIRED_CHAIN_ID, inIframe }, 'A')
-  }, [isWrongNetwork, inIframe])
-  useEffect(() => {
-    if (!isWrongNetwork) return
-    _log('chainId changed while blocking', { chainId, REQUIRED_CHAIN_ID, isRequired: chainId === REQUIRED_CHAIN_ID }, 'D')
-  }, [chainId, isWrongNetwork])
-  // #endregion
-
   if (!isWrongNetwork) {
     return null
   }
 
   const handleSwitchClick = async () => {
-    // #region agent log
-    _log('SwitchToRequiredChain clicked', { inIframe }, 'A')
-    // #endregion
     console.warn('[NetworkBlockingScreen] handleSwitchClick: isFarcaster=', isFarcaster, 'inIframe=', inIframe)
     setSwitching(true)
     try {
@@ -68,8 +50,6 @@ export function NetworkBlockingScreen() {
       const conn = (account as any)?.connector
       console.warn('[NetworkBlockingScreen] hasWindowEthereum=', !!(typeof window !== 'undefined' && (window as any)?.ethereum), 'connectorId=', conn?.id ?? conn?.name)
       const { success } = await attemptSwitchToRequiredChain()
-      // only reached when we did not reload
-      _log('attemptSwitchToRequiredChain returned', { success }, 'C')
       console.warn('[NetworkBlockingScreen] attemptSwitchToRequiredChain returned', { success })
     } finally {
       setSwitching(false)

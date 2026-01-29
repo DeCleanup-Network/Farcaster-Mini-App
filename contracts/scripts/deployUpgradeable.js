@@ -24,8 +24,57 @@ async function main() {
   console.log("Account balance:", (await ethers.provider.getBalance(deployer.address)).toString());
   console.log("");
 
-  const BDCU_TOKEN_ADDRESS = process.env.BDCU_TOKEN_ADDRESS || 
-                               process.env.TEST_BDCU_TOKEN_ADDRESS || 
+  const FEE_TREASURY = process.env.FEE_TREASURY || "0x986913D1FB38AD0685Ba2d8C10a28B7b962c38d9";
+
+  // Link-only mode: skip deploy, only link existing proxies (e.g. after "nonce too low" at Step 4)
+  const pointsRewardDistributorAddressEnv =
+    process.env.POINTS_REWARD_DISTRIBUTOR_ADDRESS || process.env.NEXT_PUBLIC_POINTS_REWARD_DISTRIBUTOR_ADDRESS;
+  const impactProductNFTAddressEnv =
+    process.env.IMPACT_PRODUCT_NFT_ADDRESS || process.env.NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS;
+  const verificationContractAddressEnv =
+    process.env.VERIFICATION_CONTRACT_ADDRESS || process.env.NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS;
+
+  const linkOnly = pointsRewardDistributorAddressEnv && impactProductNFTAddressEnv && verificationContractAddressEnv;
+
+  if (linkOnly) {
+    console.log("🔗 Link-only mode: using existing proxy addresses from env. Skipping deploy.");
+    console.log("  PointsRewardDistributor:", pointsRewardDistributorAddressEnv);
+    console.log("  ImpactProductNFT:", impactProductNFTAddressEnv);
+    console.log("  VerificationContract:", verificationContractAddressEnv);
+    console.log("");
+
+    const PointsRewardDistributor = await ethers.getContractFactory("PointsRewardDistributor");
+    const ImpactProductNFT = await ethers.getContractFactory("ImpactProductNFT");
+    const VerificationContract = await ethers.getContractFactory("VerificationContract");
+
+    const pointsRewardDistributor = PointsRewardDistributor.attach(pointsRewardDistributorAddressEnv);
+    const impactProductNFT = ImpactProductNFT.attach(impactProductNFTAddressEnv);
+    const verificationContract = VerificationContract.attach(verificationContractAddressEnv);
+
+    // Step 4: Link contracts
+    console.log("🔗 Linking contracts...");
+    console.log("  Linking ImpactProductNFT to PointsRewardDistributor...");
+    await (await pointsRewardDistributor.setImpactProductNFT(impactProductNFTAddressEnv)).wait();
+    console.log("  ✅ ImpactProductNFT linked");
+    console.log("  Linking VerificationContract to PointsRewardDistributor...");
+    await (await pointsRewardDistributor.setVerificationContract(verificationContractAddressEnv)).wait();
+    console.log("  ✅ VerificationContract linked");
+    console.log("  Linking VerificationContract to ImpactProductNFT...");
+    await (await impactProductNFT.setVerificationContract(verificationContractAddressEnv)).wait();
+    console.log("  ✅ VerificationContract linked to ImpactProductNFT");
+    console.log("  Linking PointsRewardDistributor to ImpactProductNFT...");
+    await (await impactProductNFT.setRewardDistributor(pointsRewardDistributorAddressEnv)).wait();
+    console.log("  ✅ PointsRewardDistributor linked to ImpactProductNFT");
+    console.log("  Setting fee treasury...");
+    await (await verificationContract.setFeeTreasury(FEE_TREASURY)).wait();
+    console.log("  ✅ Fee treasury set to:", FEE_TREASURY);
+    console.log("");
+    console.log("✅ Link complete. Update app .env with these addresses.");
+    return;
+  }
+
+  const BDCU_TOKEN_ADDRESS = process.env.BDCU_TOKEN_ADDRESS ||
+                               process.env.TEST_BDCU_TOKEN_ADDRESS ||
                                (net === "base" ? MAINNET_BDCU : TESTNET_BDCU);
 
   if (net === "base" && BDCU_TOKEN_ADDRESS.toLowerCase() === TESTNET_BDCU.toLowerCase()) {
@@ -33,10 +82,9 @@ async function main() {
   }
 
   const INITIAL_TOKEN_PRICE = process.env.INITIAL_TOKEN_PRICE || "77"; // 8 decimals, $0.00000077
-  const FEE_TREASURY = process.env.FEE_TREASURY || "0x986913D1FB38AD0685Ba2d8C10a28B7b962c38d9";
-  
+
   // Initial verifiers (can be empty array)
-  const INITIAL_VERIFIERS = process.env.INITIAL_VERIFIERS 
+  const INITIAL_VERIFIERS = process.env.INITIAL_VERIFIERS
     ? process.env.INITIAL_VERIFIERS.split(",").map(v => v.trim())
     : [deployer.address]; // Default to deployer as first verifier
 
@@ -116,6 +164,14 @@ async function main() {
   await verificationContract.waitForDeployment();
   const verificationContractAddress = await verificationContract.getAddress();
   console.log("  ✅ VerificationContract deployed to:", verificationContractAddress);
+  console.log("");
+
+  // Allow RPC/signer nonce to catch up (avoids "nonce too low" on linking txs)
+  const noncePauseMs = 2000;
+  console.log(`  Waiting ${noncePauseMs / 1000}s for nonce sync...`);
+  await new Promise((r) => setTimeout(r, noncePauseMs));
+  const nextNonce = await ethers.provider.getTransactionCount(deployer.address);
+  console.log("  Next nonce:", nextNonce);
   console.log("");
 
   // Step 4: Link contracts together
