@@ -311,7 +311,7 @@ export default function Home() {
                           {claimFeeDisplay !== null && (
                             <p className="mt-1 text-xs text-gray-400">
                               {claimFeeDisplay.enabled && claimFeeDisplay.fee > BigInt(0)
-                                ? `Claim Impact Product fee: ${formatFeeEth(claimFeeDisplay.fee)} ETH (you pay when you confirm below). Have some ETH on Base for gas.`
+                                ? `Claim Impact Product fee: ${formatFeeEth(claimFeeDisplay.fee)} ETH (~few cents). Your wallet total will also include gas on Base.`
                                 : 'No Claim Impact Product fee. Only have some ETH on Base for gas.'}
                             </p>
                           )}
@@ -348,7 +348,7 @@ export default function Home() {
                 <div className="mx-auto max-w-md rounded-lg border border-gray-700 bg-gray-900/50 px-3 py-2">
                   <p className="text-xs text-gray-400">
                     {claimFeeDisplay.enabled && claimFeeDisplay.fee > BigInt(0)
-                      ? `Claim Impact Product fee: ${formatFeeEth(claimFeeDisplay.fee)} ETH (you pay when you confirm). Have some ETH on Base for gas.`
+                      ? `Claim Impact Product fee: ${formatFeeEth(claimFeeDisplay.fee)} ETH (~few cents). Your wallet total will also include gas on Base.`
                       : 'No Claim Impact Product fee. Only have some ETH on Base for gas.'}
                   </p>
                 </div>

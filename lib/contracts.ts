@@ -1427,13 +1427,21 @@ export async function claimImpactProductFromVerification(
     throw new Error(`${REQUIRED_CHAIN_NAME} chain is not configured.`)
   }
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/40e39046-eb29-4e48-9a5d-8d66cddb1371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'contracts.ts:claimImpactProduct',message:'claim_pre_chain',data:{providedChainId:providedChainId ?? null,targetChainId:targetChain.id,targetChainName:targetChain.name,REQUIRED_CHAIN_ID},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
+
   // Get claim fee if enabled
   let claimFeeValue: bigint = BigInt(0)
   try {
+    const chainIdAtFeeRead = await getCurrentChainId()
     const claimFeeInfo = await getClaimFee()
     if (claimFeeInfo.enabled && claimFeeInfo.fee > 0) {
       claimFeeValue = claimFeeInfo.fee
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/40e39046-eb29-4e48-9a5d-8d66cddb1371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'contracts.ts:claimImpactProduct',message:'claim_fee_from_contract',data:{chainIdAtFeeRead,feeWei:claimFeeInfo.fee.toString(),feeEth:Number(claimFeeInfo.fee)/1e18,enabled:claimFeeInfo.enabled},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4,H5'})}).catch(()=>{});
+    // #endregion
   } catch (error) {
     console.warn('Could not fetch claim fee, proceeding without fee:', error)
   }
@@ -1475,6 +1483,10 @@ export async function claimImpactProductFromVerification(
 
   // Account is already verified at the top of the function
   try {
+    const currentChainIdBeforeTx = await getCurrentChainId()
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/40e39046-eb29-4e48-9a5d-8d66cddb1371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'contracts.ts:claimImpactProduct',message:'claim_before_writeContract',data:{currentChainId:currentChainIdBeforeTx,targetChainId:targetChain.id,claimFeeWei:claimFeeValue.toString(),claimFeeEth:Number(claimFeeValue)/1e18,connector:account.connector?.id||account.connector?.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H3'})}).catch(()=>{});
+    // #endregion
     console.log('[claimImpactProduct] Account status:', account.status, 'Connector:', account.connector?.name || account.connector?.id)
     
     // Use custom transaction sender if provided (for Builder Code attribution)
@@ -1489,6 +1501,9 @@ export async function claimImpactProductFromVerification(
         value: claimFeeValue,
       })
     } else {
+      // Explicit gas params so wallet shows Base-appropriate total (~cents), not mainnet-style estimate
+      const gasLimit = 500_000n
+      const maxFeePerGasBase = 50_000_000n // 0.05 gwei (Base typical ~0.01 gwei; caps display at ~$0.10 total)
       hash = await writeContract(getWagmiConfig() as any, {
         address: CONTRACT_ADDRESSES.VERIFICATION,
         abi: VERIFICATION_ABI,
@@ -1496,6 +1511,9 @@ export async function claimImpactProductFromVerification(
         args: [cleanupId],
         value: claimFeeValue,
         chain: targetChain,
+        gas: gasLimit,
+        maxFeePerGas: maxFeePerGasBase,
+        maxPriorityFeePerGas: maxFeePerGasBase,
       })
     }
 

@@ -173,11 +173,11 @@ function ClaimFeeDisplay() {
   
   if (claimFee.enabled && claimFee.fee > BigInt(0)) {
     const feeInEth = Number(claimFee.fee) / 1e18
-    const feeInCents = feeInEth * 2800 // Approximate ETH price for display
+    const feeUsd = feeInEth * 2800 // Approximate ETH price for display (~$2800/ETH)
     return (
       <div className="rounded-lg border border-amber-800/50 bg-amber-950/30 p-2">
         <p className="text-xs text-amber-200/90">
-          Claim Impact Product fee: ~{feeInCents.toFixed(2)} cents USD ({formatFeeEth(claimFee.fee)} ETH). You pay when you confirm below. Have some ETH on Base for gas.
+          Claim Impact Product fee: {formatFeeEth(claimFee.fee)} ETH (~${feeUsd < 0.01 ? feeUsd.toFixed(4) : feeUsd.toFixed(2)}). Your wallet total will also include gas on Base.
         </p>
       </div>
     )

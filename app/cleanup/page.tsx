@@ -1843,7 +1843,7 @@ function CleanupContent() {
               <p className="text-xs text-gray-400">
                 {submissionFeeDisplay.enabled && submissionFeeDisplay.fee > BigInt(0)
                   ? `Submission fee: ${formatFeeEth(submissionFeeDisplay.fee)} ETH (you pay when you confirm). Make sure you have some ETH on Base for gas.`
-                  : 'Submission fee is 0. Only have some ETH on Base for gas.'}
+                  : 'Make sure to have some ETH for gas fees on Base.'}
               </p>
             </div>
           )}

@@ -4,7 +4,7 @@ import { useSendCalls } from 'wagmi'
 import { writeContract } from 'wagmi/actions'
 import { Attribution } from 'ox/erc8021'
 import { encodeFunctionData, type Address, type Abi } from 'viem'
-import { getWagmiConfig } from '@/lib/wagmi'
+import { getWagmiConfig, REQUIRED_CHAIN_ID } from '@/lib/wagmi'
 import { getAccount } from 'wagmi/actions'
 
 // Base Builder Code for attribution
@@ -101,19 +101,25 @@ export function useBuilderCodeAttribution() {
                 console.warn(`⚠️ ${reason}, falling back to standard transaction (no Builder Code attribution)`)
                 
                 try {
-                  // Fallback to standard writeContract without Builder Code
+                  // Fallback to standard writeContract without Builder Code.
+                  // CRITICAL: Use required chain (Base) so the wallet estimates Base gas, not mainnet.
+                  // account.chain can be mainnet (1) in some connectors, which would show ~$1.30 gas.
                   const account = getAccount(getWagmiConfig())
-                  if (account.status !== 'connected' || !account.chain) {
-                    throw new Error('Wallet not connected or chain not available')
+                  if (account.status !== 'connected') {
+                    throw new Error('Wallet not connected')
                   }
-                  
+                  const config = getWagmiConfig()
+                  const targetChain = config.chains.find((c) => c.id === REQUIRED_CHAIN_ID)
+                  if (!targetChain) {
+                    throw new Error('Required chain (Base) not configured')
+                  }
                   const hash = await writeContract(getWagmiConfig() as any, {
                     address: params.to,
                     abi: params.abi,
                     functionName: params.functionName,
                     args: params.args,
                     value: params.value || BigInt(0),
-                    chain: account.chain,
+                    chain: targetChain,
                   })
                   
                   console.log('✅ Transaction sent via fallback (standard method):', hash)
