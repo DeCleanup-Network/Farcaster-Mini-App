@@ -378,7 +378,14 @@ export default function Home() {
                 <Button
                   size="lg"
                   disabled={!cleanupStatus?.canClaim || isClaiming}
-                  title={claimFeeDisplay?.enabled && claimFeeDisplay?.fee && claimFeeDisplay.fee > BigInt(0) ? `Claim Impact Product fee: ${(Number(claimFeeDisplay.fee) / 1e18).toFixed(8)} ETH` : undefined}
+                  title={
+                    /* single title: fee when can claim, reason when disabled */
+                    cleanupStatus?.canClaim
+                      ? (claimFeeDisplay?.enabled && claimFeeDisplay?.fee && claimFeeDisplay.fee > BigInt(0)
+                          ? `Claim Impact Product fee: ${(Number(claimFeeDisplay.fee) / 1e18).toFixed(8)} ETH`
+                          : undefined)
+                      : cleanupStatus?.reason
+                  }
                   onClick={async () => {
                     if (!cleanupStatus?.canClaim || !cleanupStatus?.cleanupId || isClaiming) return
 
@@ -542,7 +549,6 @@ export default function Home() {
                     ? 'bg-brand-yellow text-black hover:bg-[#e6e600] border-brand-yellow'
                     : 'border-muted bg-muted text-muted-foreground cursor-not-allowed'
                     }`}
-                  title={cleanupStatus?.reason}
                 >
                   {isClaiming ? (
                     <>
