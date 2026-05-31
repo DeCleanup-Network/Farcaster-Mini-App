@@ -1481,7 +1481,7 @@ export async function claimImpactProductFromVerification(
       functionName: 'claimImpactProduct',
       args: [cleanupId],
       value: claimFeeValue,
-      chain: targetChain,
+      chainId: targetChain.id,
     })
   } catch (simulateError: any) {
     const simMsg = getErrorMessage(simulateError)
@@ -2787,7 +2787,7 @@ export async function claimTokensFromPoints(
         abi: POINTS_REWARD_DISTRIBUTOR_ABI,
         functionName: 'claimTokens',
         args: [BigInt(pointsToClaim)],
-        chain: targetChain,
+        chainId: targetChain.id,
       })
     } catch (simErr: any) {
       const simMsg = getErrorMessage(simErr)
