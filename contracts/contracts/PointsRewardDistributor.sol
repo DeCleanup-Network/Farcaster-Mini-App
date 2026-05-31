@@ -35,7 +35,7 @@ contract PointsRewardDistributor is Initializable, OwnableUpgradeable, Reentranc
     mapping(address => bool) public isVerifier;
     mapping(address => bool) public manuallyAddedVerifiers;
     uint256 public constant MINIMUM_LEVEL_FOR_STAKING = 3;
-    uint256 public constant MINIMUM_POINTS_TO_CLAIM = 100; // Minimum DCU points required to claim
+    uint256 public constant MINIMUM_POINTS_TO_CLAIM = 30; // Minimum DCU points (level 3 = 30) required to claim
     
     address public impactProductNFT;
     address public verificationContract;
@@ -161,6 +161,44 @@ contract PointsRewardDistributor is Initializable, OwnableUpgradeable, Reentranc
         emit PointsAwarded(user, IMPACT_FORM_POINTS, "impact_form");
     }
     
+    /**
+     * @notice Batch claim rewards in one call (streak + referral + impact form). Level is awarded by ImpactProductNFT.
+     * @dev Only VerificationContract. Reduces claim gas by replacing 3 external calls with 1.
+     */
+    function awardClaimRewards(address user, address referrer, uint256 cleanupId, bool hasImpactForm) external whenNotPaused nonReentrant {
+        require(msg.sender == verificationContract, "Not authorized");
+        require(user != address(0), "Invalid address");
+        
+        uint256 currentTime = block.timestamp;
+        uint256 lastCleanup = lastCleanupTimestamp[user];
+        bool userHasActiveStreak = lastCleanup > 0 && (currentTime - lastCleanup) <= STREAK_WINDOW;
+        if (userHasActiveStreak) {
+            streakCount[user] += 1;
+            lastCleanupTimestamp[user] = currentTime;
+            pointsBalance[user] += STREAK_POINTS;
+            globalTotalPoints += STREAK_POINTS;
+            emit PointsAwarded(user, STREAK_POINTS, "streak");
+        } else {
+            streakCount[user] = 1;
+            lastCleanupTimestamp[user] = currentTime;
+        }
+        
+        if (referrer != address(0) && referrer != user && !hasReceivedReferralReward[user]) {
+            hasReceivedReferralReward[user] = true;
+            pointsBalance[referrer] += REFERRAL_POINTS;
+            pointsBalance[user] += REFERRAL_POINTS;
+            globalTotalPoints += REFERRAL_POINTS * 2;
+            emit PointsAwarded(referrer, REFERRAL_POINTS, "referral");
+            emit PointsAwarded(user, REFERRAL_POINTS, "referral");
+        }
+        
+        if (hasImpactForm) {
+            pointsBalance[user] += IMPACT_FORM_POINTS;
+            globalTotalPoints += IMPACT_FORM_POINTS;
+            emit PointsAwarded(user, IMPACT_FORM_POINTS, "impact_form");
+        }
+    }
+    
     function awardVerifierPoints(address verifierAddress, uint256 cleanupId) external whenNotPaused nonReentrant {
         require(msg.sender == verificationContract, "Not authorized");
         require(verifierAddress != address(0), "Invalid address");
@@ -172,7 +210,7 @@ contract PointsRewardDistributor is Initializable, OwnableUpgradeable, Reentranc
     }
     
     function claimTokens(uint256 pointsToClaim) external whenNotPaused nonReentrant returns (uint256 tokensReceived) {
-        require(pointsToClaim >= MINIMUM_POINTS_TO_CLAIM, "Must claim at least 100 DCU points");
+        require(pointsToClaim >= MINIMUM_POINTS_TO_CLAIM, "Must claim at least 30 DCU points");
         require(pointsBalance[msg.sender] >= pointsToClaim, "Insufficient points");
         require(currentTokenPriceUSD > 0, "Token price not set");
         require(_hasMinimumLevel(msg.sender), "Must reach minimum level to claim tokens");

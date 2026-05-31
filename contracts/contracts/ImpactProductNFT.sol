@@ -105,48 +105,21 @@ contract ImpactProductNFT is Initializable, ERC721URIStorageUpgradeable, Ownable
             userTokenId[user] = tokenId;
             tokenLevel[tokenId] = level;
             userCurrentLevel[user] = level;
-            
-            // Set token URI based on level
-            // Handle trailing slash in baseURI to avoid double slashes
-            string memory uriPrefix = baseURI;
-            if (bytes(baseURI).length > 0 && keccak256(bytes(baseURI)) != keccak256(bytes("ipfs://")) && !_endsWith(baseURI, "/")) {
-                uriPrefix = string(abi.encodePacked(baseURI, "/"));
-            }
-            string memory tokenURI = string(abi.encodePacked(uriPrefix, "level", _toString(level), ".json"));
-            _setTokenURI(tokenId, tokenURI);
-            
+            // URI is computed in tokenURI() from tokenLevel - no SSTORE here (saves gas)
             emit ImpactProductMinted(user, tokenId, level);
         } else {
             // User already has NFT, update level
             require(level > userCurrentLevel[user], "Level must be higher than current");
             tokenLevel[tokenId] = level;
             userCurrentLevel[user] = level;
-            
-            // Update token URI
-            // Handle trailing slash in baseURI to avoid double slashes
-            string memory uriPrefix = baseURI;
-            if (bytes(baseURI).length > 0 && keccak256(bytes(baseURI)) != keccak256(bytes("ipfs://")) && !_endsWith(baseURI, "/")) {
-                uriPrefix = string(abi.encodePacked(baseURI, "/"));
-            }
-            string memory tokenURI = string(abi.encodePacked(uriPrefix, "level", _toString(level), ".json"));
-            _setTokenURI(tokenId, tokenURI);
-            
+            // URI is computed in tokenURI() from tokenLevel - no SSTORE here (saves gas)
             emit LevelUpdated(user, tokenId, level);
         }
         
-        // Distribute reward (10 DCU points) if reward distributor is set
-        // Try new points system first, fallback to old token system for backward compatibility
+        // Level reward (10 DCU points); streak/referral/impact form are in VerificationContract.awardClaimRewards
         if (rewardDistributor != address(0)) {
-            // Try new points system
-            try IPointsRewardDistributor(rewardDistributor).awardLevelPoints(user) {
-                // Successfully awarded points
-            } catch {
-                // Fallback to old token system (for backward compatibility during migration)
-                try IRewardDistributor(rewardDistributor).distributeLevelReward(user) {
-                    // Successfully distributed tokens
-                } catch {
-                    // Both failed - log but don't revert (graceful degradation)
-                }
+            try IPointsRewardDistributor(rewardDistributor).awardLevelPoints(user) {} catch {
+                try IRewardDistributor(rewardDistributor).distributeLevelReward(user) {} catch {}
             }
         }
     }
@@ -166,14 +139,7 @@ contract ImpactProductNFT is Initializable, ERC721URIStorageUpgradeable, Ownable
         
         tokenLevel[tokenId] = level;
         userCurrentLevel[user] = level;
-        
-        string memory uriPrefix = baseURI;
-        if (bytes(baseURI).length > 0 && keccak256(bytes(baseURI)) != keccak256(bytes("ipfs://")) && !_endsWith(baseURI, "/")) {
-            uriPrefix = string(abi.encodePacked(baseURI, "/"));
-        }
-        string memory tokenURI = string(abi.encodePacked(uriPrefix, "level", _toString(level), ".json"));
-        _setTokenURI(tokenId, tokenURI);
-        
+        // URI computed in tokenURI() from tokenLevel
         emit LevelUpdated(user, tokenId, level);
     }
     
@@ -192,14 +158,7 @@ contract ImpactProductNFT is Initializable, ERC721URIStorageUpgradeable, Ownable
         
         tokenLevel[tokenId] = level;
         userCurrentLevel[user] = level;
-        
-        string memory uriPrefix = baseURI;
-        if (bytes(baseURI).length > 0 && keccak256(bytes(baseURI)) != keccak256(bytes("ipfs://")) && !_endsWith(baseURI, "/")) {
-            uriPrefix = string(abi.encodePacked(baseURI, "/"));
-        }
-        string memory tokenURI = string(abi.encodePacked(uriPrefix, "level", _toString(level), ".json"));
-        _setTokenURI(tokenId, tokenURI);
-        
+        // URI computed in tokenURI() from tokenLevel
         emit LevelUpdated(user, tokenId, level);
     }
     
@@ -351,6 +310,7 @@ interface IPointsRewardDistributor {
     function awardStreakPoints(address user) external;
     function awardReferralPoints(address referrer, address referee) external;
     function awardImpactFormPoints(address user, uint256 cleanupId) external;
+    function awardClaimRewards(address user, address referrer, uint256 cleanupId, bool hasImpactForm) external;
     function awardVerifierPoints(address verifier, uint256 cleanupId) external;
     function hasReceivedReferralReward(address user) external view returns (bool);
 }

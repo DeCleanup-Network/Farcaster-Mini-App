@@ -1,14 +1,14 @@
 # Terms of Service
 
-**Last Updated:** January 2025
+**Last Updated:** May 2026
 
 **Note:** Our smart contracts are upgradeable using the UUPS (Universal Upgradeable Proxy Standard) pattern. This allows us to fix bugs, add features, and improve the system while maintaining user data and balances. All upgrades are subject to proper governance and security measures.
 
 ## 1. Introduction
 
-Welcome to DeCleanup Rewards ("we," "us," or "our"). These Terms of Service ("Terms") govern your access to and use of the DeCleanup Rewards application and services (collectively, the "Services"), which enable users to document environmental cleanups, earn DCU points, claim $bDCU tokens, and participate in onchain verification and rewards.
+Welcome to DeCleanup Rewards ("we," "us," or "our"). These Terms of Service ("Terms") govern your access to and use of the DeCleanup Rewards application and services (collectively, the "Services"), including our Farcaster Mini App at [miniapp.decleanup.net](https://miniapp.decleanup.net) and related web properties. The Services enable users to document environmental cleanups, earn DCU points, claim $bDCU tokens, and participate in onchain verification and rewards.
 
-By accessing or using our Services, you agree to be bound by these Terms. If you do not agree to these Terms, please do not use our Services.
+By accessing or using our Services, you agree to be bound by these Terms and our [Privacy Policy](/privacy). If you do not agree to these Terms, please do not use our Services.
 
 ## 2. About Our Services
 
@@ -21,8 +21,11 @@ DeCleanup Rewards is an onchain application built on Base that enables users to:
 - Earn Impact Products (dynamic NFTs) that represent verified environmental impact
 - Stake $bDCU tokens to become a verifier
 - Participate in a community-driven environmental verification system
+- Access the app as a Farcaster Mini App, in the Base app, or via a standard web browser with a connected wallet
 
-Our Services are built on Base, an Ethereum Layer 2 network incubated at Coinbase with a commitment to decentralization. DeCleanup Rewards operates independently and is not affiliated with, endorsed by, or in partnership with Base or Coinbase.
+$bDCU is DeCleanup's liquid action token on Base, deployed via [Clanker](https://www.clanker.world/clanker/0x30171b7014c02229497CdE6745DD3aD821F12b07). You may earn $bDCU through verified cleanups in the app or acquire it on supported markets. Token prices are determined by market forces and are not guaranteed by us.
+
+Our Services are built on Base, an Ethereum Layer 2 network incubated at Coinbase with a commitment to decentralization. DeCleanup Rewards operates independently and is not affiliated with, endorsed by, or in partnership with Base, Coinbase, Farcaster, or Clanker.
 
 ## 3. Eligibility
 
@@ -42,6 +45,7 @@ To use certain features of our Services, you may need to connect a cryptocurrenc
 - You are solely responsible for all transactions initiated through your connected wallet
 - You acknowledge that transactions on Base are irreversible
 - You must ensure your wallet is connected to the Base network (mainnet or testnet)
+- When using the Farcaster Mini App, your wallet may be connected automatically through the Farcaster or Base client
 
 ## 5. Cleanup Submissions
 
@@ -69,19 +73,19 @@ DeCleanup Rewards uses a points-based reward system:
   - Manual/retroactive rewards: Variable (admin-awarded)
 
 - Points are tracked onchain and cannot be transferred between users
-- Points can be claimed for $bDCU tokens after reaching Level 3 (minimum 100 DCU points required)
+- Points can be claimed for $bDCU tokens after reaching Level 3 (minimum 30 DCU points required)
 - The actual USD value of points is determined at claim time based on current token price and multipliers
 - Points values and multipliers may be adjusted by administrators
 
 ### $bDCU Token Claims
 
 - To claim tokens, you must:
-  - Have accumulated at least 100 DCU points (minimum claim amount)
+  - Have accumulated at least 30 DCU points (minimum claim amount)
   - Reach Impact Product Level 3 (minimum requirement)
   - Have sufficient contract balance available for claims
 
 - Claim amount is calculated based on:
-  - Your accumulated DCU points (minimum 100 points)
+  - Your accumulated DCU points (minimum 30 points)
   - Current market price of $bDCU tokens (8 decimals)
   - Target reward value (configurable, typically $0.50 per cleanup equivalent)
   - Point multipliers (may vary by action type)
@@ -185,6 +189,7 @@ We do not warrant that:
 - DCU points or $bDCU tokens will have any specific value
 - Token prices will remain stable or increase
 - You will be able to claim tokens at any specific time
+- The app will remain listed or discoverable in Farcaster, Base, or other third-party app directories at all times
 
 **IMPORTANT DISCLAIMERS:**
 
@@ -205,6 +210,7 @@ TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, WE SHALL NOT BE LIABLE FOR AN
 - Loss of DCU points or $bDCU tokens due to user error, network issues, or contract interactions
 - Fluctuations in token prices or inability to claim tokens at desired prices
 - Changes to points values, multipliers, or reward structures
+- Removal or unavailability of the app from Farcaster, Base, or other third-party platforms
 
 ## 14. Indemnification
 
@@ -223,6 +229,8 @@ Our Services may integrate with or link to third-party services, including:
 - Base network and blockchain infrastructure
 - Wallet providers (such as MetaMask, Coinbase Wallet, Farcaster wallets, or WalletConnect)
 - IPFS storage providers (Pinata)
+- Farcaster and Base Mini App clients
+- Clanker and other token/market infrastructure
 - Other onchain services and protocols
 
 We are not responsible for the availability, accuracy, or practices of any third-party services. Your interactions with third-party services are solely between you and the third party.
@@ -262,13 +270,13 @@ We may terminate or suspend your access to the Services immediately, without pri
 
 ## 19. Governing Law and Dispute Resolution
 
-These Terms shall be governed by and construed in accordance with the laws of [Your Jurisdiction], without regard to its conflict of law provisions.
+These Terms shall be governed by and construed in accordance with applicable laws, without regard to conflict of law provisions. Where mandatory consumer protection laws in your jurisdiction apply, those laws take precedence over any conflicting provision in these Terms.
 
-Any disputes arising out of or relating to these Terms or the Services shall be resolved through binding arbitration in accordance with the rules of [Arbitration Organization], except where prohibited by law.
+Any disputes arising out of or relating to these Terms or the Services should first be raised with us through the contact channels below. If a dispute cannot be resolved informally, it shall be resolved through binding arbitration or courts of competent jurisdiction as permitted by applicable law.
 
 ## 20. Changes to These Terms
 
-We reserve the right to modify these Terms at any time. We will notify you of any material changes by posting the new Terms on this page and updating the "Last Updated" date. Your continued use of the Services after such changes constitutes your acceptance of the new Terms.
+We reserve the right to modify these Terms at any time. We will notify you of any material changes by posting the new Terms at [miniapp.decleanup.net/terms](https://miniapp.decleanup.net/terms) and updating the "Last Updated" date. Your continued use of the Services after such changes constitutes your acceptance of the new Terms.
 
 ## 21. Severability
 
@@ -282,9 +290,8 @@ These Terms constitute the entire agreement between you and us regarding the use
 
 If you have any questions about these Terms, please contact us at:
 
-**Email:** [Your Contact Email]  
-**Website:** [Your Website]  
-**Farcaster:** [@decleanup](https://warpcast.com/decleanup)  
+**Website:** [decleanup.net](https://decleanup.net) · [miniapp.decleanup.net](https://miniapp.decleanup.net)  
+**Farcaster:** [@decleanup](https://farcaster.xyz/decleanup)  
 **Telegram:** [t.me/DecentralizedCleanup](https://t.me/DecentralizedCleanup)
 
 ---

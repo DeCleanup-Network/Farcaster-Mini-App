@@ -63,11 +63,16 @@ async function main() {
     console.log("Contract balance after:", hre.ethers.formatEther(balanceAfter), "ETH");
     
   } catch (error) {
-    if (error.message.includes("No fees to withdraw")) {
+    const msg = (error && (error.message || String(error))) || "";
+    if (msg.includes("No fees to withdraw")) {
       console.log("⚠️  No fees to withdraw!");
-    } else if (error.message.includes("Ownable")) {
+    } else if (msg.includes("Ownable") || msg.includes("owner")) {
       console.error("❌ Error: You are not the contract owner!");
       console.log("   Current owner:", await VerificationContract.owner());
+    } else if (msg.includes("execution reverted") || msg.includes("ProviderError")) {
+      console.error("❌ Execution reverted. If fees are set to go to a contract (Fee Treasury), it may reject plain ETH.");
+      console.log("");
+      console.log("To send fees to the OWNER instead: npm run withdrawFeesToOwner:base");
     } else {
       throw error;
     }

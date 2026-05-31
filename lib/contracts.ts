@@ -1427,21 +1427,13 @@ export async function claimImpactProductFromVerification(
     throw new Error(`${REQUIRED_CHAIN_NAME} chain is not configured.`)
   }
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/40e39046-eb29-4e48-9a5d-8d66cddb1371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'contracts.ts:claimImpactProduct',message:'claim_pre_chain',data:{providedChainId:providedChainId ?? null,targetChainId:targetChain.id,targetChainName:targetChain.name,REQUIRED_CHAIN_ID},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
-
   // Get claim fee if enabled
   let claimFeeValue: bigint = BigInt(0)
   try {
-    const chainIdAtFeeRead = await getCurrentChainId()
     const claimFeeInfo = await getClaimFee()
     if (claimFeeInfo.enabled && claimFeeInfo.fee > 0) {
       claimFeeValue = claimFeeInfo.fee
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/40e39046-eb29-4e48-9a5d-8d66cddb1371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'contracts.ts:claimImpactProduct',message:'claim_fee_from_contract',data:{chainIdAtFeeRead,feeWei:claimFeeInfo.fee.toString(),feeEth:Number(claimFeeInfo.fee)/1e18,enabled:claimFeeInfo.enabled},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H4,H5'})}).catch(()=>{});
-    // #endregion
   } catch (error) {
     console.warn('Could not fetch claim fee, proceeding without fee:', error)
   }
@@ -1481,12 +1473,60 @@ export async function claimImpactProductFromVerification(
     await new Promise(resolve => setTimeout(resolve, 1800))
   }
 
+  // Simulate claim before sending so we can show a clear revert reason instead of "likely to fail" in the wallet
+  try {
+    await simulateContract(getWagmiConfig(), {
+      address: CONTRACT_ADDRESSES.VERIFICATION,
+      abi: VERIFICATION_ABI,
+      functionName: 'claimImpactProduct',
+      args: [cleanupId],
+      value: claimFeeValue,
+      chain: targetChain,
+    })
+  } catch (simulateError: any) {
+    const simMsg = getErrorMessage(simulateError)
+    console.warn('[claimImpactProduct] Simulation failed:', simMsg, simulateError)
+    if (simMsg.includes('Already claimed') || simMsg.includes('already claimed')) {
+      throw new Error(
+        'This Impact Product has already been claimed. ' +
+        'If you don\'t see it in your profile, please refresh the page or check the transaction history.'
+      )
+    }
+    if (simMsg.includes('Not your cleanup') || simMsg.includes('not your cleanup')) {
+      throw new Error('This cleanup does not belong to your wallet address. Use the same wallet that submitted it.')
+    }
+    if (simMsg.includes('Cleanup not verified') || simMsg.includes('not verified')) {
+      throw new Error('This cleanup has not been verified yet. Please wait for verification.')
+    }
+    if (simMsg.includes('Cleanup does not exist') || simMsg.includes('does not exist')) {
+      throw new Error(`Cleanup #${cleanupId.toString()} does not exist.`)
+    }
+    if (simMsg.includes('Insufficient claim fee') || simMsg.includes('claim fee')) {
+      throw new Error(
+        'The claim fee sent does not match. Please ensure you have the exact amount shown (and some ETH on Base for gas) and try again.'
+      )
+    }
+    // Impact Product NFT: user already has this level or higher — need a higher-level cleanup to advance
+    if (simMsg.includes('Level must be higher') || simMsg.includes('level must be higher') || simMsg.includes('higher than current')) {
+      throw new Error(
+        'You already have an Impact Product at this level. Complete and get another cleanup verified at a higher level to advance, then claim again.'
+      )
+    }
+    if (simMsg.includes('User has no Impact Product') || simMsg.includes('user has no Impact Product')) {
+      throw new Error('You don\'t have an Impact Product yet. Claim a verified cleanup first to mint your first level.')
+    }
+    if (simMsg.includes('revert') || simMsg.includes('would fail') || simMsg.includes('ContractFunctionExecutionError')) {
+      const reason = simMsg.length > 200 ? simMsg.slice(0, 200) + '…' : simMsg
+      throw new Error(
+        `Claim would fail on-chain. Reason: ${reason}. ` +
+        'Common causes: (1) Use the same wallet that submitted this cleanup. (2) Have enough ETH for the claim fee + gas on Base. (3) If you already have an Impact Product at this level, complete another cleanup at a higher level and claim again.'
+      )
+    }
+    throw simulateError
+  }
+
   // Account is already verified at the top of the function
   try {
-    const currentChainIdBeforeTx = await getCurrentChainId()
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/40e39046-eb29-4e48-9a5d-8d66cddb1371',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'contracts.ts:claimImpactProduct',message:'claim_before_writeContract',data:{currentChainId:currentChainIdBeforeTx,targetChainId:targetChain.id,claimFeeWei:claimFeeValue.toString(),claimFeeEth:Number(claimFeeValue)/1e18,connector:account.connector?.id||account.connector?.name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H2,H3'})}).catch(()=>{});
-    // #endregion
     console.log('[claimImpactProduct] Account status:', account.status, 'Connector:', account.connector?.name || account.connector?.id)
     
     // Use custom transaction sender if provided (for Builder Code attribution)
@@ -2384,97 +2424,158 @@ export async function getRewardsBreakdown(userAddress: Address): Promise<{
   retroRewards: number
   total: number
 }> {
-  // Try new points system first
-  if (CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+  const empty = { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, retroRewards: 0, total: 0 }
+
+  if (!CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR) {
+    return empty
+  }
+
+  let pointsBalanceBaseline = 0
+  try {
+    const { createPublicClient, http } = await import('viem')
+    const { baseSepolia, base } = await import('viem/chains')
+
+    const chain = REQUIRED_CHAIN_ID === 84532 ? baseSepolia : base
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(REQUIRED_RPC_URL),
+    })
+
+    const distributorAddress = CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR
+
+    // Read pointsBalance first as baseline (so we know user has points even if events are empty/missed)
     try {
-      const { createPublicClient, http } = await import('viem')
-      const { baseSepolia, base } = await import('viem/chains')
-      
-      const chain = REQUIRED_CHAIN_ID === 84532 ? baseSepolia : base
-      const publicClient = createPublicClient({
-        chain,
-        transport: http(REQUIRED_RPC_URL),
+      const balance = await publicClient.readContract({
+        address: distributorAddress,
+        abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+        functionName: 'pointsBalance',
+        args: [userAddress],
       })
+      pointsBalanceBaseline = Number(balance)
+    } catch (e) {
+      console.warn('getRewardsBreakdown: pointsBalance baseline failed', e)
+    }
 
-      const distributorAddress = CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR
-      
-      // Query PointsAwarded events (skip on RPC 400/401 - e.g. invalid or truncated Alchemy key)
-      let fromBlock = BigInt(0)
-      try {
-        const currentBlock = await publicClient.getBlockNumber()
-        const blockRange = BigInt(50000)
-        fromBlock = currentBlock > blockRange ? currentBlock - blockRange : BigInt(0)
-      } catch (blockError: unknown) {
-        const msg = String((blockError as Error)?.message ?? blockError)
-        if (/400|401|429|rate limit|Unauthorized|Bad Request/i.test(msg)) {
-          return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, retroRewards: 0, total: 0 }
-        }
-        console.warn('Could not get current block number:', blockError)
+    console.log('getRewardsBreakdown called', { userAddress: userAddress.slice(0, 10) + '…', pointsBalanceBaseline })
+
+    // Query PointsAwarded events; Alchemy Free tier allows max 10 blocks (inclusive) per eth_getLogs
+    const blockRange = BigInt(9) // fromBlock to currentBlock = 10 blocks inclusive
+    let fromBlock = BigInt(0)
+    let toBlock: bigint | 'latest' = 'latest'
+    try {
+      const currentBlock = await publicClient.getBlockNumber()
+      fromBlock = currentBlock > blockRange ? currentBlock - blockRange : BigInt(0)
+      toBlock = currentBlock
+    } catch (blockError: unknown) {
+      const msg = String((blockError as Error)?.message ?? blockError)
+      if (/400|401|429|rate limit|Unauthorized|Bad Request|Timeout/i.test(msg)) {
+        // Continue with fallback: use pointsBalanceBaseline so user still sees a breakdown
+        fromBlock = BigInt(0)
+        toBlock = 'latest'
+      } else {
+        console.warn('getRewardsBreakdown: could not get block number', blockError)
       }
+    }
 
-      let pointsLogs: { args: { points?: bigint; rewardType?: string } }[] = []
-      try {
-        pointsLogs = await publicClient.getLogs({
-          address: distributorAddress,
-          event: parseAbiItem('event PointsAwarded(address indexed user, uint256 points, string rewardType)'),
-          args: { user: userAddress },
-          fromBlock,
-        }) as { args: { points?: bigint; rewardType?: string } }[]
-      } catch (logsError: unknown) {
-        const msg = String((logsError as Error)?.message ?? logsError)
-        if (/400|401|429|rate limit|Unauthorized|Bad Request/i.test(msg)) {
-          return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, retroRewards: 0, total: 0 }
-        }
-        console.warn('Could not get points logs:', logsError)
+    let pointsLogs: { args: { points?: bigint; rewardType?: string } }[] = []
+    let getLogsFailed = false
+    try {
+      pointsLogs = await publicClient.getLogs({
+        address: distributorAddress,
+        event: parseAbiItem('event PointsAwarded(address indexed user, uint256 points, string rewardType)'),
+        args: { user: userAddress },
+        fromBlock,
+        toBlock,
+      }) as { args: { points?: bigint; rewardType?: string } }[]
+    } catch (logsError: unknown) {
+      getLogsFailed = true
+      const msg = String((logsError as Error)?.message ?? logsError)
+      console.warn('getRewardsBreakdown: getLogs failed (using balance fallback)', msg)
+    }
+
+    // Group by reward type (level=10 per Impact Product mint, streak=1 each, referral=3 each, verifier=1 each, impact_form=3)
+    let levelRewards = 0
+    let cleanupCount = 0
+    let streakRewards = 0
+    let referralRewards = 0
+    let impactFormRewards = 0
+    let verifierRewards = 0
+    let retroRewards = 0
+
+    for (const log of pointsLogs) {
+      const points = Number(log.args.points || 0)
+      const rewardType = log.args.rewardType || ''
+
+      if (rewardType === 'level') {
+        levelRewards += points
+        cleanupCount++ // Each level reward = 1 cleanup / Impact Product claim
+      } else if (rewardType === 'streak') {
+        streakRewards += points
+      } else if (rewardType === 'referral') {
+        referralRewards += points
+      } else if (rewardType === 'impact_form') {
+        impactFormRewards += points
+      } else if (rewardType === 'verifier') {
+        verifierRewards += points
+      } else if (rewardType === 'manual' || rewardType === 'retro_rewards' || rewardType === 'retro') {
+        retroRewards += points
       }
+    }
 
-      // Group by reward type
-      let levelRewards = 0
-      let cleanupCount = 0
-      let streakRewards = 0
-      let referralRewards = 0
-      let impactFormRewards = 0
-      let verifierRewards = 0
-      let retroRewards = 0 // Manual awards / retro rewards
+    let total = levelRewards + streakRewards + referralRewards + impactFormRewards + verifierRewards + retroRewards
 
-      for (const log of pointsLogs) {
-        const points = Number(log.args.points || 0)
-        const rewardType = log.args.rewardType || ''
+    // If getLogs failed or no events but user has points: attribute only level part to cleanups, rest to "other" (streak/verifier/referral)
+    if ((getLogsFailed || total === 0) && pointsBalanceBaseline > 0) {
+      cleanupCount = Math.floor(pointsBalanceBaseline / 10) // 10 DCU per level claim
+      levelRewards = cleanupCount * 10 // only the part from cleanups
+      const remainder = pointsBalanceBaseline - levelRewards // streak + verifier + referral (we can't split without events)
+      retroRewards = remainder
+      total = pointsBalanceBaseline
+      console.log('getRewardsBreakdown: used pointsBalance fallback', { pointsBalanceBaseline, cleanupCount, levelDCU: levelRewards, otherDCU: remainder, reason: getLogsFailed ? 'getLogs failed' : 'no events in range' })
+    }
 
-        if (rewardType === 'level') {
-          levelRewards += points
-          cleanupCount++ // Each level reward = 1 cleanup
-        } else if (rewardType === 'streak') {
-          streakRewards += points
-        } else if (rewardType === 'referral') {
-          referralRewards += points
-        } else if (rewardType === 'impact_form') {
-          impactFormRewards += points
-        } else if (rewardType === 'verifier') {
-          verifierRewards += points
-        } else if (rewardType === 'manual' || rewardType === 'retro_rewards' || rewardType === 'retro') {
-          retroRewards += points
-        }
-      }
-
-      const total = levelRewards + streakRewards + referralRewards + impactFormRewards + verifierRewards + retroRewards
-
+    const result = {
+      levelRewards,
+      cleanupCount,
+      streakRewards,
+      referralRewards,
+      impactFormRewards,
+      verifierRewards,
+      retroRewards,
+      total,
+    }
+    console.log('getRewardsBreakdown result', {
+      cleanupCount,
+      levelDCU: levelRewards,
+      streakDCU: streakRewards,
+      referralDCU: referralRewards,
+      verifierDCU: verifierRewards,
+      retroDCU: retroRewards,
+      total: result.total,
+      eventsCount: pointsLogs.length,
+    })
+    return result
+  } catch (error) {
+    console.warn('getRewardsBreakdown: error', error)
+    // If we have a baseline from earlier, return it so user still sees a breakdown
+    if (typeof pointsBalanceBaseline === 'number' && pointsBalanceBaseline > 0) {
+      const cleanupCount = Math.floor(pointsBalanceBaseline / 10)
+      const levelRewards = cleanupCount * 10
+      const retroRewards = pointsBalanceBaseline - levelRewards
       return {
         levelRewards,
         cleanupCount,
-        streakRewards,
-        referralRewards,
-        impactFormRewards,
-        verifierRewards,
+        streakRewards: 0,
+        referralRewards: 0,
+        impactFormRewards: 0,
+        verifierRewards: 0,
         retroRewards,
-        total,
+        total: pointsBalanceBaseline,
       }
-    } catch (error) {
-      console.warn('Error querying points system:', error)
     }
   }
 
-  return { levelRewards: 0, cleanupCount: 0, streakRewards: 0, referralRewards: 0, impactFormRewards: 0, verifierRewards: 0, retroRewards: 0, total: 0 }
+  return empty
 }
 
 
@@ -2679,17 +2780,53 @@ export async function claimTokensFromPoints(
       throw new Error(errorMsg)
     }
 
+    // Simulate first so we show a clear error instead of "likely to fail" + high gas in the wallet
+    try {
+      await simulateContract(getWagmiConfig(), {
+        address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
+        abi: POINTS_REWARD_DISTRIBUTOR_ABI,
+        functionName: 'claimTokens',
+        args: [BigInt(pointsToClaim)],
+        chain: targetChain,
+      })
+    } catch (simErr: any) {
+      const simMsg = getErrorMessage(simErr)
+      if (simMsg.includes('Insufficient token balance') || simMsg.includes('token balance in contract')) {
+        throw new Error(
+          'The reward pool doesn\'t have enough $bDCU tokens yet to fulfill this claim. ' +
+          'The team needs to fund the PointsRewardDistributor contract. Please try again later or contact support.'
+        )
+      }
+      if (simMsg.includes('Insufficient points')) {
+        throw new Error('You don\'t have enough DCU points for this claim. Check your points balance.')
+      }
+      if (simMsg.includes('Must claim at least') || simMsg.includes('30 DCU')) {
+        throw new Error('You need at least 30 DCU points to claim tokens.')
+      }
+      if (simMsg.includes('Must reach minimum level') || simMsg.includes('minimum level')) {
+        throw new Error('You need to reach level 3 before you can claim $bDCU tokens.')
+      }
+      if (simMsg.includes('Token price not set')) {
+        throw new Error('Token price is not set on the contract. Please contact support.')
+      }
+      throw simErr
+    }
+
     console.log('[claimTokens] Calling writeContract with chain:', targetChain.id, targetChain.name)
     console.log('[claimTokens] Contract address:', CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR)
     console.log('[claimTokens] Function: claimTokens, args:', [pointsToClaim.toString()])
     console.log('[claimTokens] Account status:', account.status, 'Connector:', account.connector?.name || account.connector?.id)
 
+    // Explicit gas so wallet shows Base-appropriate cost (~cents), not mainnet-style or reverted-tx estimate
     const hash = await writeContract(getWagmiConfig() as any, {
       address: CONTRACT_ADDRESSES.POINTS_REWARD_DISTRIBUTOR,
       abi: POINTS_REWARD_DISTRIBUTOR_ABI,
       functionName: 'claimTokens',
       args: [BigInt(pointsToClaim)],
-      chain: targetChain, // Pass chain object explicitly instead of just chainId
+      chain: targetChain,
+      gas: BigInt(300000),
+      maxFeePerGas: BigInt(50000000), // 0.05 gwei cap for display
+      maxPriorityFeePerGas: BigInt(50000000),
     })
 
     console.log('[claimTokens] ✅ Transaction hash received:', hash)

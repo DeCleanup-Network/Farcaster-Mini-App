@@ -38,6 +38,7 @@
     "ogTitle": "DeCleanup Rewards",
     "ogDescription": "Join the global cleanup movement. Submit cleanups, earn Impact Products, and make a real difference.",
     "ogImageUrl": "https://gateway.pinata.cloud/ipfs/bafybeib7mxbtcc4kr3gp4wl5jhf3bpump4zywvz22msuymhf5nmrq3axk4?filename=DCUOgNEW.png",
+    "requiredChains": ["eip155:8453"],
     "noindex": false
   }
 }

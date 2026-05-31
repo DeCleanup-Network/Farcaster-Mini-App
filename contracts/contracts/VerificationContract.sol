@@ -145,8 +145,7 @@ contract VerificationContract is Initializable, OwnableUpgradeable, ReentrancyGu
         // Check and collect submission fee if enabled
         if (feeEnabled && submissionFee > 0) {
             require(msg.value >= submissionFee, "Insufficient fee");
-            // Automatically withdraw to treasury if set
-            _withdrawFeesIfNeeded();
+            // Fees accumulate; owner/treasury withdraw via withdrawFees() to save gas
         }
         
         // IMPORTANT: Referral is only valid for the user's FIRST submission AND if they haven't received a referral reward yet
@@ -277,41 +276,25 @@ contract VerificationContract is Initializable, OwnableUpgradeable, ReentrancyGu
         // Check and collect claim fee if enabled
         if (claimFeeEnabled && claimFee > 0) {
             require(msg.value >= claimFee, "Insufficient claim fee");
-            // Automatically withdraw to treasury if set
-            _withdrawFeesIfNeeded();
+            // Fees accumulate; owner/treasury withdraw via withdrawFees() to save gas
         }
         
         cleanup.claimed = true;
         
         address user = cleanup.user;
         
-        // Distribute all rewards when user claims (not on verification)
-        // This ensures users only receive rewards after they claim their Impact Product
-        // Note: If rewards were already distributed (e.g., from old contract), they will fail silently
-        
-        // Distribute rewards using points system (try new system first, fallback to old)
-        // Streak reward
-        try IPointsRewardDistributor(rewardDistributor).awardStreakPoints(user) {} catch {
-        try IRewardDistributor(rewardDistributor).distributeStreakReward(user) {} catch {}
-        }
-        
-        // Referral reward (only once per user)
-        if (cleanup.referrer != address(0)) {
-            try IPointsRewardDistributor(rewardDistributor).awardReferralPoints(cleanup.referrer, user) {} catch {
-            try IRewardDistributor(rewardDistributor).distributeReferralReward(cleanup.referrer, user) {} catch {}
+        // Single batched reward call (streak + referral + impact form + level) to save gas
+        try IPointsRewardDistributor(rewardDistributor).awardClaimRewards(user, cleanup.referrer, cleanupId, cleanup.hasImpactForm) {} catch {
+            try IRewardDistributor(rewardDistributor).distributeStreakReward(user) {} catch {}
+            if (cleanup.referrer != address(0)) {
+                try IRewardDistributor(rewardDistributor).distributeReferralReward(cleanup.referrer, user) {} catch {}
+            }
+            if (cleanup.hasImpactForm) {
+                try IRewardDistributor(rewardDistributor).distributeImpactFormReward(user, cleanupId) {} catch {}
             }
         }
         
-        // Impact form reward
-        if (cleanup.hasImpactForm) {
-            try IPointsRewardDistributor(rewardDistributor).awardImpactFormPoints(user, cleanupId) {} catch {
-            try IRewardDistributor(rewardDistributor).distributeImpactFormReward(user, cleanupId) {} catch {}
-            }
-        }
-        
-        // Claim Impact Product level for the user (this will also distribute 10 DCU level reward)
-        // Pass the user address so the NFT is minted/updated for the correct user
-        // This must succeed - if it fails, the whole claim fails
+        // Claim Impact Product level (mint/update NFT only; level points already in awardClaimRewards)
         impactProductNFT.claimLevelForUser(user, cleanupId, cleanup.level);
         
         emit ImpactProductClaimed(cleanupId, user, cleanup.level);
@@ -451,11 +434,24 @@ contract VerificationContract is Initializable, OwnableUpgradeable, ReentrancyGu
     function withdrawFees() external onlyOwner {
         uint256 balance = address(this).balance;
         require(balance > 0, "No fees to withdraw");
-        
         address recipient = feeTreasury != address(0) ? feeTreasury : owner();
-        payable(recipient).transfer(balance);
+        (bool ok, ) = payable(recipient).call{value: balance}("");
+        require(ok, "Transfer failed");
     }
-    
+
+    /**
+     * @notice Withdraw collected fees to a specific address (only owner)
+     * Use this to refund a user: send the contract's fee balance to their address in one tx.
+     * @param recipient Address to receive the ETH (e.g. the user to refund)
+     */
+    function withdrawFeesTo(address payable recipient) external onlyOwner {
+        require(recipient != address(0), "Invalid recipient");
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No fees to withdraw");
+        (bool ok, ) = recipient.call{value: balance}("");
+        require(ok, "Transfer failed");
+    }
+
     /**
      * @notice Internal function to automatically withdraw fees to treasury if set
      */
@@ -463,7 +459,8 @@ contract VerificationContract is Initializable, OwnableUpgradeable, ReentrancyGu
         if (feeTreasury != address(0)) {
             uint256 balance = address(this).balance;
             if (balance > 0) {
-                payable(feeTreasury).transfer(balance);
+                (bool ok, ) = payable(feeTreasury).call{value: balance}("");
+                require(ok, "Transfer failed");
             }
         }
     }

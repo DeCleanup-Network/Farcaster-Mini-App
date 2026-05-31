@@ -86,7 +86,7 @@ function calculateClaimAmount(uint256 points) external view returns (uint256 tok
 ```
 
 **Requirements:**
-- Minimum 100 DCU points required to claim
+- Minimum 30 DCU points required to claim (aligns with level 3)
 - User must reach Level 3 to claim tokens
 - Contract must have sufficient token balance
 
@@ -126,7 +126,7 @@ function upgradeTo(address newImplementation) external onlyOwner  // UUPS upgrad
 - `targetRewardValueUSD`: 50 cents (40-60 range, adjustable)
 - `currentTokenPriceUSD`: 8 decimals (e.g., 77 = $0.00000077, adjustable)
 - `MINIMUM_LEVEL_FOR_STAKING`: 10 (constant)
-- `MINIMUM_POINTS_TO_CLAIM`: 100 (constant - minimum DCU points required to claim tokens)
+- `MINIMUM_POINTS_TO_CLAIM`: 30 (constant - minimum DCU points, aligns with level 3)
 
 #### Events
 

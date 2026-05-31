@@ -190,9 +190,19 @@ export default function Home() {
           getUserLevel(address).catch(() => 0),
         ])
         if (isMounted) {
-          setCleanupStatus(status)
           setUserLevel(level)
-          
+          // If user already has this level or higher, claim would revert ("Level must be higher than current") — don't show Claim
+          const cleanupLevel = status.level ?? 0
+          if (status.canClaim && cleanupLevel > 0 && level >= cleanupLevel) {
+            setCleanupStatus({
+              ...status,
+              canClaim: false,
+              reason: 'You already have an Impact Product at this level. Complete another cleanup and get it verified at a higher level to advance.',
+            })
+          } else {
+            setCleanupStatus(status)
+          }
+
           // Show rejection alert if cleanup was rejected
           if (status.rejected) {
             setShowRejectionAlert(true)
@@ -225,9 +235,18 @@ export default function Home() {
     // Initial check
     checkStatus()
 
+    // Refetch when user returns to this tab (e.g. after submitting cleanup on /cleanup)
+    const onFocus = () => { if (address) checkStatus() }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', onFocus)
+    }
+
     return () => {
       isMounted = false
       if (pollInterval) clearInterval(pollInterval)
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', onFocus)
+      }
     }
   }, [mounted, isConnected, address])
 
@@ -367,23 +386,23 @@ export default function Home() {
                       🎉 Currently you passed all the levels, stay updated for more...
                     </p>
                   </div>
+                ) : cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim ? (
+                  <Button
+                    size="lg"
+                    disabled
+                    className="w-full gap-2 sm:w-auto border-muted bg-muted text-muted-foreground cursor-not-allowed"
+                    title={
+                      cleanupStatus?.hasPendingCleanup
+                        ? 'Cleanup under verification. Please wait before submitting a new one.'
+                        : 'Please claim your Impact Product before submitting a new cleanup.'
+                    }
+                  >
+                    <Leaf className="h-5 w-5" />
+                    {cleanupStatus?.hasPendingCleanup ? 'CLEANUP UNDER VERIFICATION' : 'SUBMIT CLEANUP'}
+                  </Button>
                 ) : (
                   <Link href="/cleanup" className="w-full sm:w-auto">
-                    <Button
-                      size="lg"
-                      disabled={cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim || false}
-                      className={`w-full gap-2 sm:w-auto ${cleanupStatus?.hasPendingCleanup || cleanupStatus?.canClaim
-                        ? 'border-muted bg-muted text-muted-foreground cursor-not-allowed'
-                        : 'bg-brand-yellow text-black hover:bg-[#e6e600]'
-                        }`}
-                      title={
-                        cleanupStatus?.hasPendingCleanup
-                          ? 'You have a cleanup pending verification. Please wait for verification before submitting a new cleanup.'
-                          : cleanupStatus?.canClaim
-                            ? 'Please claim your Impact Product before submitting a new cleanup.'
-                            : ''
-                      }
-                    >
+                    <Button size="lg" className="w-full gap-2 sm:w-auto bg-brand-yellow text-black hover:bg-[#e6e600]">
                       <Leaf className="h-5 w-5" />
                       SUBMIT CLEANUP
                     </Button>
@@ -445,6 +464,7 @@ export default function Home() {
                       const { waitForTransactionReceipt } = await import('wagmi/actions')
                       const { config } = await import('@/lib/wagmi')
 
+                      let receiptOk = false
                       try {
                         // Use a longer timeout and handle "block not found" errors gracefully
                         await waitForTransactionReceipt(config, { 
@@ -454,6 +474,7 @@ export default function Home() {
                           retryDelay: 2000,
                         })
                         console.log('✅ Claim transaction confirmed!')
+                        receiptOk = true
                       } catch (waitError: any) {
                         // "Block not found" errors are often temporary - transaction might still succeed
                         const errorMessage = String(waitError?.message || waitError || '')
@@ -469,57 +490,40 @@ export default function Home() {
                         }
                       }
 
-                      // Poll for status update (transaction confirmed, but state might take a moment)
-                      let pollCount = 0
-                      const maxPolls = 10
-                      const pollInterval = setInterval(async () => {
-                        pollCount++
-                        try {
-                          if (address) {
+                      // Optimistic update: we know claim succeeded once tx confirmed — update UI immediately so "Claim Level" becomes "Submit cleanup"
+                      if (receiptOk && cleanupStatus) {
+                        setCleanupStatus({
+                          ...cleanupStatus,
+                          canClaim: false,
+                          claimed: true,
+                          reason: 'Reward from the recent cleanup was successfully claimed.',
+                        })
+                        setSuccessModalData({
+                          title: 'Impact Product Minted!',
+                          message: 'Your Impact Product has been successfully minted!',
+                          transactionHash: hash,
+                        })
+                        setShowSuccessModal(true)
+                        setIsClaiming(false)
+                      }
+
+                      // Sync from chain after a short delay (in case RPC was slow); keeps state correct
+                      if (address) {
+                        const syncAfterClaim = async () => {
+                          await new Promise(r => setTimeout(r, 2000))
+                          try {
                             const status = await getUserCleanupStatus(address)
                             setCleanupStatus(status)
-                            // BUG FIX: Only show success modal when actually claimed, not on timeout
-                            if (status.claimed) {
-                              clearInterval(pollInterval)
-                              setSuccessModalData({
-                                title: 'Impact Product Minted!',
-                                message: 'Your Impact Product has been successfully minted!',
-                                transactionHash: hash,
-                              })
-                              setShowSuccessModal(true)
-                              // Don't auto-redirect - let user close modal manually
-                            } else if (pollCount >= maxPolls) {
-                              // Timeout reached but not claimed - show different message
-                              clearInterval(pollInterval)
-                              setSuccessModalData({
-                                title: 'Transaction Submitted',
-                                message: 'Transaction submitted but confirmation is taking longer than expected. Please check your profile or explorer to confirm the mint status.',
-                                transactionHash: hash,
-                              })
-                              setShowSuccessModal(true)
-                              // Don't auto-redirect - let user close modal manually
-                            }
-                          }
-                        } catch (error) {
-                          console.error('Error polling status:', error)
-                          if (pollCount >= maxPolls) {
-                            clearInterval(pollInterval)
-                            setSuccessModalData({
-                              title: 'Transaction Submitted',
-                              message: 'Transaction submitted but status check failed. Please check your profile or explorer to confirm.',
-                              transactionHash: hash,
-                            })
-                            setShowSuccessModal(true)
-                            // Don't auto-redirect - let user close modal manually
+                          } catch (e) {
+                            console.warn('Post-claim status sync failed:', e)
+                          } finally {
+                            if (!receiptOk) setIsClaiming(false)
                           }
                         }
-                      }, 2000) // Poll every 2 seconds
-
-                      // Fallback: stop polling after max time (but don't auto-redirect)
-                      setTimeout(() => {
-                        clearInterval(pollInterval)
-                        // Don't auto-redirect - let user check status manually
-                      }, 20000) // Max 20 seconds
+                        syncAfterClaim()
+                      } else if (!receiptOk) {
+                        setIsClaiming(false)
+                      }
 
                     } catch (error: any) {
                       console.error('Error claiming:', error)
@@ -659,16 +663,6 @@ export default function Home() {
             </div>
           </section>
         )}
-
-        {/* Footer - Powered by Base */}
-        <footer className="mt-8 border-t border-border pt-6 sm:mt-12">
-          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground sm:text-sm">
-            <span>Powered by</span>
-            <div className="flex h-6 items-center justify-center rounded bg-muted px-2 font-bold text-foreground">
-              Base
-            </div>
-          </div>
-        </footer>
 
         {/* Success Modal */}
         {showSuccessModal && successModalData && (

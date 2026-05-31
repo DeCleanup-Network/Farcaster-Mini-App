@@ -7,6 +7,7 @@ import { NetworkChecker } from "@/components/network/NetworkChecker";
 import { NetworkBlockingScreen } from "@/components/network/NetworkBlockingScreen";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { AppHeader } from "@/components/navigation/AppHeader";
+import { AppFooter } from "@/components/navigation/AppFooter";
 import { ErrorHandler, ErrorBoundary } from "@/components/ErrorHandler";
 
 const geistSans = Geist({
@@ -128,6 +129,7 @@ export default function RootLayout({
                 <main className="w-full min-h-screen pt-20 pb-24 safe-area-inset-bottom" style={{ paddingTop: 'calc(5rem + env(safe-area-inset-top, 0))' }}>
                   {children}
                 </main>
+                <AppFooter />
                 <BottomNav />
               </FarcasterProvider>
             </Providers>

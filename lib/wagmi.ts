@@ -1,4 +1,4 @@
-import { base, baseSepolia, mainnet } from 'wagmi/chains'
+import { base, baseSepolia } from 'wagmi/chains'
 import { createConfig, http } from 'wagmi'
 import { connectorsForWallets } from '@rainbow-me/rainbowkit'
 import {
@@ -65,11 +65,9 @@ const baseSepoliaChain = defineChain({
   iconBackground: '#0052FF',
 })
 
-// Chains for wagmi config (includes mainnet for ENS resolution)
-// Mainnet is needed in transports for ENS, but we'll exclude it from RainbowKit chain switcher
-const allChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet, mainnet]
-
-// Chains to show in RainbowKit chain switcher (excludes mainnet)
+// Chains for wagmi and RainbowKit (Base only).
+// Mainnet was removed to fix CORS: ENS avatar resolution (euc.li) was blocked by CORS when
+// miniapp.decleanup.net fetched from euc.li. Without mainnet, no ENS name/avatar is resolved.
 const configuredChains: [Chain, ...Chain[]] = [baseSepoliaChain, baseMainnet]
 // Default to Base Mainnet (8453). Set NEXT_PUBLIC_CHAIN_ID=84532 for Base Sepolia testnet.
 const requiredChainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || baseMainnet.id)
@@ -150,9 +148,9 @@ export function getWagmiConfig() {
               // Wallet factories must be passed as function references (not invoked)
               // connectorsForWallets will call them with options from the second parameter
               // We wrap them to merge shared options with wallet-specific options like chains
-              (options: any) => metaMaskWallet({ ...options, chains: allChains }),
-              (options: any) => walletConnectWallet({ ...options, projectId: walletConnectProjectId!, chains: allChains }),
-              (options: any) => coinbaseWallet({ ...options, appName: APP_NAME, chains: allChains }),
+              (options: any) => metaMaskWallet({ ...options, chains: configuredChains }),
+              (options: any) => walletConnectWallet({ ...options, projectId: walletConnectProjectId!, chains: configuredChains }),
+              (options: any) => coinbaseWallet({ ...options, appName: APP_NAME, chains: configuredChains }),
               () => injectedWallet(),
             ],
           },
@@ -183,12 +181,11 @@ export function getWagmiConfig() {
     }
     
     _ssrConfig = createConfig({
-      chains: allChains, // Include mainnet for ENS resolution
+      chains: configuredChains,
       connectors: defaultConnectors,
       transports: {
         [baseMainnet.id]: http(baseMainnetRpcUrl),
         [baseSepoliaChain.id]: http(baseSepoliaRpcUrl),
-        [mainnet.id]: http(), // Mainnet RPC for ENS resolution (RainbowKit needs this)
       },
     })
     return _ssrConfig
@@ -206,9 +203,9 @@ export function getWagmiConfig() {
             // Wallet factories must be passed as function references (not invoked)
             // connectorsForWallets will call them with options from the second parameter
             // We wrap them to merge shared options with wallet-specific options like chains
-            (options: any) => metaMaskWallet({ ...options, chains: allChains }),
-            (options: any) => walletConnectWallet({ ...options, projectId: walletConnectProjectId!, chains: allChains }),
-            (options: any) => coinbaseWallet({ ...options, appName: APP_NAME, chains: allChains }),
+            (options: any) => metaMaskWallet({ ...options, chains: configuredChains }),
+            (options: any) => walletConnectWallet({ ...options, projectId: walletConnectProjectId!, chains: configuredChains }),
+            (options: any) => coinbaseWallet({ ...options, appName: APP_NAME, chains: configuredChains }),
             () => injectedWallet(),
             () => safeWallet(),
           ],
@@ -268,12 +265,11 @@ export function getWagmiConfig() {
   // Create config with all connectors
   // Using createConfig directly is valid in v2 when you need custom connector logic
   _config = createConfig({
-    chains: allChains, // Include mainnet for ENS resolution
+    chains: configuredChains,
     connectors,
     transports: {
       [baseMainnet.id]: http(baseMainnetRpcUrl),
       [baseSepoliaChain.id]: http(baseSepoliaRpcUrl),
-      [mainnet.id]: http(), // Mainnet RPC for ENS resolution (RainbowKit needs this)
     },
     // CRITICAL: autoConnect is false by default in wagmi v2
     // This prevents wagmi from auto-selecting Farcaster connector outside FC environment
@@ -287,7 +283,7 @@ export function getWagmiConfig() {
 // Type assertion needed because config can be null during SSR
 export const config: ReturnType<typeof createConfig> = typeof window !== 'undefined' ? getWagmiConfig() : ({} as ReturnType<typeof createConfig>)
 
-// Export chains for RainbowKit (excludes mainnet - only Base chains)
+// Export chains for RainbowKit (Base only)
 // Mainnet is kept in wagmi config for ENS resolution but hidden from chain switcher
 export function getRainbowKitChains(): [Chain, ...Chain[]] {
   return configuredChains

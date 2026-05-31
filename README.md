@@ -10,9 +10,9 @@
 
 | Contract | Proxy (use in app) | Basescan |
 |----------|--------------------|----------|
-| **PointsRewardDistributor** | [`0x9F42cf21fB3d5855E2c0B6FCDf5F4A2Cbc1332ba`](https://basescan.org/address/0x9F42cf21fB3d5855E2c0B6FCDf5F4A2Cbc1332ba) | [Read as Proxy](https://basescan.org/address/0x9F42cf21fB3d5855E2c0B6FCDf5F4A2Cbc1332ba#readProxyContract) |
-| **ImpactProductNFT** | [`0x0B3A52260d62268BE75A7EfA12f16E83Ef218656`](https://basescan.org/address/0x0B3A52260d62268BE75A7EfA12f16E83Ef218656) | [Read as Proxy](https://basescan.org/address/0x0B3A52260d62268BE75A7EfA12f16E83Ef218656#readProxyContract) |
-| **VerificationContract** | [`0x7fC07dbE598827E619459390674C028BADdD75F5`](https://basescan.org/address/0x7fC07dbE598827E619459390674C028BADdD75F5) | [Read as Proxy](https://basescan.org/address/0x7fC07dbE598827E619459390674C028BADdD75F5#readProxyContract) |
+| **PointsRewardDistributor** | [`0x492065137E07c660DCfAe4dC335A3Fa9C1203dd9`](https://basescan.org/address/0x492065137E07c660DCfAe4dC335A3Fa9C1203dd9) | [Read as Proxy](https://basescan.org/address/0x492065137E07c660DCfAe4dC335A3Fa9C1203dd9#readProxyContract) |
+| **ImpactProductNFT** | [`0x8D71Cd7445423CD42293E196B91E47f085E81BCf`](https://basescan.org/address/0x8D71Cd7445423CD42293E196B91E47f085E81BCf) | [Read as Proxy](https://basescan.org/address/0x8D71Cd7445423CD42293E196B91E47f085E81BCf#readProxyContract) |
+| **VerificationContract** | [`0x69715d43EA6D46F65045FCe2391D9B7F89ec819F`](https://basescan.org/address/0x69715d43EA6D46F65045FCe2391D9B7F89ec819F) | [Read as Proxy](https://basescan.org/address/0x69715d43EA6D46F65045FCe2391D9B7F89ec819F#readProxyContract) |
 | **bDCU Token** | `0x30171b7014c02229497cde6745dd3ad821f12b07` | [Basescan](https://basescan.org/address/0x30171b7014c02229497cde6745dd3ad821f12b07) |
 
 Implementations are verified so proxy pages support “Read as Proxy” / “Write as Proxy”. Deploy and verify: [contracts/DEPLOY_MAINNET.md](contracts/DEPLOY_MAINNET.md).
@@ -47,7 +47,7 @@ DeCleanup Rewards is a fully functional, production-ready Farcaster Mini App tha
 - **Verification System**: Team and community verifiers can approve/reject cleanups
 - **Impact Products**: 10 progressive NFT levels (Newbie → Guardian)
 - **DCU Points**: Earn points for various actions (cleanup: 10 pts, streak: 1 pt, referral: 3 pts, etc.)
-- **Token Claims**: Convert DCU points to $bDCU tokens (requires Level 3 and minimum 100 points)
+- **Token Claims**: Convert DCU points to $bDCU tokens (requires Level 3 and minimum 30 points)
 - **Staking**: Stake tokens to become a verifier (requires ≥51% of balance and Level 3)
 - **Add App Modal**: Prompts users to add app to Farcaster or pin to Base after onboarding
 - **Bot Protection**: Vercel Bot ID protection on sensitive routes (Edge-level, no user friction)
@@ -94,7 +94,7 @@ tokens = (usdValue × 1e18 × 1e8) / currentTokenPriceUSD
 ```
 
 **Minimum Requirements:**
-- Minimum 100 DCU points required to claim tokens
+- Minimum 30 DCU points required to claim tokens
 - User must reach Level 3 to claim tokens
 
 **Staking Rules:**
@@ -102,7 +102,7 @@ tokens = (usdValue × 1e18 × 1e8) / currentTokenPriceUSD
 - To become verifier: stake **≥51% of available token balance** at time of staking
 - Verifier status lost if unstaking reduces balance below 50% of original stake (unless manually added)
 - Admin can manually add verifiers (bypasses staking requirement and persists after unstaking)
-- Minimum 100 DCU points required to claim tokens
+- Minimum 30 DCU points required to claim tokens
 
 ---
 

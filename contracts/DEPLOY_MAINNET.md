@@ -39,6 +39,9 @@ Copy the proxy addresses from the output into the app’s `.env.local` (and root
 - `NEXT_PUBLIC_IMPACT_PRODUCT_NFT_ADDRESS` (or `NEXT_PUBLIC_IMPACT_PRODUCT_CONTRACT`)
 - `NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS`
 
+**After redeploy: update README and .env.example**  
+Addresses are written to `contracts/deployment-base-upgradeable.json`. Update the root **README.md** “Live on Mainnet” table and **.env.example** with the proxy addresses from that file (`contracts.PointsRewardDistributor`, `contracts.ImpactProductNFT`, `contracts.VerificationContract`). bDCU token stays `0x30171b7014c02229497cde6745dd3ad821f12b07`.
+
 **Note:** The current **PointsRewardDistributor** source uses `MINIMUM_LEVEL_FOR_STAKING = 3`. If you are upgrading an existing proxy, the new implementation will enforce level 3 for claiming and staking once the upgrade is complete.
 
 ## 2. Verify on Basescan
@@ -64,9 +67,20 @@ Run with `--network base` (script enforces Base mainnet):
 npx hardhat run scripts/verify-on-basescan.js --network base
 ```
 
-## 3. Upgrade PointsRewardDistributor (if needed)
+## 3. Upgrade contracts (if needed)
 
-If you need to upgrade only the PointsRewardDistributor (e.g. to change minimum level or other logic):
+### ⚠️ 30 DCU minimum to claim tokens — upgrade required
+
+The contract source now uses **MINIMUM_POINTS_TO_CLAIM = 30** (and level 3 for eligibility). To get this live on mainnet you must **upgrade** the PointsRewardDistributor proxy (same address, new implementation):
+
+```bash
+cd contracts
+npm run upgrade:pointsDistributor:base
+```
+
+The script uses the proxy address from `deployment-base-upgradeable.json` or `POINTS_REWARD_DISTRIBUTOR_ADDRESS` in `contracts/.env`. After the upgrade, users need only **30 DCU** (and level 3) to claim tokens. Then run verification again (step 2).
+
+### Upgrade PointsRewardDistributor only (other changes)
 
 ```bash
 cd contracts
@@ -74,6 +88,31 @@ npm run upgrade:pointsDistributor:base
 ```
 
 Then run verification again (step 2). The app reads `hasMinimumLevel` from the contract; the current source uses **level 3** as the minimum for claiming and staking.
+
+### Upgrade all three (gas-optimized claim)
+
+To enable the gas-optimized claim flow (single reward call, no auto fee transfer, no URI storage on claim):
+
+1. **PointsRewardDistributor** — adds `awardClaimRewards` (batch streak + referral + impact form)
+2. **VerificationContract** — single `awardClaimRewards` call, fees accumulate (owner withdraws via `withdrawFees()`)
+3. **ImpactProductNFT** — no `_setTokenURI` on claim/update/decrease (URI computed in `tokenURI()`)
+
+Run all three upgrades in one go:
+
+```bash
+cd contracts
+npm run upgrade:all:base
+```
+
+Or upgrade individually (order does not matter for correctness; PointsRewardDistributor should be upgraded first so VerificationContract can call the new batch):
+
+```bash
+npm run upgrade:pointsDistributor:base
+npm run upgrade:verification:base
+npm run upgrade:impactNFT:base
+```
+
+Then run verification again (step 2).
 
 ## 4. Why is my fee treasury empty?
 
@@ -101,7 +140,39 @@ CLAIM_FEE_WEI=10000000000000 CLAIM_FEE_ENABLED=true npx hardhat run scripts/setF
 
 Or use [Basescan](https://basescan.org) → VerificationContract proxy → “Write as Proxy” → `setClaimFee`. Keep submission fee at 0.
 
-## 5. Frontend / App
+## 5. Withdraw accumulated fees (back to you)
+
+**Yes, you can withdraw the fees.** The VerificationContract holds any claim (or submission) fees it receives. As the contract **owner**, you can pull that ETH out at any time.
+
+- **Recipient:** ETH goes to `feeTreasury` if you set it (e.g. via deploy or `setFeeTreasury`), otherwise to the contract **owner** (deployer).
+- **No per-user tracking:** The contract does not record who paid what; it only has a single balance. So you withdraw the full balance to one address (treasury or owner), not “back to each sender.”
+
+**If you use the gas-optimized upgrade:** Fees no longer auto-transfer on each claim. They **accumulate** on the contract until you call `withdrawFees()`. That call sends the contract’s entire ETH balance to the fee treasury (if set) or to the owner.
+
+**From the repo (as owner, from `contracts/`):**
+
+```bash
+cd contracts
+# Base mainnet
+npm run withdrawFees:base
+# Base Sepolia
+npm run withdrawFees:baseSepolia
+```
+
+The script uses `VERIFICATION_CONTRACT_ADDRESS` (or `NEXT_PUBLIC_VERIFICATION_CONTRACT_ADDRESS`) from `contracts/.env`, shows the contract balance and whether fees will go to fee treasury or owner, then calls `withdrawFees()`. You need to be the contract owner (same key as deployer / upgrade).
+
+**On Basescan:** VerificationContract proxy → “Write as Proxy” → connect owner wallet → `withdrawFees()` (no args).
+
+**Send fees to a specific user (refund):** After upgrading VerificationContract (so it has `withdrawFeesTo(address)`), you can send the contract’s fee balance directly to one address in one tx:
+
+```bash
+cd contracts
+REFUND_RECIPIENT=0x7D85fCbB505D48E6176483733b62b51704e0bF95 npm run withdrawFeesTo:base
+```
+
+Or on Basescan: VerificationContract proxy → “Write as Proxy” → `withdrawFeesTo(address)` with the user’s address. The contract’s full ETH balance is sent to that address. (No per-user tracking; use when you want to refund one known address.)
+
+## 6. Frontend / App
 
 - Set **Base Mainnet** in the app:
   - `NEXT_PUBLIC_CHAIN_ID=8453`
