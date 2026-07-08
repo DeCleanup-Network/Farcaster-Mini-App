@@ -59,6 +59,7 @@ function CleanupContent() {
   const [mounted, setMounted] = useState(false)
   const [referrerAddress, setReferrerAddress] = useState<Address | null>(null)
   const [step, setStep] = useState<Step>('before')
+  const [lowResPhoto, setLowResPhoto] = useState(false)
   const [beforePhoto, setBeforePhoto] = useState<File | null>(null)
   const [afterPhoto, setAfterPhoto] = useState<File | null>(null)
   const [beforePhotoUrl, setBeforePhotoUrl] = useState<string | null>(null)
@@ -480,6 +481,8 @@ function CleanupContent() {
               const img = new Image()
               img.onload = () => {
                 // Image loaded successfully, now it's safe to set state
+                // Non-blocking resolution hint for AI pre-screening.
+                if (Math.max(img.naturalWidth, img.naturalHeight) < 1200) setLowResPhoto(true)
                 if (type === 'before') {
                   setBeforePhoto(file)
                   setBeforePhotoUrl(objectUrl)
@@ -1595,6 +1598,11 @@ function CleanupContent() {
             <p className="mt-2 text-center text-xs text-gray-500">
               For the best AI pre-screening: use clear, well-lit photos taken close to the litter. Blurry or very distant shots make the litter hard to detect.
             </p>
+            {lowResPhoto && (
+              <p className="mt-2 text-center text-xs text-amber-400">
+                One of your photos is low-resolution. For a full AI assessment, upload a larger original (about 1200px or more on the long side). You can still submit — a human verifier reviews every cleanup.
+              </p>
+            )}
             <div className="mt-3 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3 text-center">
               <p className="text-xs text-blue-300">
                 <strong>Note:</strong> Make sure your wallet is connected to {REQUIRED_CHAIN_NAME} to ensure smooth performance and successful transactions.

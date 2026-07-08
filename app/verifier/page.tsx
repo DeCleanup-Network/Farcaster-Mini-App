@@ -23,6 +23,7 @@ import { waitForTransactionReceipt, getEnsName } from 'wagmi/actions'
 import { getWagmiConfig, REQUIRED_BLOCK_EXPLORER_URL, REQUIRED_CHAIN_NAME, REQUIRED_CHAIN_ID, REQUIRED_RPC_URL } from '@/lib/wagmi'
 import { WalletConnect } from '@/components/wallet/WalletConnect'
 import { getIPFSUrl, getIPFSFallbackUrls } from '@/lib/ipfs'
+import { BaseMlScore } from '@/components/verifier/BaseMlScore'
 import { findCleanupsByWallet } from '@/lib/find-cleanup-by-wallet'
 import { tryAddRequiredChain, attemptSwitchToRequiredChain as attemptSwitchToRequiredChainLib } from '@/lib/network'
 import { getCurrentChainIdCached } from '@/lib/chain-detection'
@@ -1488,6 +1489,8 @@ export default function VerifierPage() {
                     </div>
                   </div>
                   
+                  <BaseMlScore cleanupId={`base-${cleanup.id.toString()}`} />
+
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="text-sm text-gray-400">
                       Level will be assigned automatically based on user's current Impact Product level (next level up, max 10)
