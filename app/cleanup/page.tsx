@@ -18,6 +18,7 @@ import { openUrl } from '@/lib/farcaster'
 import { TransactionModal, useTransactionModal } from '@/components/ui/transaction-modal'
 import { OnboardingFlow } from '@/components/onboarding/OnboardingFlow'
 import { AddAppModal } from '@/components/onboarding/AddAppModal'
+import { isMlVerificationEnabled, parseMlScore, type MlPayload } from '@/lib/ml-verification'
 import {
   REQUIRED_CHAIN_ID,
   REQUIRED_CHAIN_NAME,
@@ -69,6 +70,9 @@ function CleanupContent() {
   const [isGettingLocation, setIsGettingLocation] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
   const [manualLocationMode, setManualLocationMode] = useState(false)
+  // Advisory ML pre-screening (feature-flagged, never blocks the flow)
+  const [mlLoading, setMlLoading] = useState(false)
+  const [mlScore, setMlScore] = useState<ReturnType<typeof parseMlScore>>(null)
   const [manualLatInput, setManualLatInput] = useState('')
   const [manualLngInput, setManualLngInput] = useState('')
   const [hostName, setHostName] = useState('')
@@ -908,8 +912,57 @@ function CleanupContent() {
           }).catch(() => {})
         }
 
+        // Advisory ML pre-screening (best-effort; NEVER blocks the flow; feature-flagged)
+        if (isMlVerificationEnabled()) {
+          const submissionIdStr = cleanupId.toString()
+          setMlScore(null)
+          setMlLoading(true)
+          void (async () => {
+            let settled = false
+            const apply = (payload: MlPayload | null): boolean => {
+              const parsed = parseMlScore(payload)
+              if (!parsed) return false
+              setMlScore(parsed)
+              settled = true
+              return true
+            }
+            const poll = async () => {
+              for (let i = 0; i < 22 && !settled; i++) {
+                await new Promise((r) => setTimeout(r, 12_000))
+                if (settled) return
+                try {
+                  const res = await fetch(
+                    `/api/ml-verification/result?cleanupId=${encodeURIComponent(submissionIdStr)}`,
+                  )
+                  if (res.ok && apply((await res.json()) as MlPayload)) return
+                } catch {
+                  /* keep polling */
+                }
+              }
+            }
+            try {
+              const res = await fetch('/api/ml-verification/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  cleanupId: submissionIdStr,
+                  beforeImageCid: beforeHash.hash,
+                  afterImageCid: afterHash.hash,
+                }),
+              })
+              if (!res.ok || !apply((await res.json()) as MlPayload)) {
+                await poll()
+              }
+            } catch {
+              await poll()
+            } finally {
+              setMlLoading(false)
+            }
+          })()
+        }
+
         setStep('review')
-        
+
         // Show transaction modal with success message
         const explorerUrl = `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${transactionHash}`
         showSuccess(
@@ -1539,6 +1592,9 @@ function CleanupContent() {
             <p className="text-center text-sm text-gray-400">
               Upload before and after cleanup photos with geotag. Supported formats: JPEG, JPG, HEIC. Maximum size per image: 10 MB.
             </p>
+            <p className="mt-2 text-center text-xs text-gray-500">
+              For the best AI pre-screening: use clear, well-lit photos taken close to the litter. Blurry or very distant shots make the litter hard to detect.
+            </p>
             <div className="mt-3 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3 text-center">
               <p className="text-xs text-blue-300">
                 <strong>Note:</strong> Make sure your wallet is connected to {REQUIRED_CHAIN_NAME} to ensure smooth performance and successful transactions.
@@ -2001,13 +2057,47 @@ function CleanupContent() {
           </div>
         )}
 
+        {isMlVerificationEnabled() && (mlLoading || mlScore) && (
+          <div className="mb-6 rounded-xl border border-cyan-500/40 bg-cyan-950/20 p-4 text-left">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-cyan-200">
+              AI Pre-Screening
+            </p>
+            {mlScore ? (
+              <>
+                <span
+                  className={`inline-block rounded-full px-3 py-1 text-xs font-bold uppercase ${
+                    mlScore.verdict === 'approved'
+                      ? 'bg-emerald-500/30 text-emerald-100'
+                      : mlScore.verdict === 'rejected'
+                        ? 'bg-amber-500/30 text-amber-100'
+                        : 'bg-yellow-500/25 text-yellow-100'
+                  }`}
+                >
+                  {mlScore.verdict}
+                </span>
+                <p className="mt-2 text-xs text-gray-400">
+                  Litter removed: {Math.max(0, Math.round(mlScore.score * 100))}% · before{' '}
+                  {mlScore.beforeCount} / after {mlScore.afterCount}
+                </p>
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Advisory only. A human verifier makes the final decision.
+                </p>
+              </>
+            ) : (
+              <p className="flex items-center gap-2 text-xs text-gray-400">
+                <Loader2 className="h-4 w-4 animate-spin" /> Checking photos…
+              </p>
+            )}
+          </div>
+        )}
+
         <Button
           disabled
           className="w-full bg-gray-800 text-gray-400"
         >
           In Review
         </Button>
-        
+
         <p className="mt-4 text-xs text-gray-500">
           Redirecting to home page...
         </p>
