@@ -890,8 +890,13 @@ function CleanupContent() {
         )
         const cleanupId = result.cleanupId
         const transactionHash = result.transactionHash
+        const confirmed = result.confirmed
+        // cleanupId can be null when the tx landed but the id lookup hit a transient RPC issue
+        // (or the receipt itself couldn't be confirmed). We still show success/pending — never a
+        // hard error — and just skip the id-dependent side effects.
+        const cleanupIdStr = cleanupId !== null ? cleanupId.toString() : null
 
-        console.log('✅ Cleanup submitted with ID:', cleanupId.toString())
+        console.log('✅ Cleanup submitted. ID:', cleanupIdStr ?? '(pending lookup)', '| confirmed:', confirmed)
         console.log('✅ Transaction hash:', transactionHash)
         console.log('✅ Referrer address used in submission:', referrerAddress || 'none (no referrer)')
         if (referrerAddress && referrerAddress !== '0x0000000000000000000000000000000000000000') {
@@ -899,12 +904,12 @@ function CleanupContent() {
         }
 
         // Notify Telegram (best-effort; do not block UX)
-        if (address && location) {
+        if (address && location && cleanupIdStr) {
           fetch('/api/notify-cleanup-submission', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              cleanupId: cleanupId.toString(),
+              cleanupId: cleanupIdStr,
               submitterAddress: address,
               beforePhotoHash: beforeHash.hash,
               afterPhotoHash: afterHash.hash,
@@ -916,8 +921,8 @@ function CleanupContent() {
         }
 
         // Advisory ML pre-screening (best-effort; NEVER blocks the flow; feature-flagged)
-        if (isMlVerificationEnabled()) {
-          const submissionIdStr = cleanupId.toString()
+        if (isMlVerificationEnabled() && cleanupIdStr) {
+          const submissionIdStr = cleanupIdStr
           setMlScore(null)
           setMlLoading(true)
           void (async () => {
@@ -968,9 +973,14 @@ function CleanupContent() {
 
         // Show transaction modal with success message
         const explorerUrl = `${REQUIRED_BLOCK_EXPLORER_URL}/tx/${transactionHash}`
+        const successMessage = !confirmed
+          ? `Your cleanup was submitted. We couldn't confirm it instantly — check the transaction on the explorer; verification will proceed once it's confirmed.`
+          : cleanupIdStr
+            ? `Your cleanup has been submitted and is pending verification. Cleanup ID: ${cleanupIdStr}`
+            : `Your cleanup has been submitted and is pending verification.`
         showSuccess(
           'Cleanup Submitted Successfully!',
-          `Your cleanup has been submitted and is pending verification. Cleanup ID: ${cleanupId.toString()}`,
+          successMessage,
           {
             transactionHash,
             actionLabel: 'View Transaction',
@@ -979,9 +989,9 @@ function CleanupContent() {
             },
           }
         )
-        
+
         // Store cleanup ID using storage manager (scoped to user address)
-        if (typeof window !== 'undefined' && address) {
+        if (typeof window !== 'undefined' && address && cleanupId !== null) {
           const { setPendingCleanupId, setPendingCleanupLocation, removeReferrer } = await import('@/lib/storage-manager')
           setPendingCleanupId(address, cleanupId)
           setPendingCleanupLocation(address, location)

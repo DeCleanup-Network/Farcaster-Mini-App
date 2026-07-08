@@ -911,7 +911,7 @@ export async function submitCleanup(
     args: readonly unknown[]
     value: bigint
   }) => Promise<`0x${string}`> // Optional transaction sender (for Builder Code support)
-): Promise<{ cleanupId: bigint; transactionHash: `0x${string}` }> {
+): Promise<{ cleanupId: bigint | null; transactionHash: `0x${string}`; confirmed: boolean }> {
   // CRITICAL: Ensure wallet is connected FIRST - before ANY other logic
   // This prevents WalletConnect QR hang bug by ensuring connector is bound before chain switching
   // Lock the wallet address to ensure we use the same address throughout the transaction
@@ -1260,18 +1260,20 @@ export async function submitCleanup(
       120000, // 2 minutes timeout
       'Transaction receipt timeout - transaction may still be pending. Please check the block explorer.'
     )
-  console.log('Transaction confirmed in block:', receipt.blockNumber)
+    console.log('Transaction confirmed in block:', receipt.blockNumber)
   } catch (timeoutError) {
-    if (timeoutError instanceof TimeoutError) {
-      throw new Error(
-        `Transaction submitted but receipt timeout. ` +
-        `Transaction hash: ${hash}. ` +
-        `Please check the block explorer: ${getTxExplorerUrl(hash)}`
-      )
-    }
-    throw timeoutError
+    // The transaction was already broadcast (we have `hash`), we just couldn't confirm the
+    // receipt (timeout or a transient RPC hiccup). This is NOT a submit failure — surface a
+    // pending result so the UI shows "submitted, check explorer" instead of a hard error.
+    console.warn('Receipt wait failed; treating as pending:', getErrorMessage(timeoutError))
+    return { cleanupId: null, transactionHash: hash, confirmed: false }
   }
-  
+
+  // A reverted transaction is a REAL failure — surface it.
+  if (receipt.status !== 'success') {
+    throw new Error(`Transaction reverted on-chain (hash: ${hash}). Please try again.`)
+  }
+
   // Get cleanup ID from counter (counter - 1, since counter increments after submission)
   let cleanupId: bigint
   try {
@@ -1297,15 +1299,15 @@ export async function submitCleanup(
       throw new Error(`Invalid cleanup ID: ${cleanupId.toString()}. Counter: ${cleanupCounter.toString()}`)
     }
     
-    return { cleanupId, transactionHash: hash }
+    return { cleanupId, transactionHash: hash, confirmed: true }
   } catch (error: any) {
     const errorMessage = getErrorMessage(error)
     console.error('Error getting cleanup ID:', errorMessage)
-    
+
     // If we have a simulated ID, use it as fallback
     if (simulatedCleanupId && simulatedCleanupId >= BigInt(1)) {
       console.warn('Using simulated cleanup ID as fallback:', simulatedCleanupId.toString())
-      return { cleanupId: simulatedCleanupId, transactionHash: hash }
+      return { cleanupId: simulatedCleanupId, transactionHash: hash, confirmed: true }
     }
     
     // Last resort: try to get counter one more time with longer wait
@@ -1320,25 +1322,18 @@ export async function submitCleanup(
       const fallbackId = finalCounter - BigInt(1)
       if (fallbackId >= BigInt(1)) {
         console.log('Got cleanup ID on retry:', fallbackId.toString())
-        // Note: hash should be available from the outer scope where transaction was sent
-        if (hash) {
-          return { cleanupId: fallbackId, transactionHash: hash }
-        }
-        // If hash is not available (shouldn't happen), throw error
-        throw new Error('Transaction hash not available for fallback cleanup ID')
+        return { cleanupId: fallbackId, transactionHash: hash, confirmed: true }
       }
       console.error('Retry returned invalid ID:', fallbackId.toString(), 'Counter:', finalCounter.toString())
     } catch (retryError: any) {
       console.error('Retry also failed:', getErrorMessage(retryError))
     }
-    
-    // If all else fails, throw error but include transaction hash
-    throw new Error(
-      `Cleanup transaction submitted (hash: ${hash}) but could not retrieve ID. ` +
-      `Please check the transaction on ${BLOCK_EXPLORER_NAME}: ${getTxExplorerUrl(hash)}. ` +
-      `The cleanup may have been submitted successfully - check the transaction receipt. ` +
-      `Error: ${errorMessage}`
-    )
+
+    // The receipt already confirmed success (checked above), we just couldn't read the id.
+    // Do NOT report a failure — return a confirmed result with a null id; the verifier
+    // dashboard lists submissions independently, and the user's cleanup is on-chain.
+    console.warn(`Cleanup confirmed (hash: ${hash}) but id lookup failed: ${errorMessage}`)
+    return { cleanupId: null, transactionHash: hash, confirmed: true }
   }
 }
 
