@@ -1,10 +1,24 @@
-# DeCleanup Rewards
+# DeCleanup Rewards (archived)
 
-> **Farcaster Mini App that gamifies environmental cleanup through Impact Product NFTs, DCU points, and $bDCU token rewards on Base.**
+> **This repository is archived.** The live DeCleanup dapp is at **[https://dapp.decleanup.net](https://dapp.decleanup.net)**.
 
-## Live on Mainnet
+This repo was the Base / Farcaster Mini App for DeCleanup Rewards (Impact Product NFTs, DCU points, and $bDCU on Base). It is kept for historical reference only — no further development or support here.
 
-**🌐 [Farcaster Mini App](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards)** · **🌍 [Web App](https://decleanup.net)** · **👨‍💻 [Developer Specs](DEVELOPER_SPECS.md)** · **🔐 [Security Audit](SECURITY_AUDIT.md)** · **📄 [Terms of Service](TERMS_OF_SERVICE.md)**
+## Where to go
+
+| | |
+|---|---|
+| **Live dapp** | **[https://dapp.decleanup.net](https://dapp.decleanup.net)** |
+| Network landing | [https://decleanup.net](https://decleanup.net) |
+| Farcaster listing (legacy) | [DeCleanup Rewards](https://farcaster.xyz/miniapps/SfsGBDcHpuSA/decleanup-rewards) |
+
+Docs below (contracts, security audit, terms) describe this archived Base mini app snapshot.
+
+---
+
+## Live on Mainnet (historical — Base)
+
+**🌐 [dapp.decleanup.net](https://dapp.decleanup.net)** · **🌍 [decleanup.net](https://decleanup.net)** · **👨‍💻 [Developer Specs](DEVELOPER_SPECS.md)** · **🔐 [Security Audit](SECURITY_AUDIT.md)** · **📄 [Terms of Service](TERMS_OF_SERVICE.md)**
 
 **Base Mainnet** (Chain ID 8453). Contracts are verified on [Basescan](https://basescan.org):
 
